@@ -1,0 +1,5 @@
+package com.example.food_delivery_platform
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()
