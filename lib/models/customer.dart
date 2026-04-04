@@ -17,13 +17,15 @@ class Customer extends User {
   });
 
   factory Customer.fromMap(Map<String, dynamic> map) {
+    final locationValue = map['location'];
+
     return Customer(
       id: (map['id'] ?? '').toString(),
       phone: (map['phone'] ?? '').toString(),
       name: (map['name'] ?? '').toString(),
       createdAt: (map['createdAt'] ?? '').toString(),
       email: (map['email'] ?? '').toString(),
-      location: (map['location'] as GeoPoint?),
+      location: locationValue is GeoPoint ? locationValue : null,
     );
   }
 

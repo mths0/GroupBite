@@ -31,6 +31,8 @@ class Restaurant extends User {
   });
 
   factory Restaurant.fromMap(Map<String, dynamic> map) {
+    final locationValue = map['location'];
+
     return Restaurant(
       id: (map['id'] ?? '').toString(),
       phone: (map['phone'] ?? '').toString(),
@@ -38,7 +40,7 @@ class Restaurant extends User {
       createdAt: (map['createdAt'] ?? '').toString(),
       email: (map['email'] ?? '').toString(),
       type: (map['type'] ?? '').toString(),
-      location: map['location'] as GeoPoint?,
+      location: locationValue is GeoPoint ? locationValue : null,
       imageUrl: (map['imageUrl'] ?? '').toString(),
       rating: (map['rating'] ?? 0).toDouble(),
       deliveryFee: (map['deliveryFee'] ?? 0).toDouble(),

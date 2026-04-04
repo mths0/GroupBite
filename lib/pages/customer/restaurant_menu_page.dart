@@ -4,7 +4,7 @@ import 'package:food_delivery_platform/mock/mock_menu_items_repository.dart';
 
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart' as app_models;
-import 'package:food_delivery_platform/pages/customer/cart_page.dart';
+import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 
 class RestaurantMenuPage extends StatefulWidget {
   const RestaurantMenuPage({
@@ -139,13 +139,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => CartScope(
-                        notifier: cart,
-                        child: CartPage(
-                          restaurantId: restaurantId,
-                          restaurantName: widget.restaurant.name,
-                        ),
-                      ),
+                      builder: (_) => const CartScreen(),
                     ),
                   );
                 },

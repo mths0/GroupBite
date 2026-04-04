@@ -20,6 +20,8 @@ class Driver extends User {
   }) : _status = status;
 
   factory Driver.fromMap(Map<String, dynamic> map) {
+    final locationValue = map['location'];
+
     return Driver(
       id: map['id'],
       phone: map['phone'],
@@ -30,7 +32,7 @@ class Driver extends User {
         (e) => e.name == map['status'],
         orElse: () => DriverStatus.offline,
       ),
-      location: map['location'] as GeoPoint?,
+      location: locationValue is GeoPoint ? locationValue : null,
     );
   }
 

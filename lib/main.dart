@@ -1,24 +1,31 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
-
+import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/themes/app_theme.dart';
+
+import 'firebase_options.dart';
 
 // var kColorScheme = ColorScheme.fromSeed(
 //   seedColor: const Color.fromRGBO(245, 124, 0, 1),
 // );
 
-// Restaurant 500000000 
+// Restaurant 500000000
 // Customer 511111111
 // Driver 522222222
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (error) {
+    if (error.code != 'duplicate-app') {
+      rethrow;
+    }
+    Firebase.app();
+  }
 
   runApp(const OurApp());
 }
