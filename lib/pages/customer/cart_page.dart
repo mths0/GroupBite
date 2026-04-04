@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
+import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 
 class CartPage extends StatelessWidget {
   const CartPage({
@@ -94,7 +95,13 @@ class CartPage extends StatelessWidget {
                       SizedBox(
                         width: 120,
                         child: ElevatedButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => CartScreen(key: UniqueKey()),
+                              ),
+                            );
+                          },
                           child: const Text('Checkout'),
                         ),
                       ),

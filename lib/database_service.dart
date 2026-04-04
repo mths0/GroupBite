@@ -108,11 +108,6 @@ class DatabaseService {
           "Sorry! Another driver has already accepted this order.",
         );
       }
-      void add(a, b) { // a & b are positional parameters
- print(a + b); // print() is a built-in function that will be explained later
-}
-add(5, 10); // 5 is used as a value for a, because it’s the first argument;10 is used as a value for b.
-      // if not taken, accept it
       transaction.update(docRef, {'driverId': driverId, 'status': 'accepted'});
     });
   }
