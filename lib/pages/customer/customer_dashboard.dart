@@ -14,7 +14,6 @@ class CustomerDashboard extends StatefulWidget {
 }
 
 class _CustomerDashboardState extends State<CustomerDashboard> {
-  
   int _navIndex = 0;
   final PageController _pageController = PageController();
 
@@ -109,31 +108,4 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       ),
     );
   }
-
-  
-}
-
-//Todo Add distance from user to restaurant and add sorting by distance and rating and by offers
-class RestaurantItem {
-  final String id;
-  final String name;
-  final double rating;
-  final String deliveryTime;
-  final String deliveryFee;
-  final List<String> tags;
-  final String imageUrl;
-  final bool isOpen;
-  final bool hasOffer;
-
-  const RestaurantItem({
-    required this.id,
-    required this.name,
-    required this.rating,
-    required this.deliveryTime,
-    required this.deliveryFee,
-    required this.tags,
-    required this.imageUrl,
-    required this.isOpen,
-    required this.hasOffer,
-  });
 }

@@ -122,10 +122,142 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            HeaderCard(restaurant: restaurant),
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                  child: Image.network(
+                    restaurant.imageUrl,
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Container(
+                      height: 160,
+                      color: scheme.surfaceContainerHighest,
+                      child: const Center(
+                        child: Icon(Icons.image_not_supported),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 10,
+                  top: 10,
+                  child: Row(
+                    children: [
+                      if (restaurant.hasOffer)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: scheme.secondary,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'Offer',
+                            style: TextStyle(color: scheme.onSecondary),
+                          ),
+                        ),
+                      if (restaurant.hasOffer) const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: restaurant.isOpen
+                              ? Colors.green
+                              : scheme.outline,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          restaurant.isOpen ? 'Open' : 'Closed',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    restaurant.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.amber, size: 16),
+                      const SizedBox(width: 4),
+                      Text(restaurant.rating.toStringAsFixed(1)),
+                      const SizedBox(width: 12),
+                      const Icon(Icons.access_time, size: 16),
+                      const SizedBox(width: 4),
+                      Text(_estimateDeliveryTime(restaurant)),
+                      const SizedBox(width: 12),
+                      const Icon(Icons.attach_money, size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        restaurant.deliveryFee == 0
+                            ? 'Free'
+                            : '${restaurant.deliveryFee.toStringAsFixed(0)} SAR',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: restaurant.tags
+                        .map(
+                          (tag) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: scheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(tag),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  String _estimateDeliveryTime(Restaurant restaurant) {
+    if (!restaurant.isOpen) {
+      return 'Unavailable';
+    }
+
+    if (restaurant.deliveryFee == 0) {
+      return '20-25 min';
+    }
+
+    if (restaurant.deliveryFee <= 10) {
+      return '25-30 min';
+    }
+
+    return '30-40 min';
   }
 }
