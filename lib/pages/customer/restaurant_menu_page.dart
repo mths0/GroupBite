@@ -139,7 +139,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const CartScreen(),
+                      builder: (_) => CartScope(
+                        notifier: cart,
+                        child: CartScreen(restaurantId: restaurantId),
+                      ),
                     ),
                   );
                 },

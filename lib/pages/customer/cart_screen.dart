@@ -3,7 +3,10 @@
 import 'package:flutter/material.dart';
 
 import '../../mock/mock_cart_repository.dart';
-import '../../models/cart_models.dart';
+import '../../models/cart_item.dart' as app_models;
+import '../../models/cart_models.dart' as cart_models;
+import '../../cart/cart_controller.dart';
+import '../../cart/cart_scope.dart';
 
 enum _DeliveryTimeOption { asap, schedule }
 
@@ -11,7 +14,12 @@ const String _kPaymentCreditCard = 'pay_credit';
 const String _kPaymentWallet = 'pay_wallet';
 
 class CartScreen extends StatefulWidget {
-  const CartScreen({super.key});
+  const CartScreen({
+    super.key,
+    required this.restaurantId,
+  });
+
+  final String restaurantId;
 
   @override
   State<CartScreen> createState() => _CartScreenState();
@@ -22,15 +30,15 @@ class _CartScreenState extends State<CartScreen> {
   // Dependencies
   // ---------------------------------------------------------------------------
   final MockCartRepository _repo = MockCartRepository();
+  late final CartController _cart;
 
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
   bool _isLoading = true;
-  List<CartItem> _cartItems = [];
-  CheckoutData? _checkoutData;
-  List<Address> _addresses = [];
-  Coupon? _appliedCoupon;
+  cart_models.CheckoutData? _checkoutData;
+  List<cart_models.Address> _addresses = [];
+  cart_models.Coupon? _appliedCoupon;
   bool _isValidatingCoupon = false;
   bool _isShowingCheckout = false;
   String? _selectedAddressId;
@@ -43,6 +51,12 @@ class _CartScreenState extends State<CartScreen> {
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cart = CartScope.of(context);
+  }
 
   @override
   void initState() {
@@ -62,7 +76,6 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _loadData() async {
     final results = await Future.wait([
-      _repo.getCartItems(),
       _repo.getCheckoutData(),
       _repo.getAddresses(),
     ]);
@@ -70,9 +83,8 @@ class _CartScreenState extends State<CartScreen> {
     if (!mounted) return;
 
     setState(() {
-      _cartItems = results[0] as List<CartItem>;
-      _checkoutData = results[1] as CheckoutData;
-      _addresses = results[2] as List<Address>;
+      _checkoutData = results[0] as cart_models.CheckoutData;
+      _addresses = results[1] as List<cart_models.Address>;
       if (_addresses.isNotEmpty) {
         _selectedAddressId = _addresses.first.id;
       }
@@ -84,30 +96,29 @@ class _CartScreenState extends State<CartScreen> {
   // Cart Mutations
   // ---------------------------------------------------------------------------
 
-  void _incrementQuantity(int index) {
-    setState(() => _cartItems[index].quantity++);
+  void _incrementQuantity(app_models.CartItem item) {
+    _cart.addItem(restaurantId: widget.restaurantId, item: item.menuItem);
   }
 
-  void _decrementQuantity(int index) {
-    setState(() {
-      if (_cartItems[index].quantity > 1) {
-        _cartItems[index].quantity--;
-      } else {
-        _cartItems.removeAt(index);
-      }
-    });
+  void _decrementQuantity(app_models.CartItem item) {
+    _cart.decreaseItem(
+      restaurantId: widget.restaurantId,
+      menuItemId: item.menuItem.id,
+    );
   }
 
-  void _removeItem(int index) {
-    setState(() => _cartItems.removeAt(index));
+  void _removeItem(app_models.CartItem item) {
+    _cart.removeItem(
+      restaurantId: widget.restaurantId,
+      menuItemId: item.menuItem.id,
+    );
   }
 
   // ---------------------------------------------------------------------------
   // Calculations
   // ---------------------------------------------------------------------------
 
-  double get _subtotal =>
-      _cartItems.fold(0.0, (sum, item) => sum + item.lineTotal);
+  double get _subtotal => _cart.subtotal(widget.restaurantId);
 
   double get _tax => _subtotal * (_checkoutData?.taxRate ?? 0.15);
 
@@ -161,7 +172,8 @@ class _CartScreenState extends State<CartScreen> {
   // ---------------------------------------------------------------------------
 
   void _proceedToCheckout() {
-    if (_cartItems.isEmpty) {
+    final cartItems = _cart.itemsForRestaurant(widget.restaurantId);
+    if (cartItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Your cart is empty.'),
@@ -259,39 +271,48 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Use surfaceContainerLow so white/surface cards sit visibly on top of it.
-    // Avoid surfaceContainerLowest — it is identical to surface on many devices.
     final bg = Theme.of(context).colorScheme.surfaceContainerLow;
 
-    return Scaffold(
-      backgroundColor: bg,
-      appBar: AppBar(
-        leading: _isShowingCheckout
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new),
-                onPressed: () => setState(() => _isShowingCheckout = false),
-              )
-            : null,
-        title: Text(
-          _isShowingCheckout ? 'Checkout' : 'Cart',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        elevation: 0,
-        scrolledUnderElevation: 1,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : (_isShowingCheckout ? _buildCheckoutBody() : _buildCartBody()),
-      bottomNavigationBar: _isLoading
-          ? null
-          : (_isShowingCheckout ? _buildPlaceOrderBar() : _buildCheckoutBar()),
+    return AnimatedBuilder(
+      animation: _cart,
+      builder: (context, _) {
+        final cartItems = _cart.itemsForRestaurant(widget.restaurantId);
+
+        return Scaffold(
+          backgroundColor: bg,
+          appBar: AppBar(
+            leading: _isShowingCheckout
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new),
+                    onPressed: () => setState(() => _isShowingCheckout = false),
+                  )
+                : null,
+            title: Text(
+              _isShowingCheckout ? 'Checkout' : 'Cart',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
+            elevation: 0,
+            scrolledUnderElevation: 1,
+          ),
+          body: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : (_isShowingCheckout
+                  ? _buildCheckoutBody(cartItems)
+                  : _buildCartBody(cartItems)),
+          bottomNavigationBar: _isLoading
+              ? null
+              : (_isShowingCheckout
+                  ? _buildPlaceOrderBar(cartItems)
+                  : _buildCheckoutBar(cartItems)),
+        );
+      },
     );
   }
 
-  Widget _buildCartBody() {
-    if (_cartItems.isEmpty && _checkoutData != null) {
+  Widget _buildCartBody(List<app_models.CartItem> cartItems) {
+    if (cartItems.isEmpty && _checkoutData != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -316,20 +337,17 @@ class _CartScreenState extends State<CartScreen> {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       children: [
-        // ── Cart Items ──────────────────────────────────────────────────────
-        ...List.generate(_cartItems.length, (index) {
+        ...cartItems.map((item) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: _CartItemCard(
-              item: _cartItems[index],
-              onIncrement: () => _incrementQuantity(index),
-              onDecrement: () => _decrementQuantity(index),
-              onDelete: () => _removeItem(index),
+              item: item,
+              onIncrement: () => _incrementQuantity(item),
+              onDecrement: () => _decrementQuantity(item),
+              onDelete: () => _removeItem(item),
             ),
           );
         }),
-
-        // ── Promo Code ──────────────────────────────────────────────────────
         _PromoCodeCard(
           controller: _promoController,
           appliedCoupon: _appliedCoupon,
@@ -337,10 +355,7 @@ class _CartScreenState extends State<CartScreen> {
           onApply: _applyPromoCode,
           onRemove: _removeCoupon,
         ),
-
         const SizedBox(height: 12),
-
-        // ── Bill Summary ────────────────────────────────────────────────────
         _BillSummaryCard(
           subtotal: _subtotal,
           deliveryFee: _checkoutData?.deliveryFee ?? 0.0,
@@ -348,13 +363,12 @@ class _CartScreenState extends State<CartScreen> {
           discount: _discount,
           total: _total,
         ),
-
         const SizedBox(height: 16),
       ],
     );
   }
 
-  Widget _buildCheckoutBody() {
+  Widget _buildCheckoutBody(List<app_models.CartItem> cartItems) {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
@@ -429,12 +443,12 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildCheckoutBar() {
+  Widget _buildCheckoutBar(List<app_models.CartItem> cartItems) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: FilledButton(
-          onPressed: _cartItems.isEmpty ? null : _proceedToCheckout,
+          onPressed: cartItems.isEmpty ? null : _proceedToCheckout,
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(52),
             shape: RoundedRectangleBorder(
@@ -453,7 +467,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildPlaceOrderBar() {
+  Widget _buildPlaceOrderBar(List<app_models.CartItem> cartItems) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -499,7 +513,7 @@ class _CartItemCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  final CartItem item;
+  final app_models.CartItem item;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final VoidCallback onDelete;
@@ -522,8 +536,8 @@ class _CartItemCard extends StatelessWidget {
             // ── Thumbnail ───────────────────────────────────────────────────
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image(
-                image: AssetImage(item.imagePath),
+              child: Image.network(
+                item.menuItem.imageUrl,
                 width: 76,
                 height: 76,
                 fit: BoxFit.cover,
@@ -556,7 +570,7 @@ class _CartItemCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          item.name,
+                          item.menuItem.name,
                           style:
                               Theme.of(context).textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.w700,
@@ -581,7 +595,7 @@ class _CartItemCard extends StatelessWidget {
                   const SizedBox(height: 2),
 
                   Text(
-                    item.description,
+                    item.menuItem.description,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -725,7 +739,7 @@ class _PromoCodeCard extends StatelessWidget {
   });
 
   final TextEditingController controller;
-  final Coupon? appliedCoupon;
+  final cart_models.Coupon? appliedCoupon;
   final bool isValidating;
   final VoidCallback onApply;
   final VoidCallback onRemove;
@@ -1053,7 +1067,7 @@ class _AddressTile extends StatelessWidget {
     required this.onTap,
   });
 
-  final Address address;
+  final cart_models.Address address;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -1323,7 +1337,7 @@ class _CheckoutSummary extends StatelessWidget {
   final double tax;
   final double discount;
   final double total;
-  final Coupon? appliedCoupon;
+  final cart_models.Coupon? appliedCoupon;
 
   @override
   Widget build(BuildContext context) {
