@@ -63,29 +63,30 @@ class DatabaseService {
         );
   }
   Future<Order> addOrder({
-  required String customerId,
-  required String restaurantId,
-  required double totalPrice,
-}) async {
-  final orderId = IdGenerator.generateOrderId();
-  final docRef = _db.collection('orders').doc(orderId);
+    required String customerId,
+    required String restaurantId,
+    required double totalPrice,
+    required List<OrderItem> items,
+  }) async {
+    final orderId = IdGenerator.generateOrderId();
+    final docRef = _db.collection('orders').doc(orderId);
 
-  await docRef.set({
-    'id': orderId,
-    'customerId': customerId,
-    'restaurantId': restaurantId,
-    'driverId': null,
-    'status': 'pending',
-    'totalPrice': totalPrice,
-    'createdAt': firestore.FieldValue.serverTimestamp(),
-    'items': [],
-    'customerLocation': const firestore.GeoPoint(2, 44),
-    'restaurantLocation': const firestore.GeoPoint(2, 24),
-  });
+    await docRef.set({
+      'id': orderId,
+      'customerId': customerId,
+      'restaurantId': restaurantId,
+      'driverId': null,
+      'status': 'pending',
+      'totalPrice': totalPrice,
+      'createdAt': firestore.FieldValue.serverTimestamp(),
+      'items': items.map((item) => item.toJson()).toList(),
+      'customerLocation': const firestore.GeoPoint(2, 44),
+      'restaurantLocation': const firestore.GeoPoint(2, 24),
+    });
 
-  final snapshot = await docRef.get();
-  return Order.fromFirestore(snapshot);
-}
+    final snapshot = await docRef.get();
+    return Order.fromFirestore(snapshot);
+  }
   
   Future<void> acceptOrder({
     required String orderId,

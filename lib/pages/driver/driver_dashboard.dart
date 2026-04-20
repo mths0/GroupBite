@@ -259,6 +259,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                                 customerId: customerIdController.text,
                                 restaurantId: restaurantIdController.text,
                                 totalPrice: price,
+                                items: [],
                               );
 
                               customerIdController.clear();

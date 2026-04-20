@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import '../../mock/mock_cart_repository.dart';
 import '../../models/cart_item.dart' as app_models;
 import '../../models/cart_models.dart' as cart_models;
+import 'package:food_delivery_platform/models/cart_models.dart';
+import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
 import '../../cart/cart_controller.dart';
+import 'package:food_delivery_platform/models/cart_models.dart';
 import '../../cart/cart_scope.dart';
 
 enum _DeliveryTimeOption { asap, schedule }
@@ -227,35 +230,9 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
-  Future<void> _placeOrder() async {
-    setState(() => _isPlacingOrder = true);
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (!mounted) return;
-
-    setState(() => _isPlacingOrder = false);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text('Order Placed!'),
-        content: Text(
-          'Your order of \$${_total.toStringAsFixed(2)} has been placed.\n\n'
-          '${_deliveryTimeOption == _DeliveryTimeOption.asap ? 'Estimated arrival: 25-35 min' : 'Scheduled for: ${_formatScheduled()}'}',
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Place order logic is now handled in CheckoutScreen.
+  // The _placeOrder method previously here has been removed.
+  // Please ensure CheckoutScreen is used for the checkout flow.
 
   String _formatScheduled() {
     if (_scheduledDateTime == null) return '';
@@ -304,7 +281,7 @@ class _CartScreenState extends State<CartScreen> {
           bottomNavigationBar: _isLoading
               ? null
               : (_isShowingCheckout
-                  ? _buildPlaceOrderBar(cartItems)
+                  ? null
                   : _buildCheckoutBar(cartItems)),
         );
       },
@@ -369,77 +346,25 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildCheckoutBody(List<app_models.CartItem> cartItems) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      children: [
-        _SectionCard(
-          title: 'Delivery Address',
-          icon: Icons.location_on_outlined,
-          child: Column(
-            children: _addresses.map((address) {
-              final isSelected = address.id == _selectedAddressId;
-              return _AddressTile(
-                address: address,
-                isSelected: isSelected,
-                onTap: () => setState(() => _selectedAddressId = address.id),
-              );
-            }).toList(),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _SectionCard(
-          title: 'Delivery Time',
-          icon: Icons.schedule_outlined,
-          child: _DeliveryTimeSelector(
-            selected: _deliveryTimeOption,
-            scheduledDateTime: _scheduledDateTime,
-            onTap: _onDeliveryTimeTapped,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _SectionCard(
-          title: 'Payment Method',
-          icon: Icons.credit_card_outlined,
-          child: Column(
-            children: [
-              _PaymentTile(
-                id: _kPaymentCreditCard,
-                label: 'Credit Card',
-                subtitle: '**** 4242',
-                icon: Icons.credit_card_rounded,
-                isSelected: _selectedPaymentId == _kPaymentCreditCard,
-                onTap: () =>
-                    setState(() => _selectedPaymentId = _kPaymentCreditCard),
-              ),
-              const SizedBox(height: 8),
-              _PaymentTile(
-                id: _kPaymentWallet,
-                label: 'Family Wallet',
-                subtitle:
-                    'Balance: \$${_checkoutData!.walletBalance.toStringAsFixed(2)}',
-                icon: Icons.account_balance_wallet_outlined,
-                isSelected: _selectedPaymentId == _kPaymentWallet,
-                onTap: () =>
-                    setState(() => _selectedPaymentId = _kPaymentWallet),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        _SectionCard(
-          title: 'Order Summary',
-          icon: Icons.receipt_long_outlined,
-          child: _CheckoutSummary(
-            subtotal: _subtotal,
-            deliveryFee: _checkoutData!.deliveryFee,
-            tax: _tax,
-            discount: _discount,
-            total: _total,
-            appliedCoupon: _appliedCoupon,
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
+    return CheckoutScreen(
+      cartItems: cartItems
+          .map((item) => cart_models.CartItem(
+                id: item.menuItem.id,
+                name: item.menuItem.name,
+                description: item.menuItem.description,
+                imagePath: item.menuItem.imageUrl,
+                unitPrice: item.menuItem.price,
+                quantity: item.quantity,
+              ))
+          .toList(),
+      checkoutData: _checkoutData!,
+      subtotal: _subtotal,
+      tax: _tax,
+      discount: _discount,
+      total: _total,
+      appliedCoupon: _appliedCoupon,
+      customerId: 'current_user_id', 
+      restaurantId: widget.restaurantId,
     );
   }
 
@@ -467,38 +392,8 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildPlaceOrderBar(List<app_models.CartItem> cartItems) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: FilledButton(
-          onPressed: _isPlacingOrder ? null : _placeOrder,
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-          child: _isPlacingOrder
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white,
-                  ),
-                )
-              : Text(
-                  'Place Order  •  \$${_total.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-        ),
-      ),
-    );
-  }
+  // The checkout flow now uses CheckoutScreen directly.
+  // _buildPlaceOrderBar has been removed as it is now part of CheckoutScreen.
 }
 
 // =============================================================================

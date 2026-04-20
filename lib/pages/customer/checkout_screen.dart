@@ -7,6 +7,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:food_delivery_platform/database_service.dart';
+import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/mock/mock_cart_repository.dart';
 import 'package:food_delivery_platform/models/cart_models.dart';
 
@@ -19,6 +21,8 @@ class CheckoutScreen extends StatefulWidget {
     required this.tax,
     required this.discount,
     required this.total,
+    required this.customerId,
+    required this.restaurantId,
     this.appliedCoupon,
   });
 
@@ -26,6 +30,8 @@ class CheckoutScreen extends StatefulWidget {
   final List<CartItem> cartItems;
   final CheckoutData checkoutData;
   final Coupon? appliedCoupon;
+  final String customerId;
+  final String restaurantId;
 
   /// Pre-computed values forwarded from CartScreen.
   final double subtotal;
@@ -158,37 +164,56 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _placeOrder() async {
     setState(() => _isPlacingOrder = true);
 
-    // TODO: Replace with real Firestore write:
-    //   await FirebaseFirestore.instance.collection('orders').add({ ... });
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final databaseService = DatabaseService();
+      final orderItems = widget.cartItems
+          .map((item) => OrderItem(
+                menuId: item.id,
+                name: item.name,
+                quantity: item.quantity,
+                priceAtPurchase: item.unitPrice,
+              ))
+          .toList();
 
-    if (!mounted) return;
-    setState(() => _isPlacingOrder = false);
+      await databaseService.addOrder(
+        customerId: widget.customerId,
+        restaurantId: widget.restaurantId,
+        totalPrice: widget.total,
+        items: orderItems,
+      );
 
-    // Show confirmation and pop back to the start.
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text('Order Placed! 🎉'),
-        content: Text(
-          'Your order of \$${widget.total.toStringAsFixed(2)} has been placed.\n\n'
-          '${_deliveryTimeOption == _DeliveryTimeOption.asap ? 'Estimated arrival: 25–35 min' : 'Scheduled for: ${_formatScheduled()}'}',
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              // Pop the dialog and both screens to return to root.
-              Navigator.of(context)
-                ..pop()
-                ..pop()
-                ..pop();
-            },
-            child: const Text('Done'),
+      if (!mounted) return;
+      setState(() => _isPlacingOrder = false);
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('Order Placed! 🎉'),
+          content: Text(
+            'Your order of \$${widget.total.toStringAsFixed(2)} has been placed.\n\n'
+            '${_deliveryTimeOption == _DeliveryTimeOption.asap ? 'Estimated arrival: 25–35 min' : 'Scheduled for: ${_formatScheduled()}'}',
           ),
-        ],
-      ),
-    );
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context)
+                  ..pop()
+                  ..pop()
+                  ..pop();
+              },
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isPlacingOrder = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to place order: $e')),
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------
