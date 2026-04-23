@@ -3,15 +3,14 @@ import 'package:food_delivery_platform/models/abstract_user.dart';
 
 class Customer extends User {
   final String createdAt;
-  final String email;
   final GeoPoint? location;
 
   Customer({
     required super.id,
     required super.name,
     required super.phone,
+    required super.email,
     required this.createdAt,
-    required this.email,
     required this.location,
 
   });

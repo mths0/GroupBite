@@ -19,6 +19,7 @@ final List<User> mockUsers = [
     phone: '598765432',
     nationalId: '1234567890',
     createdAt: DateTime.now().toIso8601String(),
+    email: 'ahmed@email.com',
   ),
   Restaurant(
   id: 'r1',

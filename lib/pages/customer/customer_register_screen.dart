@@ -5,13 +5,14 @@ import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/abstract_user.dart';
 import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/pages/otp_screen.dart';
+import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'package:food_delivery_platform/utils/validators.dart';
 import 'package:geolocator/geolocator.dart';
 
 class CustomerRegisterScreen extends StatefulWidget {
-  const CustomerRegisterScreen({super.key});
+  const CustomerRegisterScreen({super.key, required this.email});
+  final String email;
 
   @override
   State<CustomerRegisterScreen> createState() => _CustomerRegisterScreenState();
@@ -22,24 +23,19 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
 
   String? nameErrorText;
   String? phoneErrorText;
-  String? emailErrorText;
   String? _locationError;
+  String? errorText;
 
   final _phoneCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
-  final _locationCtrl = TextEditingController();
-  GeoPoint? _currentGeoPoint;
 
-  String? errorText;
+  GeoPoint? _currentGeoPoint;
   bool isLoading = false;
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
-    _emailCtrl.dispose();
     _nameCtrl.dispose();
-    _locationCtrl.dispose();
     super.dispose();
   }
 
@@ -47,24 +43,25 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
     setState(() {
       nameErrorText = null;
       phoneErrorText = null;
-      emailErrorText = null;
+      _locationError = null;
+      errorText = null;
     });
 
-    final nameError = Validators.validateName(_nameCtrl.text);
-    final phoneError = Validators.validatePhone(_phoneCtrl.text);
-    final emailError = Validators.validateEmail(_emailCtrl.text);
+    final nameError = Validators.validateName(_nameCtrl.text.trim());
+    final phoneError = Validators.validatePhone(_phoneCtrl.text.trim());
 
-    if (nameError != null || phoneError != null || emailError != null) {
+    if (nameError != null || phoneError != null || _currentGeoPoint == null) {
       setState(() {
         nameErrorText = nameError;
         phoneErrorText = phoneError;
-        emailErrorText = emailError;
+        _locationError = _currentGeoPoint == null
+            ? "Please capture your location."
+            : null;
       });
       return;
     }
 
-    // on correct input => send OTP
-    _submit();
+    await _submit();
   }
 
   Future<void> _getLocation() async {
@@ -131,69 +128,57 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
     });
 
     final db = DatabaseService();
-
-    final phone = _phoneCtrl.text.trim(); // نخزن بدون +966 (مثل login_screen)
+    final phone = _phoneCtrl.text.trim();
 
     try {
-      // منع تكرار الحساب
       final existingUser = await db.getUserByPhone(phone);
       if (existingUser != null) {
         setState(() {
           isLoading = false;
-          errorText = "Account already exists. Please login.";
+          phoneErrorText = "Phone number already exists. Please login.";
         });
         return;
       }
 
-      // Generate user id (سيتم حفظه بعد نجاح OTP داخل OtpScreen)
-      final id = IdGenerator.generateUserId(UserRole.customer);
-
       final customer = Customer(
-        id: id,
+        id: IdGenerator.generateUserId(UserRole.customer),
         phone: phone,
-        email: _emailCtrl.text.trim(),
+        email: widget.email,
         name: _nameCtrl.text.trim(),
         location: _currentGeoPoint,
         createdAt: DateTime.now().toIso8601String(),
       );
 
+      await db.createUser(customer.toJson());
+
       final authService = AuthService();
-      // Send OTP
-      authService.sendOtp(
-        phone: '+966${customer.phone}',
+      await authService.sendMagicLink(widget.email);
 
-        onCodeSent: (verificationId) {
-          setState(() => isLoading = false);
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => OtpScreen(
-                user: customer,
-                purpose: OtpPurpose.register,
-                verificationId: verificationId,
-              ),
-            ),
-          );
-        },
+      if (!mounted) return;
 
-        onAutoVerified: (userCredential) {
-          // Android only (optional)
-          // You can directly complete registration here if you want
-        },
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Registration saved. A sign-in link was sent to ${widget.email}",
+          ),
+        ),
+      );
 
-        onError: (error) {
-          setState(() {
-            phoneErrorText = error;
-            isLoading = false;
-          });
-        },
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const StartScreen()),
+        (route) => false,
       );
     } catch (e) {
       setState(() {
         isLoading = false;
-        errorText = e.toString();
+        errorText = "Something went wrong. Please try again.";
       });
+      return;
     }
+
+    if (!mounted) return;
+    setState(() => isLoading = false);
   }
 
   @override
@@ -212,6 +197,11 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
                   "Fill customer details",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.email,
+                  style: TextStyle(color: Colors.grey[700]),
+                ),
                 const SizedBox(height: 12),
 
                 if (errorText != null) ...[
@@ -219,7 +209,6 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
                   const SizedBox(height: 12),
                 ],
 
-                // PHONE (9 digits + counter)
                 TextFormField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
@@ -237,33 +226,18 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // EMAIL
-                TextFormField(
-                  controller: _emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: "Email",
-                    hintText: "customer@email.com",
-                    prefixIcon: Icon(Icons.email),
-                    errorText: emailErrorText,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // FULL NAME
                 TextFormField(
                   controller: _nameCtrl,
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
                     labelText: "Full name",
-                    hintText: "Mohannad Alshahrani",
-                    prefixIcon: Icon(Icons.person_outline),
+                    hintText: "Cristiano Ronaldo",
+                    prefixIcon: const Icon(Icons.person_outline),
                     errorText: nameErrorText,
                   ),
                 ),
                 const SizedBox(height: 12),
 
-                // LOCATION
                 OutlinedButton.icon(
                   onPressed: _getLocation,
                   icon: Icon(
@@ -303,7 +277,7 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
                             height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text("Continue (Send OTP)"),
+                        : const Text("Register"),
                   ),
                 ),
               ],

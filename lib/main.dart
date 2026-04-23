@@ -1,30 +1,25 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:food_delivery_platform/link_handler_service.dart';
+import 'package:food_delivery_platform/pages/register_screen.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/themes/app_theme.dart';
-
 import 'firebase_options.dart';
 
-// var kColorScheme = ColorScheme.fromSeed(
-//   seedColor: const Color.fromRGBO(245, 124, 0, 1),
-// );
-
-// Restaurant 500000000
-// Customer 511111111
-// Driver 522222222
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } on FirebaseException catch (error) {
-    if (error.code != 'duplicate-app') {
-      rethrow;
+  // Check if Firebase is already initialized to avoid the "duplicate-app" error
+  if (Firebase.apps.isEmpty) {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } catch (e) {
+      debugPrint("Firebase Initialization Error: $e");
     }
-    Firebase.app();
   }
 
   runApp(const OurApp());
@@ -38,14 +33,35 @@ class OurApp extends StatefulWidget {
 }
 
 class _OurAppState extends State<OurApp> {
+  late LinkHandlerService _linkHandler;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize the cleaner service
+    _linkHandler = LinkHandlerService(navigatorKey);
+    _linkHandler.init();
+  }
+
+  @override
+  void dispose() {
+    _linkHandler.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
       home: const StartScreen(),
+      routes: {
+        '/register': (context) =>
+            const RegisterScreen(), // You can replace this with a dedicated registration screen if needed
+      },
     );
   }
 }

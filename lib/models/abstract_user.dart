@@ -6,12 +6,14 @@ abstract class User {
     required this.id,
     required this.name,
     required this.phone,
+    required this.email,
     //! we only need phone to login
     // required this.passwordHash,
   });
   final String id;
   final String name;
   final String phone;
+  final String email;
   // final String passwordHash;
 
   UserRole get role;

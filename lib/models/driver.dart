@@ -13,6 +13,7 @@ class Driver extends User {
     required super.id,
     required super.name,
     required super.phone,
+    required super.email,
     required this.nationalId,
     required this.createdAt,
     DriverStatus status = DriverStatus.offline,
@@ -28,6 +29,7 @@ class Driver extends User {
       name: map['name'],
       nationalId: map['nationalId'],
       createdAt: map['createdAt'],
+      email: map['email'],
       status: DriverStatus.values.firstWhere(
         (e) => e.name == map['status'],
         orElse: () => DriverStatus.offline,
@@ -42,10 +44,11 @@ class Driver extends User {
     'phone': phone,
     'name': name,
     'nationalId': nationalId,
-    'role': 'driver',
+    'role': UserRole.driver.name,
     'createdAt': createdAt,
     'status': _status.name,
     'location': location,
+    'email': email,
   };
 
   DriverStatus get status => _status;

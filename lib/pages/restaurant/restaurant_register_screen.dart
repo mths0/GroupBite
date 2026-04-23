@@ -1,18 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/abstract_user.dart';
-import 'package:food_delivery_platform/pages/otp_screen.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'package:food_delivery_platform/utils/validators.dart';
 import 'package:geolocator/geolocator.dart';
 
 class RestaurantRegisterScreen extends StatefulWidget {
-  const RestaurantRegisterScreen({super.key});
+  const RestaurantRegisterScreen({super.key, required this.email});
+  final String email;
 
   @override
   State<RestaurantRegisterScreen> createState() =>
@@ -24,13 +24,11 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
 
   String? nameErrorText;
   String? phoneErrorText;
-  String? emailErrorText;
   String? typeErrorText;
+  String? errorText;
 
   final _phoneCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
-  final _locationCtrl = TextEditingController();
 
   final List<String> _types = const [
     "Burger",
@@ -45,7 +43,6 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
   ];
 
   String? _selectedType;
-  String? errorText;
   bool isLoading = false;
   GeoPoint? _currentGeoPoint;
   String? _locationError;
@@ -53,9 +50,7 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
   @override
   void dispose() {
     _phoneCtrl.dispose();
-    _emailCtrl.dispose();
     _nameCtrl.dispose();
-    _locationCtrl.dispose();
     super.dispose();
   }
 
@@ -64,31 +59,32 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
       nameErrorText = null;
       phoneErrorText = null;
       typeErrorText = null;
-      emailErrorText = null;
+      _locationError = null;
+      errorText = null;
     });
 
-    final nameError = Validators.validateName(_nameCtrl.text);
-    final phoneError = Validators.validatePhone(_phoneCtrl.text);
-    final emailError = Validators.validateEmail(_emailCtrl.text);
+    final nameError = Validators.validateName(_nameCtrl.text.trim());
+    final phoneError = Validators.validatePhone(_phoneCtrl.text.trim());
     final typeError = _selectedType == null
         ? "Please select restaurant type"
         : null;
 
     if (nameError != null ||
         phoneError != null ||
-        emailError != null ||
-        typeError != null) {
+        typeError != null ||
+        _currentGeoPoint == null) {
       setState(() {
         nameErrorText = nameError;
         phoneErrorText = phoneError;
-        emailErrorText = emailError;
         typeErrorText = typeError;
+        _locationError = _currentGeoPoint == null
+            ? "Please capture location"
+            : null;
       });
       return;
     }
 
-    // on correct input => send OTP
-    _submit();
+    await _submit();
   }
 
   Future<void> _getLocation() async {
@@ -156,76 +152,63 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
 
     final db = DatabaseService();
 
-    final phone = _phoneCtrl.text.trim(); // نخزن بدون +966 (مثل login_screen)
-
     try {
-      // منع تكرار الحساب
-      final existingUser = await db.getUserByPhone(phone);
-      if (existingUser != null) {
+      final existingPhone = await db.getUserByPhone(_phoneCtrl.text.trim());
+      if (existingPhone != null) {
         setState(() {
           isLoading = false;
-          errorText = "Account already exists. Please login.";
+          phoneErrorText = "Phone number already exists.";
         });
         return;
       }
 
-      // Generate user id (سيتم حفظه بعد نجاح OTP داخل OtpScreen)
-      final id = IdGenerator.generateUserId(UserRole.restaurant);
-
       final restaurant = Restaurant(
-        id: id,
-        phone: phone,
-        email: _emailCtrl.text.trim(),
+        id: IdGenerator.generateUserId(UserRole.restaurant),
+        phone: _phoneCtrl.text.trim(),
+        email: widget.email,
         name: _nameCtrl.text.trim(),
         type: _selectedType!,
         location: _currentGeoPoint,
         createdAt: DateTime.now().toIso8601String(),
-        //Todo allow updating this later from profile
-        imageUrl: "https://images.unsplash.com/photo-1550547660-d9450f859349",
-        rating: 0.0,
-        deliveryFee: 0.0,
+        imageUrl:
+            'https://images.unsplash.com/photo-1579027989536-b7b1f875659b?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+        rating: 0,
+        deliveryFee: 9,
         tags: [],
         isOpen: false,
         hasOffer: false,
       );
 
+      await db.createUser(restaurant.toJson());
+
       final authService = AuthService();
-      // Send OTP
-      authService.sendOtp(
-        phone: '+966${restaurant.phone}',
+      await authService.sendMagicLink(widget.email);
 
-        onCodeSent: (verificationId) {
-          setState(() => isLoading = false);
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => OtpScreen(
-                user: restaurant,
-                purpose: OtpPurpose.register,
-                verificationId: verificationId,
-              ),
-            ),
-          );
-        },
+      if (!mounted) return;
 
-        onAutoVerified: (userCredential) {
-          // Android only (optional)
-          // You can directly complete registration here if you want
-        },
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Registration saved. A sign-in link was sent to ${widget.email}",
+          ),
+        ),
+      );
 
-        onError: (error) {
-          setState(() {
-            phoneErrorText = error;
-            isLoading = false;
-          });
-        },
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const StartScreen()),
+        (route) => false,
       );
     } catch (e) {
       setState(() {
         isLoading = false;
-        errorText = e.toString();
+        errorText = "Something went wrong. Please try again.";
       });
+      return;
     }
+
+    if (!mounted) return;
+    setState(() => isLoading = false);
   }
 
   @override
@@ -244,6 +227,11 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
                   "Fill restaurant details",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.email,
+                  style: TextStyle(color: Colors.grey[700]),
+                ),
                 const SizedBox(height: 12),
 
                 if (errorText != null) ...[
@@ -251,7 +239,6 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
                   const SizedBox(height: 12),
                 ],
 
-                // PHONE (9 digits + counter)
                 TextFormField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
@@ -269,48 +256,32 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // EMAIL
-                TextFormField(
-                  controller: _emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: "Email",
-                    hintText: "restaurant@email.com",
-                    prefixIcon: Icon(Icons.email),
-                    errorText: emailErrorText,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // RESTAURANT NAME
                 TextFormField(
                   controller: _nameCtrl,
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
                     labelText: "Restaurant name",
                     hintText: "Burger House",
-                    prefixIcon: Icon(Icons.storefront),
+                    prefixIcon: const Icon(Icons.storefront),
                     errorText: nameErrorText,
                   ),
                 ),
                 const SizedBox(height: 12),
 
-                // TYPE
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedType,
+                  value: _selectedType,
                   items: _types
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                       .toList(),
                   onChanged: (v) => setState(() => _selectedType = v),
                   decoration: InputDecoration(
                     labelText: "Restaurant type",
-                    prefixIcon: Icon(Icons.category),
+                    prefixIcon: const Icon(Icons.category),
                     errorText: typeErrorText,
                   ),
                 ),
                 const SizedBox(height: 12),
 
-                // LOCATION
                 OutlinedButton.icon(
                   onPressed: _getLocation,
                   icon: Icon(
@@ -340,8 +311,6 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
                   ),
                 const SizedBox(height: 20),
 
-                const SizedBox(height: 20),
-
                 SizedBox(
                   height: 48,
                   child: ElevatedButton(
@@ -352,7 +321,7 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
                             height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text("Continue (Send OTP)"),
+                        : const Text("Register"),
                   ),
                 ),
               ],

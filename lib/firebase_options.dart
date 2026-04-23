@@ -50,7 +50,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR_API_KEY_ANDROID',
+    apiKey: 'AIzaSyBn9HEPgm5TCZelEwrqoOSbSm1KxOw-o5s',
     appId: '1:520482854046:android:692e9ecc00f74f6826978f',
     messagingSenderId: '520482854046',
     projectId: 'food-delivery-platform-fa227',

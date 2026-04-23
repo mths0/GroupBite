@@ -3,7 +3,6 @@ import 'package:food_delivery_platform/models/abstract_user.dart';
 
 class Restaurant extends User {
   final String createdAt;
-  final String email;
   final GeoPoint? location;
   final String imageUrl;
   final double rating;
@@ -18,8 +17,8 @@ class Restaurant extends User {
     required super.id,
     required super.name,
     required super.phone,
+    required super.email,
     required this.createdAt,
-    required this.email,
     required this.type,
     required this.location,
     required this.imageUrl,
@@ -89,60 +88,3 @@ class Restaurant extends User {
       () => throw UnimplementedError();
 }
 
-// import 'package:food_delivery_platform/models/abstract_user.dart';
-
-// class Restaurant extends User {
-//   final String createdAt;
-//   Restaurant({
-//     required super.id,
-//     required super.name,
-//     required super.phone,
-//     required this.createdAt,
-//   });
-
-//   factory Restaurant.fromMap(Map<String, dynamic> map) {
-//     return Restaurant(
-//       id: map['id'],
-//       phone: map['phone'],
-//       name: map['name'],
-//       createdAt: map['createdAt'],
-//     );
-//   }
-
-//   factory Restaurant.fromJson(Map<String, dynamic> json) {
-//     return Restaurant(
-//       id: json['id'],
-//       phone: json['phone'],
-//       name: json['name'],
-//       createdAt: json['createdAt'],
-//     );
-//   }
-
-//   Map<String, dynamic> toJson() => {
-//     'id': id,
-//     'phone': phone,
-//     'name': name,
-//     'role': 'restaurant',
-//     'createdAt': createdAt,
-//   };
-
-//   @override
-//   UserRole get role => UserRole.restaurant;
-//   @override
-//   Function login() {
-//     // TODO: implement login
-//     throw UnimplementedError();
-//   }
-
-//   @override
-//   Function logout() {
-//     // TODO: implement logout
-//     throw UnimplementedError();
-//   }
-
-//   @override
-//   Function updateProfile() {
-//     // TODO: implement updateProfile
-//     throw UnimplementedError();
-//   }
-// }

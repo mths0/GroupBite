@@ -64,6 +64,8 @@ class _DriverDashboardState extends State<DriverDashboard>
     });
 
     //TODO: Update status in database
+    DatabaseService().updateDriverStatus(widget.driver.id, status);
+
   }
 
   Color statusColorBasedOnStatus(DriverStatus status) {

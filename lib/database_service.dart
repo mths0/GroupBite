@@ -34,6 +34,25 @@ class DatabaseService {
   }) async {
     await _db.collection('users').doc(userId).update(data);
   }
+  
+   Future<User?> getUserByEmail(String email) async {
+    final snapshot = await _db
+        .collection('users')
+        .where('email', isEqualTo: email)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) return null;
+
+    final data = snapshot.docs.first.data();
+    return _userFromMap(data);
+  }
+
+  Future<void> updateDriverStatus(String driverId, DriverStatus status) async {
+    await _db.collection('users').doc(driverId).update({
+      'status': status.name,
+    });
+  }
 
   // ---------------- ORDERS ----------------
 
