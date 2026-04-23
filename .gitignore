@@ -34,7 +34,8 @@ tempCodeRunnerFile.dart
 /build/
 /coverage/
 pubspec.lock
-
+.firebaserc
+hosting*
 # Symbolication related
 app.*.symbols
 

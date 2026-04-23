@@ -54,43 +54,7 @@ class LinkHandlerService {
         // THIS IS A REGISTRATION FLOW
         final Map<String, dynamic> data = jsonDecode(pendingDataString);
 
-        // Create the Restaurant object from the map
-        // (You might need a Restaurant.fromMap constructor)
-        // final newRestaurant = Restaurant(
-        //   id: data['id'],
-
-        //   phone: data['phone'] ,
-
-        //   email: data['email'] ,
-
-        //   name: data['name'] ,
-
-        //   type: data['type'] ,
-        // //TODO change this to a default location and allow updating it later from profile
-        //   location: GeoPoint(33.0, 44),
-
-        //   createdAt: DateTime.now().toIso8601String(),
-
-        //   //Todo allow updating this later from profile
-        //   imageUrl: "https://images.unsplash.com/photo-1550547660-d9450f859349",
-
-        //   rating: 0.0,
-
-        //   deliveryFee: 0.0,
-
-        //   tags: [],
-
-        //   isOpen: false,
-
-        //   hasOffer: false,
-        // ).toJson();
-
-        // // Save to Firestore
-        // await _dbService.createUser(newRestaurant);
-
-        // // Clear the cache
-        // await prefs.remove('pending_registration_data');
-
+        // Clear pending data
         // if (navigatorKey.currentContext != null) {
         //   RoleNavigator.navigate(navigatorKey.currentContext!, newRestaurant);
         // }
