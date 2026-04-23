@@ -96,12 +96,17 @@ class CartPage extends StatelessWidget {
                         width: 120,
                         child: ElevatedButton(
                           onPressed: () {
+                            final cart = CartScope.of(context);
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (context) => CartScreen(key: UniqueKey()),
+                                builder: (context) => CartScope(
+                                  notifier: cart,
+                                  child: CartScreen(restaurantId: restaurantId),
+                                ),
                               ),
                             );
                           },
+
                           child: const Text('Checkout'),
                         ),
                       ),
