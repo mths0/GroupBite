@@ -44,7 +44,7 @@ class Customer extends User {
     'id': id,
     'phone': phone,
     'name': name,
-    'role': 'customer',
+    'role': role.name,
     'createdAt': createdAt,
     'email': email,
     'location': location,

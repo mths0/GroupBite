@@ -9,6 +9,8 @@ import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'package:food_delivery_platform/utils/validators.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:food_delivery_platform/models/customer_address.dart';
+import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 
 class CustomerRegisterScreen extends StatefulWidget {
   const CustomerRegisterScreen({super.key, required this.email});
@@ -29,7 +31,7 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
   final _phoneCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
 
-  GeoPoint? _currentGeoPoint;
+  CustomerAddress? _selectedAddress;
   bool isLoading = false;
 
   @override
@@ -50,12 +52,12 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
     final nameError = Validators.validateName(_nameCtrl.text.trim());
     final phoneError = Validators.validatePhone(_phoneCtrl.text.trim());
 
-    if (nameError != null || phoneError != null || _currentGeoPoint == null) {
+    if (nameError != null || phoneError != null || _selectedAddress == null) {
       setState(() {
         nameErrorText = nameError;
         phoneErrorText = phoneError;
-        _locationError = _currentGeoPoint == null
-            ? "Please capture your location."
+        _locationError = _selectedAddress == null
+            ? "Please choose your address on the map."
             : null;
       });
       return;
@@ -64,59 +66,20 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
     await _submit();
   }
 
-  Future<void> _getLocation() async {
-    if (!mounted) return;
-    setState(() => isLoading = true);
+  Future<void> _pickAddress() async {
+    final result = await Navigator.push<CustomerAddress>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddAddressScreen(),
+      ),
+    );
 
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!mounted) return;
-        setState(() => _locationError = "Location services are disabled.");
-        return;
-      }
+    if (result == null) return;
 
-      LocationPermission permission = await Geolocator.checkPermission();
-
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.denied) {
-        if (!mounted) return;
-        setState(() => _locationError = "Location permission denied.");
-        return;
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        setState(() {
-          _locationError =
-              "Location permissions are permanently denied. Please enable them from settings.";
-        });
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _currentGeoPoint = GeoPoint(position.latitude, position.longitude);
-        _locationError = null;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Location captured successfully!")),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _locationError = "Could not get location.");
-    } finally {
-      if (!mounted) return;
-      setState(() => isLoading = false);
-    }
+    setState(() {
+      _selectedAddress = result;
+      _locationError = null;
+    });
   }
 
   Future<void> _submit() async {
@@ -145,11 +108,16 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
         phone: phone,
         email: widget.email,
         name: _nameCtrl.text.trim(),
-        location: _currentGeoPoint,
+        location: _selectedAddress!.location,
         createdAt: DateTime.now().toIso8601String(),
       );
 
       await db.createUser(customer.toJson());
+
+      await db.addCustomerAddress(
+        customerId: customer.id,
+        address: _selectedAddress!,
+      );
 
       final authService = AuthService();
       await authService.sendMagicLink(widget.email);
@@ -239,24 +207,54 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
                 const SizedBox(height: 12),
 
                 OutlinedButton.icon(
-                  onPressed: _getLocation,
+                  onPressed: _pickAddress,
                   icon: Icon(
-                    _currentGeoPoint != null
+                    _selectedAddress != null
                         ? Icons.location_on
-                        : Icons.my_location,
-                    color: _currentGeoPoint != null ? Colors.green : null,
+                        : Icons.map_outlined,
+                    color: _selectedAddress != null ? Colors.green : null,
                   ),
                   label: Text(
-                    _currentGeoPoint != null
-                        ? "Location Captured"
-                        : "Get Current Location",
+                    _selectedAddress != null
+                        ? "Address Selected"
+                        : "Choose Address on Map",
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: _currentGeoPoint != null
+                    foregroundColor: _selectedAddress != null
                         ? Colors.green
                         : null,
                   ),
                 ),
+                if (_selectedAddress != null) ...[
+                  const SizedBox(height: 8),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.place_outlined),
+                      title: Text(_selectedAddress!.label),
+                      subtitle: Text(
+                        [
+                          _selectedAddress!.fullAddress,
+                          _selectedAddress!.buildingDetails,
+                        ].where((e) => e.trim().isNotEmpty).join('\n'),
+                      ),
+                      isThreeLine: _selectedAddress!.buildingDetails
+                          .trim()
+                          .isNotEmpty,
+                      trailing: IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: _pickAddress,
+                      ),
+                    ),
+                  ),
+                ],
+                if (_locationError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      _locationError!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ),
                 if (_locationError != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8.0),

@@ -21,9 +21,11 @@ class CartScreen extends StatefulWidget {
   const CartScreen({
     super.key,
     required this.restaurantId,
+    required this.customerId,
   });
 
   final String restaurantId;
+  final String customerId;
 
   @override
   State<CartScreen> createState() => _CartScreenState();
@@ -376,7 +378,7 @@ class _CartScreenState extends State<CartScreen> {
       discount: _discount,
       total: _total,
       appliedCoupon: _appliedCoupon,
-      customerId: 'current_user_id',
+      customerId: widget.customerId,
       restaurantId: widget.restaurantId,
     );
   }

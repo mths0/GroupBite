@@ -7,10 +7,12 @@ class CartPage extends StatelessWidget {
     super.key,
     required this.restaurantId,
     required this.restaurantName,
+    required this.customerId,
   });
 
   final String restaurantId;
   final String restaurantName;
+  final String customerId;
 
   @override
   Widget build(BuildContext context) {
@@ -101,7 +103,10 @@ class CartPage extends StatelessWidget {
                               MaterialPageRoute(
                                 builder: (context) => CartScope(
                                   notifier: cart,
-                                  child: CartScreen(restaurantId: restaurantId),
+                                  child: CartScreen(
+                                    restaurantId: restaurantId,
+                                    customerId: customerId,
+                                  ),
                                 ),
                               ),
                             );

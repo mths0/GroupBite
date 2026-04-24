@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
+import 'package:food_delivery_platform/models/order.dart';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({
+    super.key,
+    required this.order,
+  });
+
+  final Order order;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -16,17 +22,17 @@ class _MapScreenState extends State<MapScreen> {
   BitmapDescriptor? _customerIcon;
   BitmapDescriptor? _driverIcon;
 
-  //TODO For demo purposes, we use static locations for customer and restaurant.
-  static const LatLng _customerLocation = LatLng(
-    24.76860991323255,
-    46.661047413133964,
-  ); // (customer)
-  static const LatLng _restaurantPosition = LatLng(
-    24.7136,
-    46.6753,
-  ); // (restaurant)
-
   LatLng? _driverLocation;
+
+  LatLng get _customerLocation => LatLng(
+    widget.order.customerLocation.latitude,
+    widget.order.customerLocation.longitude,
+  );
+
+  LatLng get _restaurantLocation => LatLng(
+    widget.order.restaurantLocation.latitude,
+    widget.order.restaurantLocation.longitude,
+  );
 
   @override
   void initState() {
@@ -48,6 +54,10 @@ class _MapScreenState extends State<MapScreen> {
       const ImageConfiguration(size: Size(48, 48)),
       "assets/map_icons/driver.png",
     );
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -79,53 +89,71 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
+  Set<Marker> _buildMarkers() {
+    final markers = <Marker>{};
+
+    if (_restaurantIcon != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId("restaurant"),
+          position: _restaurantLocation,
+          icon: _restaurantIcon!,
+          infoWindow: const InfoWindow(title: "Restaurant"),
+        ),
+      );
+    }
+
+    if (_customerIcon != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId("customer"),
+          position: _customerLocation,
+          icon: _customerIcon!,
+          infoWindow: const InfoWindow(title: "Customer"),
+        ),
+      );
+    }
+
+    if (_driverLocation != null && _driverIcon != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId("driver"),
+          position: _driverLocation!,
+          icon: _driverIcon!,
+          infoWindow: const InfoWindow(title: "Driver"),
+        ),
+      );
+    }
+
+    return markers;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final initialTarget = _customerLocation;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Track Order"),
-        actions: const [
+        actions: [
           Padding(
-            padding: EdgeInsets.only(right: 16),
-            //TODO: make dynamic based on order info
-            child: Center(child: Text("Order #123")),
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(child: Text("Order #${widget.order.id}")),
           ),
         ],
       ),
       body: Column(
         children: [
-          // GOOGLE MAP
           Expanded(
             child: GoogleMap(
               zoomControlsEnabled: false,
-              initialCameraPosition: const CameraPosition(
-                target: _customerLocation,
+              initialCameraPosition: CameraPosition(
+                target: initialTarget,
                 zoom: 12,
               ),
-              markers: {
-                if (_restaurantIcon != null)
-                  Marker(
-                    markerId: const MarkerId("_restaurantLocation"),
-                    position: _restaurantPosition,
-                    icon: _restaurantIcon!,
-                  ),
-                if (_customerIcon != null)
-                  Marker(
-                    markerId: const MarkerId("_customerLocation"),
-                    position: _customerLocation,
-                    icon: _customerIcon!,
-                  ),
-                if (_driverLocation != null && _driverIcon != null)
-                  Marker(
-                    markerId: const MarkerId("_driverLocation"),
-                    position: _driverLocation!,
-                    icon: _driverIcon!,
-                  ),
-              },
+              markers: _buildMarkers(),
             ),
           ),
-
-          // DRIVER CARD
           SafeArea(
             top: false,
             child: Padding(
@@ -134,47 +162,33 @@ class _MapScreenState extends State<MapScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
+                child: const Padding(
+                  padding: EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 24,
                         backgroundColor: Colors.orange,
                         child: Text(
-                          "JD",
+                          "DR",
                           style: TextStyle(color: Colors.white),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      const Expanded(
+                      SizedBox(width: 12),
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            //TODO: make dynamic based on driver information
                             Text(
-                              "John Doe",
+                              "Driver",
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             SizedBox(height: 4),
-                            Text("Delivery Partner · 4.9 ⭐"),
+                            Text("Live tracking"),
                           ],
                         ),
-                      ),
-                      _IconButton(
-                        icon: Icons.phone,
-                        color: Colors.green,
-                        //TODO: implement call functionality
-                        onTap: () {},
-                      ),
-                      const SizedBox(width: 8),
-                      _IconButton(
-                        icon: Icons.chat,
-                        color: Colors.blue,
-                        //TODO: implement chat functionality
-                        onTap: () {},
                       ),
                     ],
                   ),
@@ -183,34 +197,6 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-//TODO: extract to separate file
-class _IconButton extends StatelessWidget {
-  const _IconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-  final IconData icon;
-  final Color color;
-  final Function() onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(30),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 20),
       ),
     );
   }

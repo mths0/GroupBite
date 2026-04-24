@@ -6,12 +6,14 @@
 // All state is managed with plain setState.
 
 import 'package:flutter/material.dart';
-
+import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/mock/mock_cart_repository.dart';
 import 'package:food_delivery_platform/models/cart_models.dart';
 
+//! This class needs to be refactored and cleaned up
+//Todo This class needs to be refactored and cleaned up
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({
     super.key,
@@ -167,12 +169,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     try {
       final databaseService = DatabaseService();
       final orderItems = widget.cartItems
-          .map((item) => OrderItem(
-                menuId: item.id,
-                name: item.name,
-                quantity: item.quantity,
-                priceAtPurchase: item.unitPrice,
-              ))
+          .map(
+            (item) => OrderItem(
+              menuId: item.id,
+              name: item.name,
+              quantity: item.quantity,
+              priceAtPurchase: item.unitPrice,
+            ),
+          )
           .toList();
 
       await databaseService.addOrder(
@@ -183,6 +187,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       );
 
       if (!mounted) return;
+
+      // clear cart for this restaurant AFTER successful order creation
+      CartScope.of(context).clearRestaurantCart(widget.restaurantId);
+
       setState(() => _isPlacingOrder = false);
 
       showDialog(
@@ -409,8 +417,8 @@ class _SectionCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -450,7 +458,9 @@ class _AddressTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.outlineVariant,
             width: isSelected ? 1.8 : 0.8,
           ),
           color: isSelected
@@ -467,15 +477,15 @@ class _AddressTile extends StatelessWidget {
                   Text(
                     address.label,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     address.fullAddress,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -529,7 +539,8 @@ class _DeliveryTimeSelector extends StatelessWidget {
             Expanded(
               child: _DeliveryOptionTile(
                 label: 'Schedule',
-                subtitle: selected == _DeliveryTimeOption.schedule &&
+                subtitle:
+                    selected == _DeliveryTimeOption.schedule &&
                         scheduledDateTime != null
                     ? _formatDate(scheduledDateTime!)
                     : 'Choose time',
@@ -576,8 +587,9 @@ class _DeliveryOptionTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color:
-                isSelected ? colorScheme.primary : colorScheme.outlineVariant,
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.outlineVariant,
             width: isSelected ? 1.8 : 0.8,
           ),
           color: isSelected
@@ -589,18 +601,16 @@ class _DeliveryOptionTile extends StatelessWidget {
             Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: isSelected
-                        ? colorScheme.primary
-                        : colorScheme.onSurface,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 2),
             Text(
               subtitle,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                color: colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -642,8 +652,9 @@ class _PaymentTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color:
-                isSelected ? colorScheme.primary : colorScheme.outlineVariant,
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.outlineVariant,
             width: isSelected ? 1.8 : 0.8,
           ),
           color: isSelected
@@ -655,8 +666,9 @@ class _PaymentTile extends StatelessWidget {
             // Icon avatar
             CircleAvatar(
               radius: 20,
-              backgroundColor:
-                  isSelected ? colorScheme.primary : colorScheme.surfaceContainerHigh,
+              backgroundColor: isSelected
+                  ? colorScheme.primary
+                  : colorScheme.surfaceContainerHigh,
               child: Icon(
                 icon,
                 color: isSelected
@@ -674,14 +686,14 @@ class _PaymentTile extends StatelessWidget {
                   Text(
                     label,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   Text(
                     subtitle,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -750,15 +762,15 @@ class _CheckoutSummary extends StatelessWidget {
             Text(
               'Total',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                fontWeight: FontWeight.w700,
+              ),
             ),
             Text(
               '\$${total.toStringAsFixed(2)}',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.primary,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: colorScheme.primary,
+              ),
             ),
           ],
         ),
@@ -791,15 +803,15 @@ class _SummaryRow extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
         Text(
           display,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: valueColor ?? colorScheme.onSurface,
-              ),
+            fontWeight: FontWeight.w600,
+            color: valueColor ?? colorScheme.onSurface,
+          ),
         ),
       ],
     );

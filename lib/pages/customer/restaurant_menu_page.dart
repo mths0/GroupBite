@@ -11,9 +11,11 @@ class RestaurantMenuPage extends StatefulWidget {
   const RestaurantMenuPage({
     super.key,
     required this.restaurant,
+    required this.customerId,
   });
 
   final app_models.Restaurant restaurant;
+  final String customerId;
 
   @override
   State<RestaurantMenuPage> createState() => _RestaurantMenuPageState();
@@ -144,7 +146,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                     MaterialPageRoute(
                       builder: (_) => CartScope(
                         notifier: cart,
-                        child: CartScreen(restaurantId: restaurantId),
+                        child: CartScreen(
+                          restaurantId: restaurantId,
+                          customerId: widget.customerId,
+                        ),
                       ),
                     ),
                   );

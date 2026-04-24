@@ -34,7 +34,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           buildSearchBar(),
           const SizedBox(height: 16),
           Text(
-          //Todo : Get user location and show nearby restaurants (later)
+            //Todo : Get user location and show nearby restaurants (later)
             'Restaurants Near You',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
@@ -110,7 +110,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           MaterialPageRoute(
             builder: (_) => CartScope(
               notifier: cart,
-              child: RestaurantMenuPage(restaurant: restaurant),
+              child: RestaurantMenuPage(
+                restaurant: restaurant,
+                customerId: widget.customer.id,
+              ),
             ),
           ),
         );

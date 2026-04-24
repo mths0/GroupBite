@@ -19,8 +19,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   late final List<Widget> _screens = [
     CustomerHomeScreen(customer: widget.customer),
-    const CustomerOrdersScreen(),
-    const CustomerProfileScreen(),
+    CustomerOrdersScreen(customer: widget.customer),
+    CustomerProfileScreen(customer: widget.customer),
   ];
 
   @override

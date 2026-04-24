@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:food_delivery_platform/models/abstract_user.dart';
 import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/customer.dart';
+import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
@@ -182,6 +183,17 @@ class DatabaseService {
     });
   }
 
+  Stream<List<Order>> getOrdersForCustomer(String customerId) {
+    return _db
+        .collection('orders')
+        .where('customerId', isEqualTo: customerId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList();
+        });
+  }
+
   Future<cart_models.Coupon?> validateCoupon({
     required String restaurantId,
     required String code,
@@ -246,5 +258,86 @@ class DatabaseService {
       default:
         throw Exception('Unknown role');
     }
+  }
+
+  // ---------------- CUSTOMER ADDRESSES ----------------
+  Future<List<CustomerAddress>> getCustomerAddresses(String customerId) async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(customerId)
+        .collection('addresses')
+        .get();
+
+    return snapshot.docs
+        .map((doc) => CustomerAddress.fromMap(doc.data()))
+        .toList();
+  }
+
+  Stream<List<CustomerAddress>> streamCustomerAddresses(String customerId) {
+    return _db
+        .collection('users')
+        .doc(customerId)
+        .collection('addresses')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => CustomerAddress.fromMap(doc.data()))
+              .toList();
+        });
+  }
+
+  Future<void> addCustomerAddress({
+    required String customerId,
+    required CustomerAddress address,
+  }) async {
+    await _db
+        .collection('users')
+        .doc(customerId)
+        .collection('addresses')
+        .doc(address.id)
+        .set(address.toJson());
+  }
+
+  Future<void> updateCustomerAddress({
+    required String customerId,
+    required CustomerAddress address,
+  }) async {
+    await _db
+        .collection('users')
+        .doc(customerId)
+        .collection('addresses')
+        .doc(address.id)
+        .update(address.toJson());
+  }
+
+  Future<void> deleteCustomerAddress({
+    required String customerId,
+    required String addressId,
+  }) async {
+    await _db
+        .collection('users')
+        .doc(customerId)
+        .collection('addresses')
+        .doc(addressId)
+        .delete();
+  }
+
+  Future<void> setDefaultCustomerAddress({
+    required String customerId,
+    required String addressId,
+  }) async {
+    final col = _db.collection('users').doc(customerId).collection('addresses');
+
+    final snapshot = await col.get();
+
+    final batch = _db.batch();
+
+    for (final doc in snapshot.docs) {
+      batch.update(doc.reference, {
+        'isDefault': doc.id == addressId,
+      });
+    }
+
+    await batch.commit();
   }
 }
