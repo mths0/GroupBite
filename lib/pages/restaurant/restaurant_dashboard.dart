@@ -1,95 +1,120 @@
 import 'package:flutter/material.dart';
-
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/restaurant/menu_management_screen.dart';
 import 'package:food_delivery_platform/pages/restaurant/promotions_screen.dart';
+import 'package:food_delivery_platform/pages/restaurant/restaurant_orders_dashboard.dart';
+import 'package:food_delivery_platform/pages/restaurant/restaurant_profile.dart';
 
-//Todo change to be like customer dashboard with bottom nav and more sections like orders and profile
-class RestaurantDashboard extends StatelessWidget {
+class RestaurantDashboard extends StatefulWidget {
   const RestaurantDashboard({super.key, required this.restaurant});
+
   final Restaurant restaurant;
 
   @override
+  State<RestaurantDashboard> createState() => _RestaurantDashboardState();
+}
+
+class _RestaurantDashboardState extends State<RestaurantDashboard> {
+  int _navIndex = 0;
+  final PageController _pageController = PageController();
+
+  late final List<Widget> _screens = [
+    MenuManagementScreen(restaurant: widget.restaurant),
+    PromotionsScreen(restaurantId: widget.restaurant.id),
+    RestaurantOrdersDashboard(restaurantId: widget.restaurant.id),
+    RestaurantProfile(restaurant: widget.restaurant),
+  ];
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _goToPage(int index) {
+    setState(() {
+      _navIndex = index;
+    });
+
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(restaurant.name),
             Text(
-              "ID: ${restaurant.id}",
-              style: const TextStyle(fontSize: 12),
+              widget.restaurant.name,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              "ID: ${widget.restaurant.id}",
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.outline,
+              ),
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.notifications_none),
+            onPressed: () {},
+          ),
+          const SizedBox(width: 6),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: CircleAvatar(
+              child: Text(
+                widget.restaurant.name.isNotEmpty
+                    ? widget.restaurant.name[0].toUpperCase()
+                    : 'R',
+                style: TextStyle(color: scheme.onPrimary),
+              ),
+            ),
+          ),
+        ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // 🔹 Menu Management
-          _DashboardCard(
-            title: "Menu Management",
-            subtitle: "Add, edit, or delete menu items",
-            icon: Icons.restaurant_menu,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      MenuManagementScreen(restaurant: restaurant),
-                ),
-              );
-            },
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) => setState(() => _navIndex = index),
+        children: _screens,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _navIndex,
+        onDestinationSelected: _goToPage,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.restaurant_menu_outlined),
+            selectedIcon: Icon(Icons.restaurant_menu),
+            label: 'Menu',
           ),
-
-          const SizedBox(height: 12),
-
-          // 🔥 Promotions & Coupons
-          _DashboardCard(
-            title: "Promotions & Coupons",
-            subtitle: "Create and manage discount offers",
-            icon: Icons.local_offer,
-            iconColor: Colors.orange,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      PromotionsScreen(restaurantId: restaurant.id),
-                ),
-              );
-            },
+          NavigationDestination(
+            icon: Icon(Icons.local_offer_outlined),
+            selectedIcon: Icon(Icons.local_offer),
+            label: 'Promotions',
           ),
-
-          const SizedBox(height: 12),
-
-          // 🔹 Orders
-          _DashboardCard(
-            title: "Orders",
-            subtitle: "View and manage incoming orders (later)",
-            icon: Icons.receipt_long,
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text("Orders page (coming soon)")),
-              );
-            },
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long),
+            label: 'Orders',
           ),
-
-          const SizedBox(height: 12),
-
-          // 🔹 Profile
-          _DashboardCard(
-            title: "Profile",
-            subtitle: "Restaurant info and settings (later)",
-            icon: Icons.store,
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text("Profile page (coming soon)")),
-              );
-            },
+          NavigationDestination(
+            icon: Icon(Icons.store_outlined),
+            selectedIcon: Icon(Icons.store),
+            label: 'Profile',
           ),
         ],
       ),
@@ -97,44 +122,4 @@ class RestaurantDashboard extends StatelessWidget {
   }
 }
 
-class _DashboardCard extends StatelessWidget {
-  const _DashboardCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-    this.iconColor,
-  });
 
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-  final Color? iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        leading: CircleAvatar(
-          backgroundColor: (iconColor ?? Theme.of(context).primaryColor)
-              .withOpacity(0.1),
-          child: Icon(icon, color: iconColor ?? Theme.of(context).primaryColor),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
-    );
-  }
-}

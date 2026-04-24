@@ -100,6 +100,26 @@ class DatabaseService {
     });
   }
 
+  Stream<List<Order>> getOrdersForRestaurant(String restaurantId) {
+    return _db
+        .collection('orders')
+        .where('restaurantId', isEqualTo: restaurantId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList();
+        });
+  }
+
+  Future<void> updateOrderStatus({
+    required String orderId,
+    required OrderStatus status,
+  }) async {
+    await _db.collection('orders').doc(orderId).update({
+      'status': status.name,
+    });
+  }
+
   Stream<List<Order>> listenForPendingOrders() {
     return _db
         .collection('orders')

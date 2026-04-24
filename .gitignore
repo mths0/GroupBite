@@ -11,7 +11,8 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-
+firepit-log.txt
+*.log
 # IntelliJ related
 *.iml
 *.ipr

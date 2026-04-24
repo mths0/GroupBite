@@ -1,5 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum OrderStatus {
+  pending,
+  rejected,
+  accepted,
+  pickedUp,
+  delivered,
+}
+
 class Order {
   final String id;
   final String customerId;
@@ -8,10 +16,10 @@ class Order {
   final GeoPoint restaurantLocation;
   final String? driverId;
   final List<OrderItem> items;
-  final String status;
+  final OrderStatus status;
   final DateTime createdAt;
   final double totalPrice;
-  final String? paymentId; // can be null until payment is processed
+  final String? paymentId;
 
   Order({
     required this.id,
@@ -28,35 +36,47 @@ class Order {
   });
 
   factory Order.fromFirestore(DocumentSnapshot doc) {
-    // Use 'as Map?' and fallback to empty map to avoid null errors on 'data'
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
     return Order(
       id: doc.id,
-      // Use the ?? operator to provide defaults if the DB field is null
       customerId: (data['customerId'] ?? '').toString(),
       restaurantId: (data['restaurantId'] ?? '').toString(),
-      driverId: data['driverId']
-          ?.toString(), // This is nullable, so this is safe
-      status: data['status']?.toString() ?? 'pending',
+      driverId: data['driverId']?.toString(),
+      status: OrderStatus.values.firstWhere(
+        (e) => e.name == (data['status'] ?? 'pending').toString(),
+        orElse: () => OrderStatus.pending,
+      ),
       restaurantLocation: data['restaurantLocation'] as GeoPoint,
       customerLocation: data['customerLocation'] as GeoPoint,
-      // Handle the number conversion safely
       totalPrice: (data['totalPrice'] as num?)?.toDouble() ?? 0.0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      paymentId: data['paymentId']?.toString(),
       items: (data['items'] as List<dynamic>? ?? [])
           .map((item) => OrderItem.fromMap(item as Map<String, dynamic>))
           .toList(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'customerId': customerId,
+        'customerLocation': customerLocation,
+        'restaurantId': restaurantId,
+        'restaurantLocation': restaurantLocation,
+        'driverId': driverId,
+        'items': items.map((e) => e.toJson()).toList(),
+        'status': status.name,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'totalPrice': totalPrice,
+        'paymentId': paymentId,
+      };
 }
 
 class OrderItem {
   final String menuId;
   final String name;
   final int quantity;
-  final double
-  priceAtPurchase; //? do we need this? we can get the price from the menu item.
+  final double priceAtPurchase;
 
   OrderItem({
     required this.menuId,
@@ -66,18 +86,18 @@ class OrderItem {
   });
 
   Map<String, dynamic> toJson() => {
-    'menuId': menuId,
-    'name': name,
-    'quantity': quantity,
-    'priceAtPurchase': priceAtPurchase,
-  };
+        'menuId': menuId,
+        'name': name,
+        'quantity': quantity,
+        'priceAtPurchase': priceAtPurchase,
+      };
 
   factory OrderItem.fromMap(Map<String, dynamic> map) {
     return OrderItem(
-      menuId: map['menuId'],
-      name: map['name'],
-      quantity: map['quantity'],
-      priceAtPurchase: map['priceAtPurchase'].toDouble(),
+      menuId: (map['menuId'] ?? '').toString(),
+      name: (map['name'] ?? '').toString(),
+      quantity: (map['quantity'] as num?)?.toInt() ?? 0,
+      priceAtPurchase: (map['priceAtPurchase'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

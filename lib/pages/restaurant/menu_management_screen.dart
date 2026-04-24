@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
+import 'dart:io';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
@@ -442,20 +445,23 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   late final TextEditingController _priceCtrl;
-  late final TextEditingController _imageCtrl;
   late final TextEditingController _descriptionCtrl;
   bool _available = true;
+  File? _selectedImageFile;
+  String? _existingImageUrl;
+  bool _isUploadingImage = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
+    _existingImageUrl = widget.existing?.imageUrl;
     _nameCtrl = TextEditingController(text: widget.existing?.name ?? "");
     _priceCtrl = TextEditingController(
       text: widget.existing != null
           ? widget.existing!.price.toStringAsFixed(0)
           : "",
     );
-    _imageCtrl = TextEditingController(text: widget.existing?.imageUrl ?? "");
     _descriptionCtrl = TextEditingController(
       text: widget.existing?.description ?? "",
     );
@@ -466,17 +472,54 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
   void dispose() {
     _nameCtrl.dispose();
     _priceCtrl.dispose();
-    _imageCtrl.dispose();
     _descriptionCtrl.dispose();
     super.dispose();
   }
 
-  void _save() {
+  Future<void> _pickImage() async {
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+
+    if (picked == null) return;
+
+    setState(() {
+      _selectedImageFile = File(picked.path);
+    });
+  }
+
+  Future<String> _uploadImage(String itemId) async {
+    if (_selectedImageFile == null) {
+      return _existingImageUrl ?? '';
+    }
+
+    setState(() => _isUploadingImage = true);
+
+    try {
+      final ref = FirebaseStorage.instance.ref().child(
+        'restaurants/${widget.restaurantId}/menu_items/$itemId.jpg',
+      );
+
+      await ref.putFile(_selectedImageFile!);
+      return await ref.getDownloadURL();
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+      }
+    }
+  }
+
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final id = widget.existing?.id ?? "";
+    final id = widget.existing?.id.isNotEmpty == true
+        ? widget.existing!.id
+        : firestore.FirebaseFirestore.instance.collection('tmp').doc().id;
 
     final price = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+
+    final uploadedImageUrl = await _uploadImage(id);
 
     final item = MenuItem(
       id: id,
@@ -485,11 +528,12 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
       price: price,
       category: widget.category,
       isAvailable: _available,
-      imageUrl: _imageCtrl.text.trim(),
+      imageUrl: uploadedImageUrl,
       description: _descriptionCtrl.text.trim(),
-      calories: 0, //Todo add calories input
+      calories: 0,
     );
 
+    if (!mounted) return;
     Navigator.pop(context, item);
   }
 
@@ -540,12 +584,58 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
             ),
             const SizedBox(height: 10),
             // Item IMAGE
-            TextFormField(
-              controller: _imageCtrl,
-              decoration: const InputDecoration(
-                labelText: "Image URL (optional)",
-                hintText: "https://...",
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Item Image",
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: _selectedImageFile != null
+                        ? Image.file(
+                            _selectedImageFile!,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          )
+                        : (_existingImageUrl != null &&
+                              _existingImageUrl!.isNotEmpty)
+                        ? Image.network(
+                            _existingImageUrl!,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 120,
+                              height: 120,
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.image_not_supported),
+                            ),
+                          )
+                        : Container(
+                            width: 120,
+                            height: 120,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.fastfood),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isUploadingImage ? null : _pickImage,
+                    icon: const Icon(Icons.upload),
+                    label: Text(
+                      _isUploadingImage ? "Uploading..." : "Upload Image",
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
 
