@@ -36,22 +36,22 @@ class CartItem {
   // --- Firebase-ready serialization ---
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'imagePath': imagePath,
-        'unitPrice': unitPrice,
-        'quantity': quantity,
-      };
+    'id': id,
+    'name': name,
+    'description': description,
+    'imagePath': imagePath,
+    'unitPrice': unitPrice,
+    'quantity': quantity,
+  };
 
   factory CartItem.fromMap(Map<String, dynamic> map) => CartItem(
-        id: map['id'] as String,
-        name: map['name'] as String,
-        description: map['description'] as String,
-        imagePath: map['imagePath'] as String,
-        unitPrice: (map['unitPrice'] as num).toDouble(),
-        quantity: (map['quantity'] as num).toInt(),
-      );
+    id: map['id'] as String,
+    name: map['name'] as String,
+    description: map['description'] as String,
+    imagePath: map['imagePath'] as String,
+    unitPrice: (map['unitPrice'] as num).toDouble(),
+    quantity: (map['quantity'] as num).toInt(),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -73,50 +73,55 @@ class Address {
   });
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'label': label,
-        'fullAddress': fullAddress,
-      };
+    'id': id,
+    'label': label,
+    'fullAddress': fullAddress,
+  };
 
   factory Address.fromMap(Map<String, dynamic> map) => Address(
-        id: map['id'] as String,
-        label: map['label'] as String,
-        fullAddress: map['fullAddress'] as String,
-      );
+    id: map['id'] as String,
+    label: map['label'] as String,
+    fullAddress: map['fullAddress'] as String,
+  );
 }
 
 // ---------------------------------------------------------------------------
 
 /// Represents a promotional discount coupon.
+enum CouponDiscountType {
+  percentage,
+  fixed,
+}
+
 class Coupon {
   final String code;
-
-  /// A value between 0.0 and 1.0 representing the discount fraction.
-  /// e.g., 0.10 means 10% off.
-  final double discountFraction;
-
-  /// Human-readable label, e.g., "10% OFF".
   final String label;
+  final CouponDiscountType discountType;
+  final double discountValue;
 
   const Coupon({
     required this.code,
-    required this.discountFraction,
     required this.label,
+    required this.discountType,
+    required this.discountValue,
   });
 
   Map<String, dynamic> toMap() => {
-        'code': code,
-        'discountFraction': discountFraction,
-        'label': label,
-      };
+    'code': code,
+    'label': label,
+    'discountType': discountType.name,
+    'discountValue': discountValue,
+  };
 
   factory Coupon.fromMap(Map<String, dynamic> map) => Coupon(
-        code: map['code'] as String,
-        discountFraction: (map['discountFraction'] as num).toDouble(),
-        label: map['label'] as String,
-      );
+    code: (map['code'] ?? '').toString(),
+    label: (map['label'] ?? '').toString(),
+    discountType: (map['discountType'] ?? 'percentage') == 'fixed'
+        ? CouponDiscountType.fixed
+        : CouponDiscountType.percentage,
+    discountValue: (map['discountValue'] as num).toDouble(),
+  );
 }
-
 // ---------------------------------------------------------------------------
 
 /// Holds global checkout configuration fetched from the repository.
@@ -138,14 +143,14 @@ class CheckoutData {
   });
 
   Map<String, dynamic> toMap() => {
-        'deliveryFee': deliveryFee,
-        'walletBalance': walletBalance,
-        'taxRate': taxRate,
-      };
+    'deliveryFee': deliveryFee,
+    'walletBalance': walletBalance,
+    'taxRate': taxRate,
+  };
 
   factory CheckoutData.fromMap(Map<String, dynamic> map) => CheckoutData(
-        deliveryFee: (map['deliveryFee'] as num).toDouble(),
-        walletBalance: (map['walletBalance'] as num).toDouble(),
-        taxRate: (map['taxRate'] as num).toDouble(),
-      );
+    deliveryFee: (map['deliveryFee'] as num).toDouble(),
+    walletBalance: (map['walletBalance'] as num).toDouble(),
+    taxRate: (map['taxRate'] as num).toDouble(),
+  );
 }

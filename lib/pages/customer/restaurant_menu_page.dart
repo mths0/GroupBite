@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
+import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/mock/mock_menu_items_repository.dart';
 
 import 'package:food_delivery_platform/models/menu_item.dart';
@@ -10,13 +11,9 @@ class RestaurantMenuPage extends StatefulWidget {
   const RestaurantMenuPage({
     super.key,
     required this.restaurant,
-    this.repository,
   });
 
   final app_models.Restaurant restaurant;
-
-  /// لو ما مررت repository بيستخدم البيانات الثابتة
-  final MenuRepository? repository;
 
   @override
   State<RestaurantMenuPage> createState() => _RestaurantMenuPageState();
@@ -33,13 +30,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
     'Drinks',
   ];
 
-  late final MenuRepository _repo;
-
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
-    _repo = widget.repository ?? StaticMenuRepository();
   }
 
   @override
@@ -64,11 +58,20 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
       ),
 
       body: FutureBuilder<List<MenuItem>>(
-        future: _repo.getMenuForRestaurant(widget.restaurant.id),
+        future: DatabaseService().getMenuForRestaurant(
+          restaurantId: widget.restaurant.id,
+        ),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+
+          if (snapshot.hasError) {
+            return const Center(
+              child: Text('Failed to load menu items'),
+            );
+          }
+
           final items = snapshot.data ?? [];
 
           return Column(
@@ -76,7 +79,6 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
               HeaderCard(restaurant: widget.restaurant),
               const SizedBox(height: 8),
 
-              // Tabs
               TabBar(
                 controller: _tabController,
                 isScrollable: true,
@@ -86,7 +88,6 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                 tabs: _tabs.map((t) => Tab(text: t)).toList(),
               ),
 
-              // Lists
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
@@ -94,9 +95,11 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                     final filtered = items
                         .where((e) => e.category == cat)
                         .toList();
+
                     if (filtered.isEmpty) {
                       return const Center(child: Text('No items'));
                     }
+
                     return ListView.separated(
                       padding: const EdgeInsets.all(16),
                       itemCount: filtered.length,

@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:food_delivery_platform/models/abstract_user.dart';
+import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/customer.dart';
+import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'models/driver.dart';
@@ -34,8 +36,8 @@ class DatabaseService {
   }) async {
     await _db.collection('users').doc(userId).update(data);
   }
-  
-   Future<User?> getUserByEmail(String email) async {
+
+  Future<User?> getUserByEmail(String email) async {
     final snapshot = await _db
         .collection('users')
         .where('email', isEqualTo: email)
@@ -52,6 +54,33 @@ class DatabaseService {
     await _db.collection('users').doc(driverId).update({
       'status': status.name,
     });
+  }
+
+  Stream<List<Restaurant>> getRestaurants() {
+    return _db
+        .collection('users')
+        .where('role', isEqualTo: UserRole.restaurant.name)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            final data = doc.data();
+            return Restaurant.fromMap(data);
+          }).toList();
+        });
+  }
+
+  Future<List<MenuItem>> getMenuForRestaurant({
+    required String restaurantId,
+  }) async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(restaurantId)
+        .collection('menu_items')
+        .get();
+
+    return snapshot.docs.map((doc) {
+      return MenuItem.fromMap(doc.data());
+    }).toList();
   }
 
   // ---------------- ORDERS ----------------
@@ -81,6 +110,7 @@ class DatabaseService {
               snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList(),
         );
   }
+
   Future<Order> addOrder({
     required String customerId,
     required String restaurantId,
@@ -106,7 +136,7 @@ class DatabaseService {
     final snapshot = await docRef.get();
     return Order.fromFirestore(snapshot);
   }
-  
+
   Future<void> acceptOrder({
     required String orderId,
     required String driverId,
@@ -132,6 +162,48 @@ class DatabaseService {
     });
   }
 
+  Future<cart_models.Coupon?> validateCoupon({
+    required String restaurantId,
+    required String code,
+  }) async {
+    final normalizedCode = code.trim().toUpperCase();
+
+    final snapshot = await _db
+        .collection('users')
+        .doc(restaurantId)
+        .collection('promotions')
+        .where('code', isEqualTo: normalizedCode)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) return null;
+
+    final data = snapshot.docs.first.data();
+
+    if ((data['enabled'] ?? false) != true) return null;
+
+    final now = DateTime.now();
+    final startAt = DateTime.tryParse((data['startAt'] ?? '').toString());
+    final endAt = DateTime.tryParse((data['endAt'] ?? '').toString());
+
+    if (startAt != null && now.isBefore(startAt)) return null;
+    if (endAt != null && now.isAfter(endAt)) return null;
+
+    final discountType = (data['discountType'] ?? '').toString();
+    final discountValue = (data['discountValue'] is num)
+        ? (data['discountValue'] as num).toDouble()
+        : double.tryParse('${data['discountValue']}') ?? 0.0;
+
+    return cart_models.Coupon(
+      code: (data['code'] ?? '').toString(),
+      label: (data['title'] ?? '').toString(),
+      discountType: discountType == 'fixed'
+          ? cart_models.CouponDiscountType.fixed
+          : cart_models.CouponDiscountType.percentage,
+      discountValue: discountType == 'free_delivery' ? 0.0 : discountValue,
+    );
+  }
+
   // ---------------- DELETE ----------------
 
   Future<void> deleteDocument({
@@ -155,6 +227,4 @@ class DatabaseService {
         throw Exception('Unknown role');
     }
   }
-
-
 }

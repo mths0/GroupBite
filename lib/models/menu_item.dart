@@ -1,16 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum MenuCategory {
+  appetizers,
+  mains,
+  desserts,
+  drinks,
+}
+
 class MenuItem {
   final String id;
   final String restaurantId;
   final String description;
   final String name;
   final double price;
-  //Todo make it enum
-  final String category; // Appetizers, Mains, Desserts, Drinks
+  final String category;
   final bool isAvailable;
-  final String imageUrl; // optional
-  final int calories; // optional
+  final String imageUrl;
+  final int calories;
 
   const MenuItem({
     required this.id,
@@ -25,15 +31,16 @@ class MenuItem {
   });
 
   Map<String, dynamic> toJson() => {
-    "id": id,
-    "restaurantId": restaurantId,
-    "name": name,
-    "price": price,
-    "description": description,
-    "category": category,
-    "isAvailable": isAvailable,
-    "imageUrl": imageUrl,
-  };
+        "id": id,
+        "restaurantId": restaurantId,
+        "name": name,
+        "price": price,
+        "description": description,
+        "category": category,
+        "isAvailable": isAvailable,
+        "imageUrl": imageUrl,
+        "calories": calories,
+      };
 
   factory MenuItem.fromMap(Map<dynamic, dynamic> map) {
     return MenuItem(
@@ -44,7 +51,7 @@ class MenuItem {
           ? (map["price"] as num).toDouble()
           : double.tryParse("${map["price"]}") ?? 0.0,
       category: (map["category"] ?? "Appetizers").toString(),
-      isAvailable: map["available"] == true,
+      isAvailable: (map["isAvailable"] ?? true) == true,
       description: (map['description'] ?? '').toString(),
       imageUrl: (map["imageUrl"] ?? "").toString(),
       calories: (map["calories"] is num)
@@ -52,6 +59,7 @@ class MenuItem {
           : int.tryParse("${map["calories"]}") ?? 0,
     );
   }
+
   factory MenuItem.fromFirestore(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {
@@ -66,7 +74,7 @@ class MenuItem {
           ? (data["price"] as num).toDouble()
           : double.tryParse("${data["price"]}") ?? 0.0,
       category: (data["category"] ?? "Appetizers").toString(),
-      isAvailable: (data["available"] ?? true) == true,
+      isAvailable: (data["isAvailable"] ?? true) == true,
       imageUrl: (data["imageUrl"] ?? "").toString(),
       calories: (data["calories"] is num)
           ? (data["calories"] as num).toInt()
@@ -74,4 +82,3 @@ class MenuItem {
     );
   }
 }
-

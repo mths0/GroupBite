@@ -1,6 +1,7 @@
 // lib/pages/customer/cart_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:food_delivery_platform/database_service.dart';
 
 import '../../mock/mock_cart_repository.dart';
 import '../../models/cart_item.dart' as app_models;
@@ -125,9 +126,18 @@ class _CartScreenState extends State<CartScreen> {
 
   double get _tax => _subtotal * (_checkoutData?.taxRate ?? 0.15);
 
-  double get _discount => _appliedCoupon != null
-      ? _subtotal * _appliedCoupon!.discountFraction
-      : 0.0;
+  double get _discount {
+    if (_appliedCoupon == null) return 0.0;
+
+    if (_appliedCoupon!.discountType ==
+        cart_models.CouponDiscountType.percentage) {
+      return _subtotal * (_appliedCoupon!.discountValue / 100);
+    }
+
+    return _appliedCoupon!.discountValue > _subtotal
+        ? _subtotal
+        : _appliedCoupon!.discountValue;
+  }
 
   double get _total =>
       _subtotal + (_checkoutData?.deliveryFee ?? 0.0) + _tax - _discount;
@@ -142,7 +152,10 @@ class _CartScreenState extends State<CartScreen> {
 
     setState(() => _isValidatingCoupon = true);
 
-    final coupon = await _repo.validateCoupon(code);
+    final coupon = await DatabaseService().validateCoupon(
+      restaurantId: widget.restaurantId,
+      code: code,
+    );
 
     if (!mounted) return;
 
@@ -276,13 +289,11 @@ class _CartScreenState extends State<CartScreen> {
           body: _isLoading
               ? const Center(child: CircularProgressIndicator())
               : (_isShowingCheckout
-                  ? _buildCheckoutBody(cartItems)
-                  : _buildCartBody(cartItems)),
+                    ? _buildCheckoutBody(cartItems)
+                    : _buildCartBody(cartItems)),
           bottomNavigationBar: _isLoading
               ? null
-              : (_isShowingCheckout
-                  ? null
-                  : _buildCheckoutBar(cartItems)),
+              : (_isShowingCheckout ? null : _buildCheckoutBar(cartItems)),
         );
       },
     );
@@ -303,8 +314,8 @@ class _CartScreenState extends State<CartScreen> {
             Text(
               'Your cart is empty',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -348,14 +359,16 @@ class _CartScreenState extends State<CartScreen> {
   Widget _buildCheckoutBody(List<app_models.CartItem> cartItems) {
     return CheckoutScreen(
       cartItems: cartItems
-          .map((item) => cart_models.CartItem(
-                id: item.menuItem.id,
-                name: item.menuItem.name,
-                description: item.menuItem.description,
-                imagePath: item.menuItem.imageUrl,
-                unitPrice: item.menuItem.price,
-                quantity: item.quantity,
-              ))
+          .map(
+            (item) => cart_models.CartItem(
+              id: item.menuItem.id,
+              name: item.menuItem.name,
+              description: item.menuItem.description,
+              imagePath: item.menuItem.imageUrl,
+              unitPrice: item.menuItem.price,
+              quantity: item.quantity,
+            ),
+          )
           .toList(),
       checkoutData: _checkoutData!,
       subtotal: _subtotal,
@@ -363,7 +376,7 @@ class _CartScreenState extends State<CartScreen> {
       discount: _discount,
       total: _total,
       appliedCoupon: _appliedCoupon,
-      customerId: 'current_user_id', 
+      customerId: 'current_user_id',
       restaurantId: widget.restaurantId,
     );
   }
@@ -466,10 +479,10 @@ class _CartItemCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           item.menuItem.name,
-                          style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                       ),
                       GestureDetector(
@@ -492,8 +505,8 @@ class _CartItemCard extends StatelessWidget {
                   Text(
                     item.menuItem.description,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
 
                   const SizedBox(height: 10),
@@ -503,11 +516,10 @@ class _CartItemCard extends StatelessWidget {
                     children: [
                       Text(
                         '\$${item.lineTotal.toStringAsFixed(2)}',
-                        style:
-                            Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  color: colorScheme.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const Spacer(),
                       // ── Quantity Stepper ──────────────────────────────────
@@ -562,9 +574,9 @@ class _QuantityStepper extends StatelessWidget {
           child: Text(
             '$quantity',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: colorScheme.onSurface,
-                ),
+              fontWeight: FontWeight.w700,
+              color: colorScheme.onSurface,
+            ),
           ),
         ),
 
@@ -665,8 +677,8 @@ class _PromoCodeCard extends StatelessWidget {
                 Text(
                   'Promo Code',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -812,8 +824,8 @@ class _BillSummaryCard extends StatelessWidget {
             Text(
               'Bill Summary',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                fontWeight: FontWeight.w700,
+              ),
             ),
 
             const SizedBox(height: 16),
@@ -848,15 +860,15 @@ class _BillSummaryCard extends StatelessWidget {
                 Text(
                   'Total',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 Text(
                   '\$${total.toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: colorScheme.primary,
-                      ),
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.primary,
+                  ),
                 ),
               ],
             ),
@@ -892,15 +904,15 @@ class _BillRow extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
         Text(
           display,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: valueColor ?? colorScheme.onSurface,
-              ),
+            fontWeight: FontWeight.w600,
+            color: valueColor ?? colorScheme.onSurface,
+          ),
         ),
       ],
     );
@@ -941,8 +953,8 @@ class _SectionCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -955,8 +967,9 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-class _AddressTile extends StatelessWidget {
-  const _AddressTile({
+class AddressTile extends StatelessWidget {
+  const AddressTile({
+    super.key,
     required this.address,
     required this.isSelected,
     required this.onTap,
@@ -979,7 +992,9 @@ class _AddressTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.outlineVariant,
             width: isSelected ? 1.8 : 0.8,
           ),
           color: isSelected
@@ -995,15 +1010,15 @@ class _AddressTile extends StatelessWidget {
                   Text(
                     address.label,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     address.fullAddress,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -1053,7 +1068,8 @@ class _DeliveryTimeSelector extends StatelessWidget {
         Expanded(
           child: _DeliveryOptionTile(
             label: 'Schedule',
-            subtitle: selected == _DeliveryTimeOption.schedule &&
+            subtitle:
+                selected == _DeliveryTimeOption.schedule &&
                     scheduledDateTime != null
                 ? _formatDate(scheduledDateTime!)
                 : 'Choose time',
@@ -1097,8 +1113,9 @@ class _DeliveryOptionTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color:
-                isSelected ? colorScheme.primary : colorScheme.outlineVariant,
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.outlineVariant,
             width: isSelected ? 1.8 : 0.8,
           ),
           color: isSelected
@@ -1110,18 +1127,16 @@ class _DeliveryOptionTile extends StatelessWidget {
             Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: isSelected
-                        ? colorScheme.primary
-                        : colorScheme.onSurface,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 2),
             Text(
               subtitle,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                color: colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1160,8 +1175,9 @@ class _PaymentTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color:
-                isSelected ? colorScheme.primary : colorScheme.outlineVariant,
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.outlineVariant,
             width: isSelected ? 1.8 : 0.8,
           ),
           color: isSelected
@@ -1191,14 +1207,14 @@ class _PaymentTile extends StatelessWidget {
                   Text(
                     label,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   Text(
                     subtitle,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -1263,15 +1279,15 @@ class _CheckoutSummary extends StatelessWidget {
             Text(
               'Total',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                fontWeight: FontWeight.w700,
+              ),
             ),
             Text(
               '\$${total.toStringAsFixed(2)}',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.primary,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: colorScheme.primary,
+              ),
             ),
           ],
         ),
@@ -1304,15 +1320,15 @@ class _SummaryRow extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
         Text(
           display,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: valueColor ?? colorScheme.onSurface,
-              ),
+            fontWeight: FontWeight.w600,
+            color: valueColor ?? colorScheme.onSurface,
+          ),
         ),
       ],
     );

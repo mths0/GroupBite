@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
+import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/mock/mock_restaurant_repository.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
@@ -41,7 +42,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           ),
           const SizedBox(height: 12),
           StreamBuilder<List<Restaurant>>(
-            stream: MockRestaurantRepository().restaurantSnapshot,
+            stream: DatabaseService().getRestaurants(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());

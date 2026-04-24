@@ -83,12 +83,8 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
     final primary = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FB),
       appBar: AppBar(
         title: const Text("Promotions"),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0,
       ),
       body: StreamBuilder<firestore.QuerySnapshot<Map<String, dynamic>>>(
         stream: _promosCol.orderBy("createdAt", descending: true).snapshots(),
@@ -124,7 +120,7 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
                 primary: primary,
                 title: (p['title'] ?? '').toString(),
                 status: status,
-                discountType: (p['discountType'] ?? 'percent').toString(),
+                discountType: (p['discountType'] ?? 'percentage').toString(),
                 discountValue: (p['discountValue'] ?? 0),
                 startAt: (p['startAt'] ?? '').toString(),
                 endAt: (p['endAt'] ?? '').toString(),
@@ -146,11 +142,6 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
         },
       ),
 
-      // floatingActionButton: FloatingActionButton(
-      //   backgroundColor: primary,
-      //   onPressed: () => _openAddEdit(),
-      //   child: const Icon(Icons.menu, color: Colors.white),
-      // ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -158,13 +149,6 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
             height: 54,
             child: ElevatedButton(
               onPressed: () => _openAddEdit(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
               child: const Text(
                 "Create Promotion",
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
@@ -282,7 +266,6 @@ class _PromotionCard extends StatelessWidget {
                   child: Text(
                     _badgeText,
                     style: const TextStyle(
-                      color: Colors.white,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
@@ -294,11 +277,10 @@ class _PromotionCard extends StatelessWidget {
 
             Row(
               children: [
-                const Icon(Icons.percent, size: 16, color: Colors.black54),
+                const Icon(Icons.percent, size: 16),
                 const SizedBox(width: 8),
                 Text(
                   _discountLine,
-                  style: const TextStyle(color: Colors.black87),
                 ),
               ],
             ),
@@ -309,13 +291,11 @@ class _PromotionCard extends StatelessWidget {
                 const Icon(
                   Icons.calendar_today,
                   size: 16,
-                  color: Colors.black54,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     "$startAt - $endAt",
-                    style: const TextStyle(color: Colors.black87),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -330,7 +310,6 @@ class _PromotionCard extends StatelessWidget {
                   child: Text(
                     "Min. order: ${minOrder.toString()} SAR",
                     style: const TextStyle(
-                      color: Colors.black87,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -416,13 +395,14 @@ class _AddEditPromotionSheetState extends State<_AddEditPromotionSheet> {
   late final TextEditingController _startCtrl;
   late final TextEditingController _endCtrl;
 
-  String _type = "percent"; // percent | fixed | free_delivery
+  String _type = "percentage"; // percent | fixed | free_delivery
   bool _enabled = true;
 
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
+
     _titleCtrl = TextEditingController(text: (e?['title'] ?? '').toString());
     _codeCtrl = TextEditingController(text: (e?['code'] ?? '').toString());
     _discountValueCtrl = TextEditingController(
@@ -433,7 +413,11 @@ class _AddEditPromotionSheetState extends State<_AddEditPromotionSheet> {
     );
     _startCtrl = TextEditingController(text: (e?['startAt'] ?? '').toString());
     _endCtrl = TextEditingController(text: (e?['endAt'] ?? '').toString());
-    _type = (e?['discountType'] ?? 'percent').toString();
+
+    final rawType = (e?['discountType'] ?? 'percentage').toString();
+    const allowedTypes = {'percentage', 'fixed', 'free_delivery'};
+    _type = allowedTypes.contains(rawType) ? rawType : 'percentage';
+
     _enabled = (e?['enabled'] ?? true) == true;
   }
 
@@ -520,16 +504,17 @@ class _AddEditPromotionSheetState extends State<_AddEditPromotionSheet> {
               TextFormField(
                 controller: _codeCtrl,
                 decoration: const InputDecoration(
-                  labelText: "Coupon Code (optional)",
+                  labelText: "Coupon Code",
                 ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? "Required" : null,
               ),
               const SizedBox(height: 10),
-
               DropdownButtonFormField<String>(
                 initialValue: _type,
                 items: const [
                   DropdownMenuItem(
-                    value: "percent",
+                    value: "percentage",
                     child: Text("Percent (%)"),
                   ),
                   DropdownMenuItem(value: "fixed", child: Text("Fixed (SAR)")),
@@ -538,7 +523,7 @@ class _AddEditPromotionSheetState extends State<_AddEditPromotionSheet> {
                     child: Text("Free delivery"),
                   ),
                 ],
-                onChanged: (v) => setState(() => _type = v ?? "percent"),
+                onChanged: (v) => setState(() => _type = v ?? "percentage"),
                 decoration: const InputDecoration(labelText: "Discount type"),
               ),
               const SizedBox(height: 10),
@@ -548,7 +533,7 @@ class _AddEditPromotionSheetState extends State<_AddEditPromotionSheet> {
                   controller: _discountValueCtrl,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    labelText: _type == "percent"
+                    labelText: _type == "percentage"
                         ? "Discount % (e.g. 20)"
                         : "Discount SAR (e.g. 15)",
                   ),

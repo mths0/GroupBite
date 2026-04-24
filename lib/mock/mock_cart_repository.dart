@@ -107,28 +107,28 @@ class MockCartRepository {
   ///       .get();
   ///   if (!doc.exists) return null;
   ///   return Coupon.fromMap(doc.data()!);
-  Future<Coupon?> validateCoupon(String code) async {
-    await Future.delayed(const Duration(milliseconds: 600));
+  // Future<Coupon?> validateCoupon(String code) async {
+  //   await Future.delayed(const Duration(milliseconds: 600));
 
-    // Mock coupon database
-    const validCoupons = {
-      'SAVE10': Coupon(
-        code: 'SAVE10',
-        discountFraction: 0.10,
-        label: '10% OFF',
-      ),
-      'SAVE20': Coupon(
-        code: 'SAVE20',
-        discountFraction: 0.20,
-        label: '20% OFF',
-      ),
-      'WELCOME': Coupon(
-        code: 'WELCOME',
-        discountFraction: 0.05,
-        label: '5% OFF',
-      ),
-    };
+  //   // Mock coupon database
+  //   const validCoupons = {
+  //     'SAVE10': Coupon(
+  //       code: 'SAVE10',
+  //       discountFraction: 0.10,
+  //       label: '10% OFF',
+  //     ),
+  //     'SAVE20': Coupon(
+  //       code: 'SAVE20',
+  //       discountFraction: 0.20,
+  //       label: '20% OFF',
+  //     ),
+  //     'WELCOME': Coupon(
+  //       code: 'WELCOME',
+  //       discountFraction: 0.05,
+  //       label: '5% OFF',
+  //     ),
+  //   };
 
-    return validCoupons[code.toUpperCase()];
-  }
+  //   return validCoupons[code.toUpperCase()];
+  // }
 }
