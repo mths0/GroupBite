@@ -51,6 +51,28 @@ class DatabaseService {
     return _userFromMap(data);
   }
 
+  Future<User?> getUserById(String userId) async {
+    final doc = await _db.collection('users').doc(userId).get();
+
+    if (!doc.exists) return null;
+
+    final data = doc.data();
+    if (data == null) return null;
+
+    return _userFromMap(data);
+  }
+
+  Future<Driver?> getDriverById(String driverId) async {
+    final doc = await _db.collection('users').doc(driverId).get();
+
+    if (!doc.exists) return null;
+
+    final data = doc.data();
+    if (data == null) return null;
+
+    return Driver.fromMap(data);
+  }
+
   Future<void> updateDriverStatus(String driverId, DriverStatus status) async {
     await _db.collection('users').doc(driverId).update({
       'status': status.name,
@@ -95,7 +117,7 @@ class DatabaseService {
       'customerId': customerId,
       'restaurantId': restaurantId,
       'driverId': null,
-      'status': 'pending',
+      'status': OrderStatus.pending.name,
       'totalPrice': totalPrice,
       'createdAt': firestore.FieldValue.serverTimestamp(),
     });
@@ -121,16 +143,16 @@ class DatabaseService {
     });
   }
 
-  Stream<List<Order>> listenForPendingOrders() {
-    return _db
-        .collection('orders')
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList(),
-        );
-  }
+  // Stream<List<Order>> listenForPendingOrders() {
+  //   return _db
+  //       .collection('orders')
+  //       .where('status', isEqualTo: 'pending')
+  //       .snapshots()
+  //       .map(
+  //         (snapshot) =>
+  //             snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList(),
+  //       );
+  // }
 
   Future<Order> addOrder({
     required String customerId,
@@ -158,30 +180,42 @@ class DatabaseService {
     return Order.fromFirestore(snapshot);
   }
 
-  Future<void> acceptOrder({
-    required String orderId,
-    required String driverId,
-  }) async {
-    final docRef = _db.collection("orders").doc(orderId);
-
-    await _db.runTransaction((transaction) async {
-      final snapshot = await transaction.get(docRef);
-
-      if (!snapshot.exists) {
-        throw Exception("Order not found");
-      }
-
-      final data = snapshot.data() as Map<String, dynamic>;
-
-      // check if order is already taken
-      if (data['status'] != 'pending') {
-        throw Exception(
-          "Sorry! Another driver has already accepted this order.",
-        );
-      }
-      transaction.update(docRef, {'driverId': driverId, 'status': 'accepted'});
+  Future<void> restaurantAcceptOrder(String orderId) async {
+    await _db.collection('orders').doc(orderId).update({
+      'status': OrderStatus.accepted.name,
     });
   }
+
+  Future<void> restaurantRejectOrder(String orderId) async {
+    await _db.collection('orders').doc(orderId).update({
+      'status': OrderStatus.rejected.name,
+    });
+  }
+
+  // Future<void> acceptOrder({
+  //   required String orderId,
+  //   required String driverId,
+  // }) async {
+  //   final docRef = _db.collection("orders").doc(orderId);
+
+  //   await _db.runTransaction((transaction) async {
+  //     final snapshot = await transaction.get(docRef);
+
+  //     if (!snapshot.exists) {
+  //       throw Exception("Order not found");
+  //     }
+
+  //     final data = snapshot.data() as Map<String, dynamic>;
+
+  //     // check if order is already taken
+  //     if (data['status'] != 'pending') {
+  //       throw Exception(
+  //         "Sorry! Another driver has already accepted this order.",
+  //       );
+  //     }
+  //     transaction.update(docRef, {'driverId': driverId, 'status': 'accepted'});
+  //   });
+  // }
 
   Stream<List<Order>> getOrdersForCustomer(String customerId) {
     return _db
@@ -243,6 +277,89 @@ class DatabaseService {
     required String docId,
   }) async {
     await _db.collection(collection).doc(docId).delete();
+  }
+
+  Future<void> assignOrderToDriver({
+    required String orderId,
+    required String driverId,
+  }) async {
+    final docRef = _db.collection('orders').doc(orderId);
+
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(docRef);
+
+      if (!snapshot.exists) {
+        throw Exception("Order not found");
+      }
+
+      final data = snapshot.data() as Map<String, dynamic>;
+
+      if (data['status'] != OrderStatus.accepted.name) {
+        throw Exception("Order is not available for driver assignment.");
+      }
+
+      if (data['driverId'] != null && data['driverId'].toString().isNotEmpty) {
+        throw Exception("Another driver has already taken this order.");
+      }
+
+      transaction.update(docRef, {
+        'driverId': driverId,
+        'status': OrderStatus.assigned.name,
+      });
+    });
+  }
+
+  Future<void> markOrderPickedUp(String orderId) async {
+    await _db.collection('orders').doc(orderId).update({
+      'status': OrderStatus.pickedUp.name,
+    });
+  }
+
+  Future<void> markOrderDelivered(String orderId) async {
+    await _db.collection('orders').doc(orderId).update({
+      'status': OrderStatus.delivered.name,
+    });
+  }
+
+  Future<void> completeOrderAndFreeDriver({
+    required String orderId,
+    required String driverId,
+  }) async {
+    await _db.runTransaction((transaction) async {
+      final orderRef = _db.collection('orders').doc(orderId);
+      final driverRef = _db.collection('users').doc(driverId);
+
+      transaction.update(orderRef, {
+        'status': OrderStatus.delivered.name,
+      });
+
+      transaction.update(driverRef, {
+        'status': DriverStatus.available.name,
+      });
+    });
+  }
+
+  Stream<List<Order>> getAvailableOrdersForDrivers() {
+    return _db
+        .collection('orders')
+        .where('status', isEqualTo: OrderStatus.accepted.name)
+        .where('driverId', isNull: true)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList();
+        });
+  }
+
+  Stream<List<Order>> getOrdersForDriver(String driverId) {
+    return _db
+        .collection('orders')
+        .where('driverId', isEqualTo: driverId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList();
+        });
   }
 
   // ---------------- MAPPING ----------------
@@ -339,5 +456,23 @@ class DatabaseService {
     }
 
     await batch.commit();
+  }
+
+  Stream<Driver?> streamDriverById(String driverId) {
+    return _db.collection('users').doc(driverId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+
+      final data = doc.data();
+      if (data == null) return null;
+
+      return Driver.fromMap(data);
+    });
+  }
+
+  Stream<Order?> streamOrderById(String orderId) {
+    return _db.collection('orders').doc(orderId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      return Order.fromFirestore(doc);
+    });
   }
 }

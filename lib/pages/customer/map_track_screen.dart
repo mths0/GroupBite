@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:food_delivery_platform/models/driver.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
 import 'package:food_delivery_platform/models/order.dart';
+import 'package:food_delivery_platform/database_service.dart';
+import 'package:food_delivery_platform/models/driver.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({
@@ -16,13 +20,12 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  final Location _locationController = Location();
-
   BitmapDescriptor? _restaurantIcon;
   BitmapDescriptor? _customerIcon;
   BitmapDescriptor? _driverIcon;
 
-  LatLng? _driverLocation;
+  Driver? _driver;
+  bool _isLoadingDriver = true;
 
   LatLng get _customerLocation => LatLng(
     widget.order.customerLocation.latitude,
@@ -37,8 +40,257 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation();
     _loadMarkerIcons();
+  }
+
+  Widget _buildDriverTracking(Order liveOrder) {
+    return StreamBuilder<Driver?>(
+      stream: DatabaseService().streamDriverById(liveOrder.driverId!),
+      builder: (context, driverSnapshot) {
+        final driver = driverSnapshot.data;
+
+        LatLng? liveDriverLocation;
+        if (driver?.location != null) {
+          liveDriverLocation = LatLng(
+            driver!.location!.latitude,
+            driver.location!.longitude,
+          );
+        }
+
+        final initialTarget = _customerLocationFromOrder(liveOrder);
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text("Track Order"),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: Center(child: Text("Order #${liveOrder.id}")),
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              Expanded(
+                child: GoogleMap(
+                  zoomControlsEnabled: false,
+                  initialCameraPosition: CameraPosition(
+                    target: initialTarget,
+                    zoom: 12,
+                  ),
+                  markers: _buildMarkers(
+                    liveOrder: liveOrder,
+                    liveDriverLocation: liveDriverLocation,
+                  ),
+                  // removed for now since it requires a proper routing solution to look good
+                  // polylines: _buildPolylines(
+                  //   liveOrder: liveOrder,
+                  //   liveDriverLocation: liveDriverLocation,
+                  // ),
+                ),
+              ),
+              _buildBottomCard(
+                liveOrder: liveOrder,
+                driver: driver,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _loadDriver() async {
+    if (widget.order.driverId == null || widget.order.driverId!.isEmpty) {
+      setState(() => _isLoadingDriver = false);
+      return;
+    }
+
+    try {
+      final driver = await DatabaseService().getDriverById(
+        widget.order.driverId!,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _driver = driver;
+        _isLoadingDriver = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingDriver = false);
+    }
+  }
+
+  Future<void> _callDriver(String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open phone dialer')),
+      );
+    }
+  }
+
+  Future<void> _openWhatsApp(String phone) async {
+    String cleanedPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (cleanedPhone.startsWith('0')) {
+      cleanedPhone = '966${cleanedPhone.substring(1)}';
+    } else if (cleanedPhone.startsWith('5')) {
+      cleanedPhone = '966$cleanedPhone';
+    }
+
+    final uri = Uri.parse('https://wa.me/$cleanedPhone');
+
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open WhatsApp')),
+      );
+    }
+  }
+
+  Widget _buildBottomCard({
+    required Order liveOrder,
+    required Driver? driver,
+  }) {
+    String title;
+    String subtitle;
+
+    switch (liveOrder.status) {
+      case OrderStatus.assigned:
+        title = "Driver heading to restaurant";
+        subtitle = "The driver is on the way to pick up your order";
+        break;
+      case OrderStatus.pickedUp:
+        title = "Driver heading to you";
+        subtitle = "Your order has been picked up and is on the way";
+        break;
+      case OrderStatus.delivered:
+        title = "Order delivered";
+        subtitle = "Your order has been delivered";
+        break;
+      default:
+        title = "Order update";
+        subtitle = "Waiting for the next status update";
+    }
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: Colors.orange,
+                      child: Text(
+                        driver?.name.isNotEmpty == true
+                            ? driver!.name[0].toUpperCase()
+                            : "D",
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            driver?.name ?? "Driver",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(subtitle),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        onPressed: driver == null
+                            ? null
+                            : () => _openWhatsApp(driver.phone),
+                        icon: const Icon(Icons.chat),
+                        label: const Text("WhatsApp"),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        onPressed: driver == null
+                            ? null
+                            : () => _callDriver('+966${driver.phone}'),
+                        icon: const Icon(Icons.call),
+                        label: const Text("Call"),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  LatLng _customerLocationFromOrder(Order order) {
+    return LatLng(
+      order.customerLocation.latitude,
+      order.customerLocation.longitude,
+    );
+  }
+
+  LatLng _restaurantLocationFromOrder(Order order) {
+    return LatLng(
+      order.restaurantLocation.latitude,
+      order.restaurantLocation.longitude,
+    );
   }
 
   Future<void> _loadMarkerIcons() async {
@@ -60,43 +312,49 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Future<void> _getCurrentLocation() async {
-    bool serviceEnabled;
-    PermissionStatus permissionGranted;
+  Set<Polyline> _buildPolylines({
+    required Order liveOrder,
+    required LatLng? liveDriverLocation,
+  }) {
+    if (liveDriverLocation == null) return {};
 
-    serviceEnabled = await _locationController.serviceEnabled();
-    if (!serviceEnabled) {
-      serviceEnabled = await _locationController.requestService();
-      if (!serviceEnabled) return;
+    LatLng destination;
+
+    if (liveOrder.status == OrderStatus.assigned) {
+      destination = _restaurantLocationFromOrder(liveOrder);
+    } else if (liveOrder.status == OrderStatus.pickedUp) {
+      destination = _customerLocationFromOrder(liveOrder);
+    } else {
+      return {};
     }
 
-    permissionGranted = await _locationController.hasPermission();
-    if (permissionGranted == PermissionStatus.denied) {
-      permissionGranted = await _locationController.requestPermission();
-      if (permissionGranted != PermissionStatus.granted) return;
-    }
-
-    _locationController.onLocationChanged.listen((currentLocation) {
-      if (currentLocation.latitude != null &&
-          currentLocation.longitude != null) {
-        setState(() {
-          _driverLocation = LatLng(
-            currentLocation.latitude!,
-            currentLocation.longitude!,
-          );
-        });
-      }
-    });
+    return {
+      Polyline(
+        polylineId: const PolylineId("driver_route"),
+        points: [
+          liveDriverLocation,
+          destination,
+        ],
+        width: 5,
+        color: Colors.blue,
+      ),
+    };
   }
 
-  Set<Marker> _buildMarkers() {
+  Set<Marker> _buildMarkers({
+    required Order liveOrder,
+    required LatLng? liveDriverLocation,
+  }) {
     final markers = <Marker>{};
+
+    final restaurantLocation = _restaurantLocationFromOrder(liveOrder);
+    final customerLocation = _customerLocationFromOrder(liveOrder);
 
     if (_restaurantIcon != null) {
       markers.add(
         Marker(
           markerId: const MarkerId("restaurant"),
-          position: _restaurantLocation,
+          position: restaurantLocation,
           icon: _restaurantIcon!,
           infoWindow: const InfoWindow(title: "Restaurant"),
         ),
@@ -107,18 +365,18 @@ class _MapScreenState extends State<MapScreen> {
       markers.add(
         Marker(
           markerId: const MarkerId("customer"),
-          position: _customerLocation,
+          position: customerLocation,
           icon: _customerIcon!,
           infoWindow: const InfoWindow(title: "Customer"),
         ),
       );
     }
 
-    if (_driverLocation != null && _driverIcon != null) {
+    if (liveDriverLocation != null && _driverIcon != null) {
       markers.add(
         Marker(
           markerId: const MarkerId("driver"),
-          position: _driverLocation!,
+          position: liveDriverLocation,
           icon: _driverIcon!,
           infoWindow: const InfoWindow(title: "Driver"),
         ),
@@ -132,72 +390,35 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final initialTarget = _customerLocation;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Track Order"),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(child: Text("Order #${widget.order.id}")),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: GoogleMap(
-              zoomControlsEnabled: false,
-              initialCameraPosition: CameraPosition(
-                target: initialTarget,
-                zoom: 12,
-              ),
-              markers: _buildMarkers(),
+    return StreamBuilder<Order?>(
+      stream: DatabaseService().streamOrderById(widget.order.id),
+      builder: (context, orderSnapshot) {
+        if (orderSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final liveOrder = orderSnapshot.data;
+        if (liveOrder == null) {
+          return const Scaffold(
+            body: Center(child: Text("Order not found")),
+          );
+        }
+
+        if (liveOrder.driverId == null || liveOrder.driverId!.isEmpty) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text("Track Order"),
             ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: Colors.orange,
-                        child: Text(
-                          "DR",
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Driver",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text("Live tracking"),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            body: const Center(
+              child: Text("No driver assigned yet"),
             ),
-          ),
-        ],
-      ),
+          );
+        }
+
+        return _buildDriverTracking(liveOrder);
+      },
     );
   }
 }

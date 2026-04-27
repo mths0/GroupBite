@@ -4,6 +4,7 @@ enum OrderStatus {
   pending,
   rejected,
   accepted,
+  assigned,
   pickedUp,
   delivered,
 }
@@ -59,17 +60,17 @@ class Order {
   }
 
   Map<String, dynamic> toJson() => {
-        'customerId': customerId,
-        'customerLocation': customerLocation,
-        'restaurantId': restaurantId,
-        'restaurantLocation': restaurantLocation,
-        'driverId': driverId,
-        'items': items.map((e) => e.toJson()).toList(),
-        'status': status.name,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'totalPrice': totalPrice,
-        'paymentId': paymentId,
-      };
+    'customerId': customerId,
+    'customerLocation': customerLocation,
+    'restaurantId': restaurantId,
+    'restaurantLocation': restaurantLocation,
+    'driverId': driverId,
+    'items': items.map((e) => e.toJson()).toList(),
+    'status': status.name,
+    'createdAt': Timestamp.fromDate(createdAt),
+    'totalPrice': totalPrice,
+    'paymentId': paymentId,
+  };
 }
 
 class OrderItem {
@@ -86,11 +87,11 @@ class OrderItem {
   });
 
   Map<String, dynamic> toJson() => {
-        'menuId': menuId,
-        'name': name,
-        'quantity': quantity,
-        'priceAtPurchase': priceAtPurchase,
-      };
+    'menuId': menuId,
+    'name': name,
+    'quantity': quantity,
+    'priceAtPurchase': priceAtPurchase,
+  };
 
   factory OrderItem.fromMap(Map<String, dynamic> map) {
     return OrderItem(

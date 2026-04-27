@@ -27,7 +27,7 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Order updated to ${status.name}')),
+        SnackBar(content: Text('Order updated to ${_statusLabel(status)}')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -41,14 +41,50 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard> {
     switch (status) {
       case OrderStatus.pending:
         return Colors.orange;
-      case OrderStatus.accepted:
-        return Colors.blue;
       case OrderStatus.rejected:
         return Colors.red;
+      case OrderStatus.accepted:
+        return Colors.blue;
+      case OrderStatus.assigned:
+        return Colors.teal;
       case OrderStatus.pickedUp:
         return Colors.purple;
       case OrderStatus.delivered:
         return Colors.green;
+    }
+  }
+
+  String _statusLabel(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return 'Pending';
+      case OrderStatus.rejected:
+        return 'Rejected';
+      case OrderStatus.accepted:
+        return 'Accepted';
+      case OrderStatus.assigned:
+        return 'Assigned';
+      case OrderStatus.pickedUp:
+        return 'Picked Up';
+      case OrderStatus.delivered:
+        return 'Delivered';
+    }
+  }
+
+  String _restaurantStatusMessage(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return 'Waiting for restaurant decision';
+      case OrderStatus.rejected:
+        return 'This order was rejected';
+      case OrderStatus.accepted:
+        return 'Order accepted. Waiting for driver';
+      case OrderStatus.assigned:
+        return 'Driver assigned to this order';
+      case OrderStatus.pickedUp:
+        return 'Order picked up by driver';
+      case OrderStatus.delivered:
+        return 'Order delivered successfully';
     }
   }
 
@@ -106,13 +142,11 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: _statusColor(
-                                order.status,
-                              ).withOpacity(0.15),
+                              color: _statusColor(order.status).withOpacity(0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              order.status.name,
+                              _statusLabel(order.status),
                               style: TextStyle(
                                 color: _statusColor(order.status),
                                 fontWeight: FontWeight.bold,
@@ -132,9 +166,7 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard> {
                       ...order.items.map(
                         (item) => Padding(
                           padding: const EdgeInsets.only(bottom: 4),
-                          child: Text(
-                            '- ${item.name} x${item.quantity}',
-                          ),
+                          child: Text('- ${item.name} x${item.quantity}'),
                         ),
                       ),
 
@@ -163,6 +195,14 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard> {
                               ),
                             ),
                           ],
+                        )
+                      else
+                        Text(
+                          _restaurantStatusMessage(order.status),
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontStyle: FontStyle.italic,
+                          ),
                         ),
                     ],
                   ),

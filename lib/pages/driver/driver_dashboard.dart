@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
-
 import 'package:food_delivery_platform/models/driver.dart';
 import 'package:food_delivery_platform/models/order.dart';
+import 'package:food_delivery_platform/pages/driver/driver_active_order_card.dart';
+
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({super.key, required this.driver});
@@ -15,13 +16,8 @@ class DriverDashboard extends StatefulWidget {
 
 class _DriverDashboardState extends State<DriverDashboard>
     with WidgetsBindingObserver {
-  late Stream<List<Order>> _orderStream;
-
-  //! remove later
-  bool showAddOrderForm = false;
-  final customerIdController = TextEditingController();
-  final restaurantIdController = TextEditingController();
-  final priceController = TextEditingController();
+  late Stream<List<Order>> _availableOrdersStream;
+  late Stream<List<Order>> _driverOrdersStream;
 
   @override
   void initState() {
@@ -31,23 +27,23 @@ class _DriverDashboardState extends State<DriverDashboard>
     if (widget.driver.status != DriverStatus.busy) {
       _updateDriverStatus(DriverStatus.available);
     }
-    _orderStream = DatabaseService().listenForPendingOrders();
+
+    _availableOrdersStream = DatabaseService().getAvailableOrdersForDrivers();
+    _driverOrdersStream = DatabaseService().getOrdersForDriver(
+      widget.driver.id,
+    );
   }
 
   @override
   void dispose() {
-    customerIdController.dispose();
-    restaurantIdController.dispose();
-    priceController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  // This method is called when the app lifecycle state changes (e.g., when the app is paused or resumed).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (widget.driver.status == DriverStatus.busy) {
-      return; // if driver is busy, we don't want to change their status
+      return;
     }
 
     if (state == AppLifecycleState.resumed) {
@@ -57,15 +53,163 @@ class _DriverDashboardState extends State<DriverDashboard>
     }
   }
 
+  
+
+  String _statusLabel(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return 'Pending';
+      case OrderStatus.rejected:
+        return 'Rejected';
+      case OrderStatus.accepted:
+        return 'Accepted';
+      case OrderStatus.assigned:
+        return 'Assigned';
+      case OrderStatus.pickedUp:
+        return 'Picked Up';
+      case OrderStatus.delivered:
+        return 'Delivered';
+    }
+  }
+
+  Widget _buildAvailableOrdersSection() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Text(
+            "Available Orders",
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<Order>>(
+            stream: _availableOrdersStream,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snapshot.hasError) {
+                return Center(child: Text("Error: ${snapshot.error}"));
+              }
+
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text("No available orders"));
+              }
+
+              final orders = snapshot.data!
+                ..sort((a, b) {
+                  final aDistance = _distanceToRestaurant(a);
+                  final bDistance = _distanceToRestaurant(b);
+                  return aDistance.compareTo(bDistance);
+                });
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: orders.length,
+                itemBuilder: (context, index) {
+                  final order = orders[index];
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      title: Text("Order #${order.id}"),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Total: ${order.totalPrice.toStringAsFixed(2)} SAR",
+                          ),
+                          Text("Restaurant: ${order.restaurantId}"),
+                          Text("Status: ${_statusLabel(order.status)}"),
+                        ],
+                      ),
+                      trailing: ElevatedButton(
+                        onPressed: () async {
+                          try {
+                            await DatabaseService().assignOrderToDriver(
+                              orderId: order.id,
+                              driverId: widget.driver.id,
+                            );
+                            _updateDriverStatus(DriverStatus.busy);
+
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Order assigned successfully"),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(e.toString())),
+                            );
+                          }
+                        },
+                        child: const Text("Accept"),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActiveOrderSection() {
+    return StreamBuilder<List<Order>>(
+      stream: _driverOrdersStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(child: Text("Error: ${snapshot.error}"));
+        }
+
+        final orders = snapshot.data ?? [];
+
+        final activeOrders = orders.where((order) {
+          return order.status == OrderStatus.assigned ||
+              order.status == OrderStatus.pickedUp;
+        }).toList();
+
+        final Order? activeOrder = activeOrders.isNotEmpty
+            ? activeOrders.first
+            : null;
+
+        if (activeOrder == null) {
+          return const Center(
+            child: Text("No active order"),
+          );
+        }
+
+        return DriverActiveOrderCard(
+          order: activeOrder,
+          driver: widget.driver,
+          onPickedUp: () async {
+            await DatabaseService().markOrderPickedUp(activeOrder.id);
+          },
+          onDelivered: () async {
+            await DatabaseService().markOrderDelivered(activeOrder.id);
+            _updateDriverStatus(DriverStatus.available);
+          },
+        );
+      },
+    );
+  }
+
   void _updateDriverStatus(DriverStatus status) {
-    print("Updating driver status to: ${status.name}");
     setState(() {
       widget.driver.updateStatus(status);
     });
 
-    //TODO: Update status in database
     DatabaseService().updateDriverStatus(widget.driver.id, status);
-
   }
 
   Color statusColorBasedOnStatus(DriverStatus status) {
@@ -79,15 +223,38 @@ class _DriverDashboardState extends State<DriverDashboard>
     }
   }
 
+  double _distanceToRestaurant(Order order) {
+    final driverLocation = widget.driver.location;
+    final restaurantLocation = order.restaurantLocation;
+
+    if (driverLocation == null) {
+      return double.infinity;
+    }
+
+    final latDiff = driverLocation.latitude - restaurantLocation.latitude;
+    final lngDiff = driverLocation.longitude - restaurantLocation.longitude;
+
+    return (latDiff * latDiff) + (lngDiff * lngDiff);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isAvailable = widget.driver.status == DriverStatus.available;
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Column(
-              children: [Text(widget.driver.name), Text(widget.driver.id)],
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.driver.name),
+                Text(
+                  widget.driver.id,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
             ),
             Container(
               decoration: BoxDecoration(
@@ -96,192 +263,19 @@ class _DriverDashboardState extends State<DriverDashboard>
               ),
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: Text(widget.driver.status.name),
+                child: Text(
+                  widget.driver.status.name,
+                  style: const TextStyle(color: Colors.white),
+                ),
               ),
             ),
           ],
         ),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                "Pending Orders",
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-
-            Container(
-              height: 300,
-              padding: const EdgeInsets.all(16),
-              child: Expanded(
-                child: StreamBuilder<List<Order>>(
-                  stream: _orderStream,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
-                    }
-
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return const Center(
-                        child: Text("No pending orders"),
-                      );
-                    }
-
-                    final orders = snapshot.data!;
-
-                    return ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: orders.length,
-                      itemBuilder: (context, index) {
-                        final order = orders[index];
-                        //TODO: sort orders based on distance from driver (requires location data)
-                        // Inside your ListView.builder...
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: ListTile(
-                            title: Text("Order #${order.id}"),
-                            subtitle: Column(
-                              children: [
-                                Text("Total: ${order.totalPrice} SAR"),
-                                Text("Customer: ${order.customerId}"),
-                                Text("Restaurant: ${order.restaurantId}"),
-                                Text(
-                                  "Distance: ${order.restaurantLocation.latitude.round()} km",
-                                ),
-                              ],
-                            ),
-
-                            // FIX: Wrap the trailing widget in a SizedBox or ConstrainedBox
-                            trailing: SizedBox(
-                              width: 100, // Give the button a specific width
-                              child: ElevatedButton(
-                                onPressed: () async {
-                                  try {
-                                    await DatabaseService().acceptOrder(
-                                      orderId: order.id,
-                                      driverId: widget.driver.id,
-                                    );
-                                    _updateDriverStatus(DriverStatus.busy);
-                                  } catch (e) {
-                                    if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(e.toString())),
-                                    );
-                                  }
-                                },
-                                child: const Text("Accept"),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: Text(
-                "Other sections like current order, earnings, profile, etc. (coming soon)",
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    showAddOrderForm = !showAddOrderForm;
-                  });
-                },
-                child: Text(showAddOrderForm ? "Cancel" : "Add Order"),
-              ),
-            ),
-            if (showAddOrderForm)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        TextField(
-                          controller: customerIdController,
-                          decoration: const InputDecoration(
-                            labelText: "Customer ID",
-                          ),
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        TextField(
-                          controller: restaurantIdController,
-                          decoration: const InputDecoration(
-                            labelText: "Restaurant ID",
-                          ),
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        TextField(
-                          controller: priceController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: "Total Price",
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final price = double.tryParse(
-                                priceController.text,
-                              );
-
-                              if (customerIdController.text.isEmpty ||
-                                  restaurantIdController.text.isEmpty ||
-                                  price == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Fill all fields"),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              await DatabaseService().addOrder(
-                                customerId: customerIdController.text,
-                                restaurantId: restaurantIdController.text,
-                                totalPrice: price,
-                                items: [],
-                              );
-
-                              customerIdController.clear();
-                              restaurantIdController.clear();
-                              priceController.clear();
-
-                              setState(() {
-                                showAddOrderForm = false;
-                              });
-                            },
-                            child: const Text("Save Order"),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+        child: widget.driver.status == DriverStatus.busy
+            ? _buildActiveOrderSection()
+            : _buildAvailableOrdersSection(),
       ),
     );
   }

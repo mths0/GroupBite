@@ -31,6 +31,8 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
         return Colors.purple;
       case OrderStatus.delivered:
         return Colors.green;
+      case OrderStatus.assigned:
+        return Colors.blueGrey;
     }
   }
 
@@ -46,6 +48,8 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
         return 'Picked Up';
       case OrderStatus.delivered:
         return 'Delivered';
+      case OrderStatus.assigned:
+        return 'Assigned';
     }
   }
 
