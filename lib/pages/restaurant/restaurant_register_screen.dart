@@ -5,6 +5,7 @@ import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/abstract_user.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'package:food_delivery_platform/utils/validators.dart';
@@ -24,25 +25,14 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
 
   String? nameErrorText;
   String? phoneErrorText;
-  String? typeErrorText;
   String? errorText;
+
+  Set<RestaurantTag> _selectedTags = {};
+  String? tagsErrorText;
 
   final _phoneCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
 
-  final List<String> _types = const [
-    "Burger",
-    "Shawarma",
-    "Pizza",
-    "Desserts",
-    "Coffee",
-    "Seafood",
-    "Traditional",
-    "Sandwiches",
-    "Other",
-  ];
-
-  String? _selectedType;
   bool isLoading = false;
   GeoPoint? _currentGeoPoint;
   String? _locationError;
@@ -58,25 +48,25 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
     setState(() {
       nameErrorText = null;
       phoneErrorText = null;
-      typeErrorText = null;
+      tagsErrorText = null;
       _locationError = null;
       errorText = null;
     });
 
     final nameError = Validators.validateName(_nameCtrl.text.trim());
     final phoneError = Validators.validatePhone(_phoneCtrl.text.trim());
-    final typeError = _selectedType == null
-        ? "Please select restaurant type"
+    final tagsError = _selectedTags.isEmpty
+        ? "Please select at least one category"
         : null;
 
     if (nameError != null ||
         phoneError != null ||
-        typeError != null ||
+        tagsErrorText != null ||
         _currentGeoPoint == null) {
       setState(() {
         nameErrorText = nameError;
         phoneErrorText = phoneError;
-        typeErrorText = typeError;
+        tagsErrorText = tagsError;
         _locationError = _currentGeoPoint == null
             ? "Please capture location"
             : null;
@@ -167,14 +157,13 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
         phone: _phoneCtrl.text.trim(),
         email: widget.email,
         name: _nameCtrl.text.trim(),
-        type: _selectedType!,
+        tags: _selectedTags.toList(),
         location: _currentGeoPoint,
         createdAt: DateTime.now().toIso8601String(),
         imageUrl:
             'https://images.unsplash.com/photo-1579027989536-b7b1f875659b?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-        rating: 0,
+        rating: 5,
         deliveryFee: 9,
-        tags: [],
         isOpen: false,
         hasOffer: false,
       );
@@ -268,18 +257,49 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                DropdownButtonFormField<String>(
-                  value: _selectedType,
-                  items: _types
-                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _selectedType = v),
-                  decoration: InputDecoration(
-                    labelText: "Restaurant type",
-                    prefixIcon: const Icon(Icons.category),
-                    errorText: typeErrorText,
+                Text(
+                  "Restaurant categories",
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 8),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: RestaurantTag.values.map((tag) {
+                      final isSelected = _selectedTags.contains(tag);
+
+                      return CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: isSelected,
+                        title: Text(tag.label),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (value) {
+                          setState(() {
+                            if (value == true) {
+                              _selectedTags.add(tag);
+                            } else {
+                              _selectedTags.remove(tag);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
                   ),
                 ),
+
+                if (tagsErrorText != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      tagsErrorText!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ),
                 const SizedBox(height: 12),
 
                 OutlinedButton.icon(

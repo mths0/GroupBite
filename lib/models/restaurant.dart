@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:food_delivery_platform/models/abstract_user.dart';
+import 'package:food_delivery_platform/models/restaurant_tag.dart';
 
 class Restaurant extends User {
   final String createdAt;
@@ -7,9 +8,7 @@ class Restaurant extends User {
   final String imageUrl;
   final double rating;
   final double deliveryFee;
-  final String type;
-  //Todo tags will replace type
-  final List<String> tags;
+  final List<RestaurantTag> tags;
   final bool isOpen;
   final bool hasOffer;
 
@@ -19,7 +18,6 @@ class Restaurant extends User {
     required super.phone,
     required super.email,
     required this.createdAt,
-    required this.type,
     required this.location,
     required this.imageUrl,
     required this.rating,
@@ -31,6 +29,7 @@ class Restaurant extends User {
 
   factory Restaurant.fromMap(Map<String, dynamic> map) {
     final locationValue = map['location'];
+    final rawTags = List<String>.from(map['tags'] ?? []);
 
     return Restaurant(
       id: (map['id'] ?? '').toString(),
@@ -38,12 +37,14 @@ class Restaurant extends User {
       name: (map['name'] ?? '').toString(),
       createdAt: (map['createdAt'] ?? '').toString(),
       email: (map['email'] ?? '').toString(),
-      type: (map['type'] ?? '').toString(),
       location: locationValue is GeoPoint ? locationValue : null,
       imageUrl: (map['imageUrl'] ?? '').toString(),
       rating: (map['rating'] ?? 0).toDouble(),
       deliveryFee: (map['deliveryFee'] ?? 0).toDouble(),
-      tags: List<String>.from(map['tags'] ?? []),
+      tags: rawTags
+          .map((e) => RestaurantTagX.fromString(e))
+          .whereType<RestaurantTag>()
+          .toList(),
       isOpen: (map['isOpen'] ?? false) as bool,
       hasOffer: (map['hasOffer'] ?? false) as bool,
     );
@@ -53,21 +54,19 @@ class Restaurant extends User {
     return Restaurant.fromMap(json);
   }
 
-  // Convert Restaurant to JSON for Firestore
   @override
   Map<String, dynamic> toJson() => {
     'id': id,
     'phone': phone,
     'name': name,
-    'role': 'restaurant',
+    'role': role.name,
     'createdAt': createdAt,
     'email': email,
-    'type': type,
     'location': location,
     'imageUrl': imageUrl,
     'rating': rating,
     'deliveryFee': deliveryFee,
-    'tags': tags,
+    'tags': tags.map((e) => e.name).toList(),
     'isOpen': isOpen,
     'hasOffer': hasOffer,
   };
@@ -87,4 +86,3 @@ class Restaurant extends User {
   Function updateProfile() =>
       () => throw UnimplementedError();
 }
-

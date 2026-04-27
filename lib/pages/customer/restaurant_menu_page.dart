@@ -5,6 +5,7 @@ import 'package:food_delivery_platform/mock/mock_menu_items_repository.dart';
 
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart' as app_models;
+import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 
 class RestaurantMenuPage extends StatefulWidget {
@@ -283,7 +284,7 @@ class HeaderCard extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       children: restaurant.tags
-                          .map((tag) => _TagChip(text: tag))
+                          .map((tag) => _TagChip(text: tag.label))
                           .toList(),
                     ),
                   ],

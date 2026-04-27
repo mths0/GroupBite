@@ -5,6 +5,7 @@ import 'package:food_delivery_platform/mock/mock_restaurant_repository.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/customer/restaurant_menu_page.dart';
+import 'package:food_delivery_platform/models/restaurant_tag.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({super.key, required this.customer});
@@ -16,6 +17,29 @@ class CustomerHomeScreen extends StatefulWidget {
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+
+  RestaurantTag? _selectedTag;
+  String _selectedSort = "Nearest";
+
+  final List<String> _sortOptions = const [
+    "Nearest",
+    "Delivery Fee",
+    "Rating",
+    "Name",
+  ];
+  double _distanceFromCustomer(Restaurant restaurant) {
+    final customerLocation = widget.customer.location;
+    final restaurantLocation = restaurant.location;
+
+    if (customerLocation == null || restaurantLocation == null) {
+      return double.infinity;
+    }
+
+    final latDiff = customerLocation.latitude - restaurantLocation.latitude;
+    final lngDiff = customerLocation.longitude - restaurantLocation.longitude;
+
+    return (latDiff * latDiff) + (lngDiff * lngDiff);
+  }
 
   @override
   void dispose() {
@@ -32,6 +56,71 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           buildSearchBar(),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<RestaurantTag?>(
+                  initialValue: _selectedTag,
+                  menuMaxHeight: 300,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.fastfood_outlined),
+                  ),
+                  items: [
+                    const DropdownMenuItem<RestaurantTag?>(
+                      value: null,
+                      child: Text('All'),
+                    ),
+                    ...RestaurantTag.values.map((tag) {
+                      return DropdownMenuItem<RestaurantTag?>(
+                        value: tag,
+                        child: Text(
+                          tag.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedTag = value;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _selectedSort,
+                  menuMaxHeight: 300,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Sort by',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.sort),
+                  ),
+                  items: _sortOptions.map((option) {
+                    return DropdownMenuItem(
+                      value: option,
+                      child: Text(
+                        option,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _selectedSort = value;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           Text(
             //Todo : Get user location and show nearby restaurants (later)
@@ -55,14 +144,39 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               }
 
               final query = _searchController.text.toLowerCase();
-              // Filter restaurants based on name or tags
+
               final filteredRestaurants = snapshot.data!.where((r) {
+                final query = _searchController.text.toLowerCase();
+
                 final nameMatch = r.name.toLowerCase().contains(query);
                 final tagMatch = r.tags.any(
-                  (food) => food.toLowerCase().contains(query),
+                  (tag) => tag.label.toLowerCase().contains(query),
                 );
-                return nameMatch || tagMatch;
+
+                final searchMatch = query.isEmpty || nameMatch || tagMatch;
+                final categoryMatch =
+                    _selectedTag == null || r.tags.contains(_selectedTag);
+
+                return searchMatch && categoryMatch;
               }).toList();
+              filteredRestaurants.sort((a, b) {
+                switch (_selectedSort) {
+                  case "Delivery Fee":
+                    return a.deliveryFee.compareTo(b.deliveryFee);
+
+                  case "Rating":
+                    return b.rating.compareTo(a.rating);
+
+                  case "Name":
+                    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+
+                  case "Nearest":
+                  default:
+                    final aDistance = _distanceFromCustomer(a);
+                    final bDistance = _distanceFromCustomer(b);
+                    return aDistance.compareTo(bDistance);
+                }
+              });
 
               if (filteredRestaurants.isEmpty) {
                 return Center(
@@ -235,7 +349,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                               color: scheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Text(tag),
+                            child: Text(tag.label),
                           ),
                         )
                         .toList(),

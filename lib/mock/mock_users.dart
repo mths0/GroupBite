@@ -3,6 +3,7 @@ import 'package:food_delivery_platform/models/abstract_user.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/driver.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/models/restaurant_tag.dart';
 
 final List<User> mockUsers = [
   Customer(
@@ -27,12 +28,11 @@ final List<User> mockUsers = [
   phone: '511111111',
   createdAt: DateTime.now().toIso8601String(),
   email: 'burger@restaurant.com',
-  type: 'Fast Food',
   location: GeoPoint(24.7136, 46.6753),
   imageUrl: 'https://images.unsplash.com/photo-1550547660-d9450f859349',
   rating: 4.5,
   deliveryFee: 5.0,
-  tags: ['Burgers', 'Fries', 'Soda'],
+  tags: [RestaurantTag.burger, RestaurantTag.fastFood],
   isOpen: true,
   hasOffer: true,
 ),

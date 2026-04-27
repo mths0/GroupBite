@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/models/restaurant_tag.dart';
 
 class MockRestaurantRepository {
   Stream<List<Restaurant>> get restaurantSnapshot async* {
@@ -28,13 +29,12 @@ class MockRestaurantRepository {
 
       //deliveryTime: '30 min',
       deliveryFee: 0,
-      tags: ['Burgers', 'Fast Food'],
+      tags: [RestaurantTag.burger, RestaurantTag.fastFood],
       isOpen: true,
       hasOffer: false,
       phone: '',
       createdAt: '',
       email: '',
-      type: '',
       location: GeoPoint(24.7136, 46.6753),
     ),
     Restaurant(
@@ -45,13 +45,13 @@ class MockRestaurantRepository {
       rating: 3.5,
       //deliveryTime: '25 min',
       deliveryFee: 10,
-      tags: ['Sushi', 'Japanese'],
+      tags: [RestaurantTag.breakfast, RestaurantTag.healthy],
       isOpen: true,
       hasOffer: false,
       phone: '',
       createdAt: '',
       email: '',
-      type: '',
+
       location: GeoPoint(24.7136, 46.6753),
     ),
     Restaurant(
@@ -61,13 +61,12 @@ class MockRestaurantRepository {
       rating: 3.5,
       //deliveryTime: '25 min',
       deliveryFee: 10,
-      tags: ['Sushi', 'Japanese'],
+      tags: [RestaurantTag.sushi, RestaurantTag.japanese],
       isOpen: false,
       hasOffer: false,
       phone: '',
       createdAt: '',
       email: '',
-      type: '',
       location: GeoPoint(24.7136, 46.6753),
     ),
     Restaurant(
@@ -77,13 +76,12 @@ class MockRestaurantRepository {
       rating: 3.5,
       //deliveryTime: '25 min',
       deliveryFee: 10,
-      tags: ['Sushi', 'Japanese', 'saudi'],
+      tags: [RestaurantTag.sushi, RestaurantTag.japanese, RestaurantTag.other],
       isOpen: true,
       hasOffer: false,
       phone: '',
       createdAt: '',
       email: '',
-      type: '',
       location: GeoPoint(24.7136, 46.6753),
     ),
     Restaurant(
@@ -93,13 +91,12 @@ class MockRestaurantRepository {
       rating: 3.5,
       //deliveryTime: '25 min',
       deliveryFee: 10,
-      tags: ['Sushi', 'Japanese'],
+      tags: [RestaurantTag.sushi, RestaurantTag.japanese],
       isOpen: true,
       hasOffer: false,
       phone: '',
       createdAt: '',
       email: '',
-      type: '',
       location: GeoPoint(24.7136, 46.6753),
     ),
   ];

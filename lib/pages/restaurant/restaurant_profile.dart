@@ -4,7 +4,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
-
+import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 
@@ -23,12 +23,13 @@ class RestaurantProfile extends StatefulWidget {
 class _RestaurantProfileState extends State<RestaurantProfile> {
   late final TextEditingController _nameController;
   late final TextEditingController _phoneController;
-  late final TextEditingController _typeController;
   late final TextEditingController _deliveryFeeController;
-  late final TextEditingController _tagsController;
+  late Set<RestaurantTag> _selectedTags;
 
   late bool _isOpen;
   late bool _hasOffer;
+  bool _isInitialLoading = true;
+  String? _loadError;
 
   bool _isSaving = false;
   bool _isUploadingImage = false;
@@ -38,6 +39,9 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
 
   final ImagePicker _picker = ImagePicker();
 
+  DocumentReference<Map<String, dynamic>> get _restaurantDoc =>
+      FirebaseFirestore.instance.collection('users').doc(widget.restaurant.id);
+
   CollectionReference<Map<String, dynamic>> get _usersCollection =>
       FirebaseFirestore.instance.collection('users');
 
@@ -45,29 +49,63 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
   void initState() {
     super.initState();
 
-    _nameController = TextEditingController(text: widget.restaurant.name);
-    _phoneController = TextEditingController(text: widget.restaurant.phone);
-    _typeController = TextEditingController(text: widget.restaurant.type);
-    _deliveryFeeController = TextEditingController(
-      text: widget.restaurant.deliveryFee.toStringAsFixed(0),
-    );
-    _tagsController = TextEditingController(
-      text: widget.restaurant.tags.join(', '),
-    );
+    _nameController = TextEditingController();
+    _phoneController = TextEditingController();
+    _deliveryFeeController = TextEditingController();
 
-    _isOpen = widget.restaurant.isOpen;
-    _hasOffer = widget.restaurant.hasOffer;
-    _imageUrl = widget.restaurant.imageUrl;
+    _selectedTags = {};
+    _isOpen = false;
+    _hasOffer = false;
+    _imageUrl = null;
+
+    _loadRestaurantData();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _typeController.dispose();
     _deliveryFeeController.dispose();
-    _tagsController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRestaurantData() async {
+    setState(() {
+      _isInitialLoading = true;
+      _loadError = null;
+    });
+
+    try {
+      final snapshot = await _restaurantDoc.get();
+      final data = snapshot.data();
+
+      if (data == null) {
+        setState(() {
+          _loadError = 'Restaurant data not found';
+          _isInitialLoading = false;
+        });
+        return;
+      }
+
+      final restaurant = Restaurant.fromMap(data);
+
+      _nameController.text = restaurant.name;
+      _phoneController.text = restaurant.phone;
+      _deliveryFeeController.text = restaurant.deliveryFee.toStringAsFixed(0);
+      _selectedTags = restaurant.tags.toSet();
+      _imageUrl = restaurant.imageUrl;
+      _isOpen = restaurant.isOpen;
+      _hasOffer = restaurant.hasOffer;
+
+      setState(() {
+        _isInitialLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loadError = 'Failed to load restaurant data';
+        _isInitialLoading = false;
+      });
+    }
   }
 
   Future<void> _signOut() async {
@@ -180,11 +218,7 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
       final deliveryFee =
           double.tryParse(_deliveryFeeController.text.trim()) ?? 0.0;
 
-      final tags = _tagsController.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
+      final tags = _selectedTags.map((e) => e.name).toList();
 
       final uploadedImageUrl = await _uploadImageIfNeeded();
       if (!mounted) return;
@@ -197,7 +231,6 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
       await _usersCollection.doc(widget.restaurant.id).update({
         'name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
-        'type': _typeController.text.trim(),
         'deliveryFee': deliveryFee,
         'tags': tags,
         'isOpen': _isOpen,
@@ -230,43 +263,32 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
     }
   }
 
-  //Todo update in database
-  Future<void> _toggleOpen(bool value) async {
+  void _toggleOpen(bool value) {
     setState(() => _isOpen = value);
-
-    try {
-      await _usersCollection.doc(widget.restaurant.id).update({
-        'isOpen': value,
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isOpen = !value);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update status: $e')),
-      );
-    }
   }
 
-  Future<void> _toggleOffer(bool value) async {
+  void _toggleOffer(bool value) {
     setState(() => _hasOffer = value);
-
-    try {
-      await _usersCollection.doc(widget.restaurant.id).update({
-        'hasOffer': value,
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _hasOffer = !value);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update offer: $e')),
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    if (_isInitialLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
+    if (_loadError != null) {
+      return Scaffold(
+        body: Center(
+          child: Text(_loadError!),
+        ),
+      );
+    }
     return Scaffold(
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -330,13 +352,6 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
           const SizedBox(height: 12),
 
           _ProfileTextField(
-            controller: _typeController,
-            label: 'Type',
-            icon: Icons.category_outlined,
-          ),
-          const SizedBox(height: 12),
-
-          _ProfileTextField(
             controller: _deliveryFeeController,
             label: 'Delivery Fee (SAR)',
             icon: Icons.attach_money,
@@ -344,10 +359,44 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
           ),
           const SizedBox(height: 12),
 
-          _ProfileTextField(
-            controller: _tagsController,
-            label: 'Tags (comma separated)',
-            icon: Icons.sell_outlined,
+          Text(
+            'Restaurant Categories',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: SizedBox(
+                height: 260,
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: RestaurantTag.values.map((tag) {
+                      final isSelected = _selectedTags.contains(tag);
+
+                      return CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: isSelected,
+                        title: Text(tag.label),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (value) {
+                          setState(() {
+                            if (value == true) {
+                              _selectedTags.add(tag);
+                            } else {
+                              _selectedTags.remove(tag);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 20),
 
