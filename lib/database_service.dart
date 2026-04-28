@@ -143,16 +143,26 @@ class DatabaseService {
     });
   }
 
-  // Stream<List<Order>> listenForPendingOrders() {
-  //   return _db
-  //       .collection('orders')
-  //       .where('status', isEqualTo: 'pending')
-  //       .snapshots()
-  //       .map(
-  //         (snapshot) =>
-  //             snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList(),
-  //       );
-  // }
+  Future<firestore.GeoPoint> getLocation(String userId) async {
+    final doc = await _db.collection('users').doc(userId).get();
+
+    if (!doc.exists) {
+      throw Exception("User not found");
+    }
+
+    final data = doc.data();
+    if (data == null) {
+      throw Exception("User data is null");
+    }
+
+    final location = data['location'] as firestore.GeoPoint?;
+
+    if (location == null) {
+      throw Exception("User location not found");
+    }
+
+    return location;
+  }
 
   Future<Order> addOrder({
     required String customerId,
@@ -163,17 +173,20 @@ class DatabaseService {
     final orderId = IdGenerator.generateOrderId();
     final docRef = _db.collection('orders').doc(orderId);
 
+    final customerLocation = await getLocation(customerId);
+    final restaurantLocation = await getLocation(restaurantId);
+
     await docRef.set({
       'id': orderId,
       'customerId': customerId,
       'restaurantId': restaurantId,
       'driverId': null,
-      'status': 'pending',
+      'status': OrderStatus.pending.name,
       'totalPrice': totalPrice,
       'createdAt': firestore.FieldValue.serverTimestamp(),
       'items': items.map((item) => item.toJson()).toList(),
-      'customerLocation': const firestore.GeoPoint(2, 44),
-      'restaurantLocation': const firestore.GeoPoint(2, 24),
+      'customerLocation': customerLocation,
+      'restaurantLocation': restaurantLocation,
     });
 
     final snapshot = await docRef.get();

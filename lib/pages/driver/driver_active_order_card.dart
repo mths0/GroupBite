@@ -105,98 +105,99 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
     final isGoingToRestaurant = widget.order.status == OrderStatus.assigned;
     final isGoingToCustomer = widget.order.status == OrderStatus.pickedUp;
 
-    return ListView(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Order #${widget.order.id}",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Order #${widget.order.id}",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Total: ${widget.order.totalPrice.toStringAsFixed(2)} SAR",
+              ),
+              const SizedBox(height: 16),
+
+              if (isGoingToRestaurant) ...[
+                const Text(
+                  "Go to Restaurant",
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  "Total: ${widget.order.totalPrice.toStringAsFixed(2)} SAR",
+                ElevatedButton.icon(
+                  onPressed: () => _openDirections(
+                    destinationLat: widget.order.restaurantLocation.latitude,
+                    destinationLng: widget.order.restaurantLocation.longitude,
+                  ),
+                  icon: const Icon(Icons.navigation),
+                  label: const Text("Open Google Maps"),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: _restaurant == null
+                      ? null
+                      : () => _callPhone(_saudiPhone(_restaurant!.phone)),
+                  icon: const Icon(Icons.call),
+                  label: const Text("Call Restaurant"),
                 ),
                 const SizedBox(height: 16),
-
-                if (isGoingToRestaurant) ...[
-                  const Text(
-                    "Go to Restaurant",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: () => _openDirections(
-                      destinationLat: widget.order.restaurantLocation.latitude,
-                      destinationLng: widget.order.restaurantLocation.longitude,
-                    ),
-                    icon: const Icon(Icons.navigation),
-                    label: const Text("Open Google Maps"),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: _restaurant == null
-                        ? null
-                        : () => _callPhone(_saudiPhone(_restaurant!.phone)),
-                    icon: const Icon(Icons.call),
-                    label: const Text("Call Restaurant"),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: widget.onPickedUp,
-                    child: const Text("Picked Up"),
-                  ),
-                ],
-
-                if (isGoingToCustomer) ...[
-                  const Text(
-                    "Go to Customer",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: () => _openDirections(
-                      destinationLat: widget.order.customerLocation.latitude,
-                      destinationLng: widget.order.customerLocation.longitude,
-                    ),
-                    icon: const Icon(Icons.navigation),
-                    label: const Text("Open Google Maps"),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: _customer == null
-                        ? null
-                        : () => _callPhone(_saudiPhone(_customer!.phone)),
-                    icon: const Icon(Icons.call),
-                    label: const Text("Call Customer"),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: _customer == null
-                        ? null
-                        : () => _openWhatsApp(_customer!.phone),
-                    icon: const Icon(Icons.chat),
-                    label: const Text("WhatsApp Customer"),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: widget.onDelivered,
-                    child: const Text("Delivered"),
-                  ),
-                ],
+                FilledButton(
+                  onPressed: widget.onPickedUp,
+                  child: const Text("Picked Up"),
+                ),
               ],
-            ),
+
+              if (isGoingToCustomer) ...[
+                const Text(
+                  "Go to Customer",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () => _openDirections(
+                    destinationLat: widget.order.customerLocation.latitude,
+                    destinationLng: widget.order.customerLocation.longitude,
+                  ),
+                  icon: const Icon(Icons.navigation),
+                  label: const Text("Open Google Maps"),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: _customer == null
+                      ? null
+                      : () => _callPhone(_saudiPhone(_customer!.phone)),
+                  icon: const Icon(Icons.call),
+                  label: const Text("Call Customer"),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: _customer == null
+                      ? null
+                      : () => _openWhatsApp(_customer!.phone),
+                  icon: const Icon(Icons.chat),
+                  label: const Text("WhatsApp Customer"),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: widget.onDelivered,
+                  child: const Text("Delivered"),
+                ),
+              ],
+
+              if (!isGoingToRestaurant && !isGoingToCustomer)
+                const Text("No active driver action for this order."),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

@@ -4,7 +4,6 @@ import 'package:food_delivery_platform/models/driver.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/pages/driver/driver_active_order_card.dart';
 
-
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({super.key, required this.driver});
 
@@ -24,7 +23,7 @@ class _DriverDashboardState extends State<DriverDashboard>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    if (widget.driver.status != DriverStatus.busy) {
+    if (widget.driver.status == DriverStatus.offline) {
       _updateDriverStatus(DriverStatus.available);
     }
 
@@ -52,8 +51,6 @@ class _DriverDashboardState extends State<DriverDashboard>
       _updateDriverStatus(DriverStatus.offline);
     }
   }
-
-  
 
   String _statusLabel(OrderStatus status) {
     switch (status) {
@@ -113,41 +110,57 @@ class _DriverDashboardState extends State<DriverDashboard>
 
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      title: Text("Order #${order.id}"),
-                      subtitle: Column(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
+                            "Order #${order.id}",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
                             "Total: ${order.totalPrice.toStringAsFixed(2)} SAR",
                           ),
+                          const SizedBox(height: 4),
                           Text("Restaurant: ${order.restaurantId}"),
+                          const SizedBox(height: 4),
                           Text("Status: ${_statusLabel(order.status)}"),
-                        ],
-                      ),
-                      trailing: ElevatedButton(
-                        onPressed: () async {
-                          try {
-                            await DatabaseService().assignOrderToDriver(
-                              orderId: order.id,
-                              driverId: widget.driver.id,
-                            );
-                            _updateDriverStatus(DriverStatus.busy);
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () async {
+                                try {
+                                  await DatabaseService().assignOrderToDriver(
+                                    orderId: order.id,
+                                    driverId: widget.driver.id,
+                                  );
+                                  _updateDriverStatus(DriverStatus.busy);
 
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Order assigned successfully"),
-                              ),
-                            );
-                          } catch (e) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(e.toString())),
-                            );
-                          }
-                        },
-                        child: const Text("Accept"),
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "Order assigned successfully",
+                                      ),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(e.toString())),
+                                  );
+                                }
+                              },
+                              child: const Text("Accept"),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -239,8 +252,6 @@ class _DriverDashboardState extends State<DriverDashboard>
 
   @override
   Widget build(BuildContext context) {
-    final isAvailable = widget.driver.status == DriverStatus.available;
-
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -273,9 +284,45 @@ class _DriverDashboardState extends State<DriverDashboard>
         ),
       ),
       body: SafeArea(
-        child: widget.driver.status == DriverStatus.busy
-            ? _buildActiveOrderSection()
-            : _buildAvailableOrdersSection(),
+        child: StreamBuilder<List<Order>>(
+          stream: _driverOrdersStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(child: Text("Error: ${snapshot.error}"));
+            }
+
+            final orders = snapshot.data ?? [];
+
+            final activeOrders = orders.where((order) {
+              return order.status == OrderStatus.assigned ||
+                  order.status == OrderStatus.pickedUp;
+            }).toList();
+
+            if (activeOrders.isNotEmpty) {
+              return DriverActiveOrderCard(
+                order: activeOrders.first,
+                driver: widget.driver,
+                onPickedUp: () async {
+                  await DatabaseService().markOrderPickedUp(
+                    activeOrders.first.id,
+                  );
+                },
+                onDelivered: () async {
+                  await DatabaseService().markOrderDelivered(
+                    activeOrders.first.id,
+                  );
+                  _updateDriverStatus(DriverStatus.available);
+                },
+              );
+            }
+
+            return _buildAvailableOrdersSection();
+          },
+        ),
       ),
     );
   }

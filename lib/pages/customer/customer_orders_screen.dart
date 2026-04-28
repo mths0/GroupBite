@@ -19,6 +19,10 @@ class CustomerOrdersScreen extends StatefulWidget {
 class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   final DatabaseService _db = DatabaseService();
 
+  bool _canTrack(OrderStatus status) {
+    return status == OrderStatus.assigned || status == OrderStatus.pickedUp;
+  }
+
   Color _statusColor(OrderStatus status) {
     switch (status) {
       case OrderStatus.pending:
@@ -142,7 +146,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
 
                     const SizedBox(height: 12),
 
-                    if (order.status == OrderStatus.pickedUp)
+                    if (_canTrack(order.status))
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
