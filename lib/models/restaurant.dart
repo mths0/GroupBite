@@ -7,6 +7,7 @@ class Restaurant extends User {
   final GeoPoint? location;
   final String imageUrl;
   final double rating;
+  final int ratingCount;
   final double deliveryFee;
   final List<RestaurantTag> tags;
   final bool isOpen;
@@ -21,6 +22,7 @@ class Restaurant extends User {
     required this.location,
     required this.imageUrl,
     required this.rating,
+    required this.ratingCount,
     required this.deliveryFee,
     required this.tags,
     required this.isOpen,
@@ -40,6 +42,7 @@ class Restaurant extends User {
       location: locationValue is GeoPoint ? locationValue : null,
       imageUrl: (map['imageUrl'] ?? '').toString(),
       rating: (map['rating'] ?? 0).toDouble(),
+      ratingCount: (map['ratingCount'] ?? 0) as int,
       deliveryFee: (map['deliveryFee'] ?? 0).toDouble(),
       tags: rawTags
           .map((e) => RestaurantTagX.fromString(e))
@@ -65,6 +68,7 @@ class Restaurant extends User {
     'location': location,
     'imageUrl': imageUrl,
     'rating': rating,
+    'ratingCount': ratingCount,
     'deliveryFee': deliveryFee,
     'tags': tags.map((e) => e.name).toList(),
     'isOpen': isOpen,

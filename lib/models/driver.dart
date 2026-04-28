@@ -7,6 +7,8 @@ class Driver extends User {
   final String nationalId;
   final String createdAt;
   final GeoPoint? location;
+  final double rating;
+  final int ratingCount;
   DriverStatus _status;
 
   Driver({
@@ -16,6 +18,8 @@ class Driver extends User {
     required super.email,
     required this.nationalId,
     required this.createdAt,
+    required this.rating,
+    required this.ratingCount,
     DriverStatus status = DriverStatus.offline,
     this.location,
   }) : _status = status;
@@ -24,17 +28,19 @@ class Driver extends User {
     final locationValue = map['location'];
 
     return Driver(
-      id: map['id'],
-      phone: map['phone'],
-      name: map['name'],
-      nationalId: map['nationalId'],
-      createdAt: map['createdAt'],
-      email: map['email'],
+      id: (map['id'] ?? '').toString(),
+      phone: (map['phone'] ?? '').toString(),
+      name: (map['name'] ?? '').toString(),
+      nationalId: (map['nationalId'] ?? '').toString(),
+      createdAt: (map['createdAt'] ?? '').toString(),
+      email: (map['email'] ?? '').toString(),
       status: DriverStatus.values.firstWhere(
         (e) => e.name == map['status'],
         orElse: () => DriverStatus.offline,
       ),
       location: locationValue is GeoPoint ? locationValue : null,
+      rating: (map['rating'] ?? 0).toDouble(),
+      ratingCount: (map['ratingCount'] ?? 0) as int,
     );
   }
 
@@ -49,6 +55,8 @@ class Driver extends User {
     'status': _status.name,
     'location': location,
     'email': email,
+    'rating': rating,
+    'ratingCount': ratingCount,
   };
 
   DriverStatus get status => _status;
@@ -62,19 +70,16 @@ class Driver extends User {
 
   @override
   Function login() {
-    // TODO: implement login
     throw UnimplementedError();
   }
 
   @override
   Function logout() {
-    // TODO: implement logout
     throw UnimplementedError();
   }
 
   @override
   Function updateProfile() {
-    // TODO: implement updateProfile
     throw UnimplementedError();
   }
 }

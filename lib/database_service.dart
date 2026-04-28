@@ -187,10 +187,85 @@ class DatabaseService {
       'items': items.map((item) => item.toJson()).toList(),
       'customerLocation': customerLocation,
       'restaurantLocation': restaurantLocation,
+      "isRated": false,
+      "restaurantRating": null,
+      "driverRating": null,
     });
 
     final snapshot = await docRef.get();
     return Order.fromFirestore(snapshot);
+  }
+
+  Future<void> submitOrderRating({
+    required String orderId,
+    required String restaurantId,
+    required String driverId,
+    required int restaurantRating,
+    required int driverRating,
+  }) async {
+    final orderRef = _db.collection('orders').doc(orderId);
+    final restaurantRef = _db.collection('users').doc(restaurantId);
+    final driverRef = _db.collection('users').doc(driverId);
+
+    await _db.runTransaction((transaction) async {
+      final orderSnap = await transaction.get(orderRef);
+      final restaurantSnap = await transaction.get(restaurantRef);
+      final driverSnap = await transaction.get(driverRef);
+
+      if (!orderSnap.exists) {
+        throw Exception('Order not found');
+      }
+
+      final orderData = orderSnap.data() as Map<String, dynamic>;
+      if ((orderData['isRated'] ?? false) == true) {
+        throw Exception('This order has already been rated.');
+      }
+
+      if (!restaurantSnap.exists) {
+        throw Exception('Restaurant not found');
+      }
+
+      if (!driverSnap.exists) {
+        throw Exception('Driver not found');
+      }
+
+      final restaurantData = restaurantSnap.data() as Map<String, dynamic>;
+      final driverData = driverSnap.data() as Map<String, dynamic>;
+
+      final oldRestaurantRating =
+          (restaurantData['rating'] as num?)?.toDouble() ?? 0.0;
+      final oldRestaurantCount =
+          (restaurantData['ratingCount'] as num?)?.toInt() ?? 0;
+
+      final oldDriverRating = (driverData['rating'] as num?)?.toDouble() ?? 0.0;
+      final oldDriverCount = (driverData['ratingCount'] as num?)?.toInt() ?? 0;
+
+      final newRestaurantCount = oldRestaurantCount + 1;
+      final newRestaurantAverage =
+          ((oldRestaurantRating * oldRestaurantCount) + restaurantRating) /
+          newRestaurantCount;
+
+      final newDriverCount = oldDriverCount + 1;
+      final newDriverAverage =
+          ((oldDriverRating * oldDriverCount) + driverRating) / newDriverCount;
+
+      transaction.update(orderRef, {
+        'isRated': true,
+        'restaurantRating': restaurantRating,
+        'driverRating': driverRating,
+        'ratedAt': firestore.FieldValue.serverTimestamp(),
+      });
+
+      transaction.update(restaurantRef, {
+        'rating': newRestaurantAverage,
+        'ratingCount': newRestaurantCount,
+      });
+
+      transaction.update(driverRef, {
+        'rating': newDriverAverage,
+        'ratingCount': newDriverCount,
+      });
+    });
   }
 
   Future<void> restaurantAcceptOrder(String orderId) async {

@@ -147,7 +147,9 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
       nationalId: nationalIdController.text.trim(),
       createdAt: DateTime.now().toIso8601String(),
       location: currentPosition,
-      
+      rating: 5,
+      ratingCount: 0,
+
       // add these only if they exist in your model
       // isVerified: false,
       // status: DriverStatus.available,

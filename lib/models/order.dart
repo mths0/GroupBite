@@ -21,6 +21,9 @@ class Order {
   final DateTime createdAt;
   final double totalPrice;
   final String? paymentId;
+  final bool isRated;
+  final int? restaurantRating;
+  final int? driverRating;
 
   Order({
     required this.id,
@@ -32,6 +35,9 @@ class Order {
     required this.totalPrice,
     required this.items,
     required this.createdAt,
+    required this.isRated,
+    this.restaurantRating,
+    this.driverRating,
     this.driverId,
     this.paymentId,
   });
@@ -48,6 +54,9 @@ class Order {
         (e) => e.name == (data['status'] ?? 'pending').toString(),
         orElse: () => OrderStatus.pending,
       ),
+      isRated: (data['isRated'] ?? false) as bool,
+      restaurantRating: (data['restaurantRating'] as num?)?.toInt(),
+      driverRating: (data['driverRating'] as num?)?.toInt(),
       restaurantLocation: data['restaurantLocation'] as GeoPoint,
       customerLocation: data['customerLocation'] as GeoPoint,
       totalPrice: (data['totalPrice'] as num?)?.toDouble() ?? 0.0,
@@ -67,6 +76,9 @@ class Order {
     'driverId': driverId,
     'items': items.map((e) => e.toJson()).toList(),
     'status': status.name,
+    'isRated': isRated,
+    'restaurantRating': restaurantRating,
+    'driverRating': driverRating,
     'createdAt': Timestamp.fromDate(createdAt),
     'totalPrice': totalPrice,
     'paymentId': paymentId,

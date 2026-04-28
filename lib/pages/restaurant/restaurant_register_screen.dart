@@ -163,6 +163,7 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
         imageUrl:
             'https://images.unsplash.com/photo-1579027989536-b7b1f875659b?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
         rating: 5,
+        ratingCount: 0,
         deliveryFee: 9,
         isOpen: false,
         hasOffer: false,

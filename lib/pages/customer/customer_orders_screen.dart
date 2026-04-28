@@ -3,6 +3,7 @@ import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/pages/customer/map_track_screen.dart';
+import 'package:food_delivery_platform/pages/customer/rate_order_screen.dart';
 
 class CustomerOrdersScreen extends StatefulWidget {
   const CustomerOrdersScreen({
@@ -55,6 +56,34 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
       case OrderStatus.assigned:
         return 'Assigned';
     }
+  }
+
+  void _openRatingSheet(Order order) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => RateOrderSheet(
+        order: order,
+        onSubmit:
+            ({
+              required int restaurantRating,
+              required int driverRating,
+            }) async {
+              if (order.driverId == null || order.driverId!.isEmpty) {
+                throw Exception('Driver not found for this order');
+              }
+
+              await _db.submitOrderRating(
+                orderId: order.id,
+                restaurantId: order.restaurantId,
+                driverId: order.driverId!,
+                restaurantRating: restaurantRating,
+                driverRating: driverRating,
+              );
+            },
+      ),
+    );
   }
 
   @override
@@ -124,23 +153,15 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
-                    Text(
-                      'Total: ${order.totalPrice.toStringAsFixed(2)} SAR',
-                    ),
+                    Text('Total: ${order.totalPrice.toStringAsFixed(2)} SAR'),
                     const SizedBox(height: 6),
-
-                    Text(
-                      'Items: ${order.items.length}',
-                    ),
+                    Text('Items: ${order.items.length}'),
                     const SizedBox(height: 12),
 
                     ...order.items.map(
                       (item) => Padding(
                         padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          '- ${item.name} x${item.quantity}',
-                        ),
+                        child: Text('- ${item.name} x${item.quantity}'),
                       ),
                     ),
 
@@ -159,9 +180,46 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
                             );
                           },
                           icon: const Icon(Icons.location_on_outlined),
-                          label: const Text('Track Order'),
+                          label: Text(
+                            order.status == OrderStatus.assigned
+                                ? 'Track Driver'
+                                : 'Track Order',
+                          ),
                         ),
                       ),
+
+                    if (order.status == OrderStatus.delivered &&
+                        !order.isRated) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _openRatingSheet(order),
+                          icon: const Icon(Icons.star_outline),
+                          label: const Text('Rate Order'),
+                        ),
+                      ),
+                    ],
+
+                    if (order.status == OrderStatus.delivered &&
+                        order.isRated) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Order Rated',
+                            style: TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
