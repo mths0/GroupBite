@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
+import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/order.dart';
+import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/map_track_screen.dart';
 import 'package:food_delivery_platform/pages/customer/rate_order_screen.dart';
 
@@ -82,6 +85,40 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
                 driverRating: driverRating,
               );
             },
+      ),
+    );
+  }
+
+  Future<void> _orderSameOrderAgain(Order order) async {
+    
+    final cart = CartScope.of(context);
+    cart.clearRestaurantCart(order.restaurantId);
+    // get restaurant menu
+    final menu = await DatabaseService().getMenuForRestaurant(
+      restaurantId: order.restaurantId,
+    );
+
+    for (var item in order.items) {
+      if (menu.any((menu) => menu.id == item.menuId)) {
+        final menuitem = menu.firstWhere((menu) => menu.id == item.menuId);
+        for (int i = 0; i < item.quantity; i++) {
+          cart.addItem(
+            restaurantId: order.restaurantId,
+            item: menuitem,
+          );
+        }
+      }
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CartScope(
+          notifier: cart,
+          child: CartScreen(
+            restaurantId: order.restaurantId,
+            customerId: order.customerId,
+          ),
+        ),
       ),
     );
   }
@@ -205,18 +242,14 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.10),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'Order Rated',
-                            style: TextStyle(
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold,
+                        child: ElevatedButton(
+                          onPressed: () => _orderSameOrderAgain(order),
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.orangeAccent.withOpacity(
+                              0.8,
                             ),
                           ),
+                          child: const Text('Order again'),
                         ),
                       ),
                     ],

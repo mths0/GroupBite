@@ -79,7 +79,7 @@ class _CartScreenState extends State<CartScreen> {
   // ---------------------------------------------------------------------------
   // Data Loading
   // ---------------------------------------------------------------------------
-
+  //No need for this no more
   Future<void> _loadData() async {
     final results = await Future.wait([
       _repo.getCheckoutData(),
@@ -396,7 +396,9 @@ class _CartScreenState extends State<CartScreen> {
             ),
           ),
           child: Text(
-            'Proceed to Checkout  •  \$${_total.toStringAsFixed(2)}',
+            cartItems.isNotEmpty
+                ? 'Proceed to Checkout  •  \$${_total.toStringAsFixed(2)}'
+                : "Try to put some items",
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,

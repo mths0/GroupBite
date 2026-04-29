@@ -244,12 +244,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-      appBar: AppBar(
-        title: const Text('Checkout'),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        elevation: 0,
-      ),
+
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _buildBody(),

@@ -123,6 +123,10 @@ class DatabaseService {
     });
   }
 
+  // Future<List> getRestaurantMenu({required String restaurantId}) async {
+  //   await _db.collection("users").doc()
+  // }
+
   Stream<List<Order>> getOrdersForRestaurant(String restaurantId) {
     return _db
         .collection('orders')
