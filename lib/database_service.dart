@@ -8,10 +8,22 @@ import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'models/driver.dart';
 import 'models/order.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class DatabaseService {
   final firestore.FirebaseFirestore _db = firestore.FirebaseFirestore.instance;
 
+  Future<void> saveUserFcmToken(String userId) async {
+    final messaging = FirebaseMessaging.instance;
+    final token = await messaging.getToken();
+
+    if (token == null) return;
+
+    await _db.collection('users').doc(userId).update({
+      'fcmToken': token,
+      'fcmTokenUpdatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
   // ---------------- USERS ----------------
 
   Future<void> createUser(Map<String, dynamic> userData) async {

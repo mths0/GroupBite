@@ -135,6 +135,7 @@ class AuthService {
       email: email,
       emailLink: link,
     );
+    
 
     await prefs.remove('email_for_signin');
   }
