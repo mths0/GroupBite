@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/mock/mock_cart_repository.dart';
+
 import 'package:food_delivery_platform/models/cart_models.dart';
 
 //! This class needs to be refactored and cleaned up
@@ -26,6 +26,9 @@ class CheckoutScreen extends StatefulWidget {
     required this.customerId,
     required this.restaurantId,
     this.appliedCoupon,
+    this.groupOrderId,
+    this.isGroupHost = false,
+    this.onOrderPlaced,
   });
 
   /// Immutable snapshot of cart items for display/confirmation.
@@ -34,6 +37,9 @@ class CheckoutScreen extends StatefulWidget {
   final Coupon? appliedCoupon;
   final String customerId;
   final String restaurantId;
+  final String? groupOrderId;
+  final bool isGroupHost;
+  final VoidCallback? onOrderPlaced;
 
   /// Pre-computed values forwarded from CartScreen.
   final double subtotal;
@@ -58,22 +64,6 @@ const String _kPaymentCreditCard = 'pay_credit';
 const String _kPaymentWallet = 'pay_wallet';
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  // ---------------------------------------------------------------------------
-  // Dependencies
-  // ---------------------------------------------------------------------------
-  final MockCartRepository _repo = MockCartRepository();
-
-  // ---------------------------------------------------------------------------
-  // UI State
-  // ---------------------------------------------------------------------------
-  bool _isLoading = true;
-
-  /// Saved addresses loaded from the repository.
-  List<Address> _addresses = [];
-
-  /// ID of the currently selected address.
-  String? _selectedAddressId;
-
   /// Whether delivery is ASAP or scheduled.
   _DeliveryTimeOption _deliveryTimeOption = _DeliveryTimeOption.asap;
 
@@ -86,6 +76,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   /// True while the "Place Order" call is in progress.
   bool _isPlacingOrder = false;
 
+  bool get _isGroupCheckout => widget.groupOrderId != null;
+
+  bool get _shouldShowDeliveryTime {
+    if (!_isGroupCheckout) return true;
+
+    return widget.isGroupHost;
+  }
+
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
@@ -93,22 +91,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAddresses();
-  }
-
-  Future<void> _loadAddresses() async {
-    final addresses = await _repo.getAddresses();
-
-    if (!mounted) return;
-
-    setState(() {
-      _addresses = addresses;
-      // Default to the first address.
-      if (addresses.isNotEmpty) {
-        _selectedAddressId = addresses.first.id;
-      }
-      _isLoading = false;
-    });
   }
 
   // ---------------------------------------------------------------------------
@@ -168,6 +150,52 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     try {
       final databaseService = DatabaseService();
+
+      // GROUP CHECKOUT:
+      // Member only pays their part. Do NOT create order yet.
+      if (widget.groupOrderId != null) {
+        final result = await databaseService.payGroupMemberAndMaybePlaceOrder(
+          groupOrderId: widget.groupOrderId!,
+          customerId: widget.customerId,
+          restaurantId: widget.restaurantId,
+        );
+
+        if (!mounted) return;
+
+        setState(() => _isPlacingOrder = false);
+
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            title: Text(
+              result.finalOrderPlaced
+                  ? 'Group Order Placed 🎉'
+                  : 'Payment Done',
+            ),
+            content: Text(
+              result.finalOrderPlaced
+                  ? 'Everyone has paid. The final group order has been placed successfully.'
+                  : 'Your part of ${widget.total.toStringAsFixed(2)} SAR has been paid successfully.\n\n'
+                        'You will now return to the home page.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // close dialog
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                child: const Text('Done'),
+              ),
+            ],
+          ),
+        );
+
+        return;
+      }
+
+      // NORMAL CHECKOUT:
+      // Create normal order immediately.
       final orderItems = widget.cartItems
           .map(
             (item) => OrderItem(
@@ -188,8 +216,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       if (!mounted) return;
 
-      // clear cart for this restaurant AFTER successful order creation
-      CartScope.of(context).clearRestaurantCart(widget.restaurantId);
+      widget.onOrderPlaced?.call();
 
       setState(() => _isPlacingOrder = false);
 
@@ -199,7 +226,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         builder: (_) => AlertDialog(
           title: const Text('Order Placed! 🎉'),
           content: Text(
-            'Your order of \$${widget.total.toStringAsFixed(2)} has been placed.\n\n'
+            'Your order of ${widget.total.toStringAsFixed(2)} SAR has been placed.\n\n'
             '${_deliveryTimeOption == _DeliveryTimeOption.asap ? 'Estimated arrival: 25–35 min' : 'Scheduled for: ${_formatScheduled()}'}',
           ),
           actions: [
@@ -217,9 +244,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+
       setState(() => _isPlacingOrder = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to place order: $e')),
+        SnackBar(content: Text('Failed: $e')),
       );
     }
   }
@@ -244,11 +273,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildBody(),
-      bottomNavigationBar: _isLoading ? null : _buildPlaceOrderBar(),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          _isGroupCheckout
+              ? widget.isGroupHost
+                    ? 'Host Checkout'
+                    : 'Pay Your Part'
+              : 'Checkout',
+        ),
+      ),
+      body: _buildBody(),
+      bottomNavigationBar: _buildPlaceOrderBar(),
     );
   }
 
@@ -256,38 +295,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
-        // ── Delivery Address ───────────────────────────────────────────────
-        _SectionCard(
-          title: 'Delivery Address',
-          icon: Icons.location_on_outlined,
-          child: Column(
-            children: _addresses.map((address) {
-              final isSelected = address.id == _selectedAddressId;
-              return _AddressTile(
-                address: address,
-                isSelected: isSelected,
-                onTap: () => setState(() => _selectedAddressId = address.id),
-              );
-            }).toList(),
+        if (_isGroupCheckout)
+          _SectionCard(
+            title: widget.isGroupHost
+                ? 'Host Checkout'
+                : 'Group Member Checkout',
+            icon: Icons.groups_outlined,
+            child: Text(
+              widget.isGroupHost
+                  ? 'You are the host. After you pay, the final group order will be placed.'
+                  : 'You are paying only your part of the group order.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ),
-        ),
 
-        const SizedBox(height: 12),
+        if (_isGroupCheckout) const SizedBox(height: 12),
 
-        // ── Delivery Time ──────────────────────────────────────────────────
-        _SectionCard(
-          title: 'Delivery Time',
-          icon: Icons.schedule_outlined,
-          child: _DeliveryTimeSelector(
-            selected: _deliveryTimeOption,
-            scheduledDateTime: _scheduledDateTime,
-            onTap: _onDeliveryTimeTapped,
+        if (_shouldShowDeliveryTime) ...[
+          _SectionCard(
+            title: 'Delivery Time',
+            icon: Icons.schedule_outlined,
+            child: _DeliveryTimeSelector(
+              selected: _deliveryTimeOption,
+              scheduledDateTime: _scheduledDateTime,
+              onTap: _onDeliveryTimeTapped,
+            ),
           ),
-        ),
+          const SizedBox(height: 12),
+        ],
 
-        const SizedBox(height: 12),
-
-        // ── Payment Method ─────────────────────────────────────────────────
         _SectionCard(
           title: 'Payment Method',
           icon: Icons.credit_card_outlined,
@@ -319,9 +355,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
         const SizedBox(height: 12),
 
-        // ── Order Summary (read-only) ──────────────────────────────────────
         _SectionCard(
-          title: 'Order Summary',
+          title: _isGroupCheckout ? 'Your Part Summary' : 'Order Summary',
           icon: Icons.receipt_long_outlined,
           child: _CheckoutSummary(
             subtotal: widget.subtotal,
@@ -360,7 +395,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 )
               : Text(
-                  'Place Order  •  \$${widget.total.toStringAsFixed(2)}',
+                  !_isGroupCheckout
+                      ? 'Place Order  •  ${widget.total.toStringAsFixed(2)} SAR'
+                      : widget.isGroupHost
+                      ? 'Pay Last & Place Order  •  ${widget.total.toStringAsFixed(2)} SAR'
+                      : 'Pay My Part  •  ${widget.total.toStringAsFixed(2)} SAR',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -419,80 +458,6 @@ class _SectionCard extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-/// A selectable tile representing a delivery address.
-class _AddressTile extends StatelessWidget {
-  const _AddressTile({
-    required this.address,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final Address address;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? colorScheme.primary
-                : colorScheme.outlineVariant,
-            width: isSelected ? 1.8 : 0.8,
-          ),
-          color: isSelected
-              ? colorScheme.primaryContainer.withOpacity(0.25)
-              : Colors.transparent,
-        ),
-        child: Row(
-          children: [
-            // Label + address
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    address.label,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    address.fullAddress,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Radio indicator
-            Radio<String>(
-              value: address.id,
-              groupValue: isSelected ? address.id : null,
-              onChanged: (_) => onTap(),
-              activeColor: colorScheme.primary,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
           ],
         ),
       ),

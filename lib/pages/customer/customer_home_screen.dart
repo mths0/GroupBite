@@ -4,6 +4,7 @@ import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/mock/mock_restaurant_repository.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/pages/customer/join_group_order_screen.dart';
 import 'package:food_delivery_platform/pages/customer/restaurant_menu_page.dart';
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
 
@@ -121,6 +122,21 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ),
             ],
           ),
+          const SizedBox(width: 12 , height: 12),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => JoinGroupOrderScreen(
+                    customer: widget.customer,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.group),
+            label: const Text('Join Group Order'),
+          ),
           const SizedBox(height: 16),
           Text(
             //Todo : Get user location and show nearby restaurants (later)
@@ -226,7 +242,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               notifier: cart,
               child: RestaurantMenuPage(
                 restaurant: restaurant,
-                customerId: widget.customer.id,
+                customer: widget.customer,
               ),
             ),
           ),

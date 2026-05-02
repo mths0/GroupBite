@@ -21,4 +21,11 @@ class IdGenerator {
 
     return 'payment_$time$random';
   }
+
+  static String generateGroupOrderId() {
+    final random = Random().nextInt(100000) + 100; // 3 digits
+    // final time = DateTime.now().millisecondsSinceEpoch % 1000000;
+
+    return 'group_order_$random';
+  }
 }

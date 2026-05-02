@@ -1,23 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/mock/mock_menu_items_repository.dart';
+import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
+import 'package:food_delivery_platform/models/customer.dart';
+import 'package:food_delivery_platform/models/group_order.dart';
 
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart' as app_models;
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
+import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class RestaurantMenuPage extends StatefulWidget {
   const RestaurantMenuPage({
     super.key,
     required this.restaurant,
-    required this.customerId,
+    required this.customer,
+    this.groupOrderId,
   });
 
   final app_models.Restaurant restaurant;
-  final String customerId;
+  final Customer customer;
+  final String? groupOrderId;
 
+  bool get isInGroupOrder => groupOrderId != null;
   @override
   State<RestaurantMenuPage> createState() => _RestaurantMenuPageState();
 }
@@ -32,6 +39,387 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
     'Desserts',
     'Drinks',
   ];
+  void _openGroupOrderSummary({
+    required String groupOrderId,
+    required String restaurantId,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (bottomSheetContext) {
+        return StreamBuilder<GroupOrder?>(
+          stream: DatabaseService().watchGroupOrder(groupOrderId),
+          builder: (context, groupSnapshot) {
+            final groupOrder = groupSnapshot.data;
+
+            if (groupOrder == null) {
+              return const SafeArea(
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            final isHost = groupOrder.hostCustomerId == widget.customer.id;
+
+            return StreamBuilder<List<GroupOrderMember>>(
+              stream: DatabaseService().watchGroupMembers(groupOrderId),
+              builder: (context, membersSnapshot) {
+                final members = membersSnapshot.data ?? [];
+
+                return StreamBuilder<List<GroupOrderItem>>(
+                  stream: DatabaseService().watchGroupItems(groupOrderId),
+                  builder: (context, itemsSnapshot) {
+                    final allItems = itemsSnapshot.data ?? [];
+
+                    final myItems = allItems
+                        .where((item) => item.memberId == widget.customer.id)
+                        .toList();
+
+                    final mySubtotal = myItems.fold<double>(
+                      0.0,
+                      (sum, item) => sum + item.lineTotal,
+                    );
+
+                    final memberCount = members.isEmpty ? 1 : members.length;
+                    final deliveryFee = widget.restaurant.deliveryFee;
+                    final deliveryShare = deliveryFee / memberCount;
+                    final tax = mySubtotal * 0.15;
+                    final total = mySubtotal + deliveryShare + tax;
+
+                    GroupOrderMember? myMember;
+
+                    for (final member in members) {
+                      if (member.customerId == widget.customer.id) {
+                        myMember = member;
+                        break;
+                      }
+                    }
+
+                    final myStatus =
+                        myMember?.status ?? GroupMemberStatus.ordering;
+                    final iAmReady = myStatus == GroupMemberStatus.ready;
+                    final iAlreadyPaid = myStatus == GroupMemberStatus.paid;
+
+                    final allReadyOrPaid =
+                        members.isNotEmpty &&
+                        members.every(
+                          (member) =>
+                              member.status == GroupMemberStatus.ready ||
+                              member.status == GroupMemberStatus.paid,
+                        );
+
+                    final allOtherMembersPaid =
+                        members.isNotEmpty &&
+                        members
+                            .where(
+                              (member) =>
+                                  member.customerId != widget.customer.id,
+                            )
+                            .every(
+                              (member) =>
+                                  member.status == GroupMemberStatus.paid,
+                            );
+
+                    final allPaid =
+                        members.isNotEmpty &&
+                        members.every(
+                          (member) => member.status == GroupMemberStatus.paid,
+                        );
+
+                    return SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.78,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Your Group Order',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+
+                              const SizedBox(height: 4),
+
+                              Text(
+                                'Delivery fee is split between $memberCount member(s).',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              Text(
+                                'Members',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              SizedBox(
+                                height: 120,
+                                child: members.isEmpty
+                                    ? const Center(
+                                        child: Text('No members yet.'),
+                                      )
+                                    : ListView.separated(
+                                        scrollDirection: Axis.horizontal,
+                                        itemCount: members.length,
+                                        separatorBuilder: (_, __) =>
+                                            const SizedBox(width: 8),
+                                        itemBuilder: (context, index) {
+                                          final member = members[index];
+
+                                          final memberSubtotal = allItems
+                                              .where(
+                                                (item) =>
+                                                    item.memberId ==
+                                                    member.customerId,
+                                              )
+                                              .fold<double>(
+                                                0.0,
+                                                (sum, item) =>
+                                                    sum + item.lineTotal,
+                                              );
+
+                                          return SizedBox(
+                                            width: 180,
+                                            child: Card(
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(
+                                                  12,
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      member.name,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Text(
+                                                      'Items: ${memberSubtotal.toStringAsFixed(2)} SAR',
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    _MemberStatusChip(
+                                                      status: member.status,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              Text(
+                                'Your Items',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              if (myItems.isEmpty)
+                                const Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      'You have not added any items yet.',
+                                    ),
+                                  ),
+                                )
+                              else
+                                Expanded(
+                                  child: ListView.separated(
+                                    itemCount: myItems.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 8),
+                                    itemBuilder: (context, index) {
+                                      final item = myItems[index];
+
+                                      return Card(
+                                        child: ListTile(
+                                          title: Text(item.name),
+                                          subtitle: Text(
+                                            '${item.unitPrice.toStringAsFixed(2)} SAR x${item.quantity}',
+                                          ),
+                                          trailing: Text(
+                                            '${item.lineTotal.toStringAsFixed(2)} SAR',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+
+                              const Divider(),
+
+                              _GroupSummaryRow(
+                                label: 'Your Items Subtotal',
+                                value: mySubtotal,
+                              ),
+                              _GroupSummaryRow(
+                                label:
+                                    'Delivery Share (${deliveryFee.toStringAsFixed(2)} ÷ $memberCount)',
+                                value: deliveryShare,
+                              ),
+                              _GroupSummaryRow(
+                                label: 'Tax (15%)',
+                                value: tax,
+                              ),
+                              _GroupSummaryRow(
+                                label: 'Your Total',
+                                value: total,
+                                isBold: true,
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              if (!iAmReady && !iAlreadyPaid)
+                                FilledButton.icon(
+                                  onPressed: myItems.isEmpty
+                                      ? null
+                                      : () async {
+                                          await DatabaseService()
+                                              .markGroupMemberReady(
+                                                groupOrderId: groupOrderId,
+                                                customerId: widget.customer.id,
+                                              );
+
+                                          if (!context.mounted) return;
+
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'You are ready. Waiting for others.',
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(52),
+                                  ),
+                                  icon: const Icon(Icons.check),
+                                  label: const Text('I Am Ready'),
+                                ),
+
+                              if (iAmReady)
+                                FilledButton(
+                                  onPressed:
+                                      (isHost
+                                          ? allOtherMembersPaid
+                                          : allReadyOrPaid)
+                                      ? () {
+                                          Navigator.pop(bottomSheetContext);
+
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => CheckoutScreen(
+                                                cartItems: myItems.map((item) {
+                                                  return cart_models.CartItem(
+                                                    id: item.menuItemId,
+                                                    name: item.name,
+                                                    description:
+                                                        item.description,
+                                                    imagePath: item.imageUrl,
+                                                    unitPrice: item.unitPrice,
+                                                    quantity: item.quantity,
+                                                  );
+                                                }).toList(),
+                                                checkoutData:
+                                                    cart_models.CheckoutData(
+                                                      deliveryFee:
+                                                          deliveryShare,
+                                                      taxRate: 0.15,
+                                                      walletBalance: 100.0,
+                                                    ),
+                                                subtotal: mySubtotal,
+                                                tax: tax,
+                                                discount: 0.0,
+                                                total: total,
+                                                customerId: widget.customer.id,
+                                                restaurantId: restaurantId,
+                                                groupOrderId: groupOrderId,
+                                                isGroupHost: isHost,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      : null,
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(52),
+                                  ),
+                                  child: Text(
+                                    isHost
+                                        ? allOtherMembersPaid
+                                              ? 'Pay Last & Place Group Order • ${total.toStringAsFixed(2)} SAR'
+                                              : 'Waiting for members to pay first'
+                                        : allReadyOrPaid
+                                        ? 'Pay My Part • ${total.toStringAsFixed(2)} SAR'
+                                        : 'Waiting for everyone to be ready',
+                                  ),
+                                ),
+
+                              if (iAlreadyPaid)
+                                FilledButton.icon(
+                                  onPressed: null,
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(52),
+                                  ),
+                                  icon: const Icon(Icons.check_circle),
+                                  label: const Text('Your Part Is Paid'),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _startGroupOrder() async {
+    final groupOrderId = await DatabaseService().createGroupOrder(
+      hostCustomerId: widget.customer.id,
+      hostName: widget.customer.name,
+      restaurantId: widget.restaurant.id,
+    );
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RestaurantMenuPage(
+          restaurant: widget.restaurant,
+          customer: widget.customer,
+          groupOrderId: groupOrderId,
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -49,7 +437,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final cart = CartScope.of(context);
+    final cart = widget.groupOrderId == null ? CartScope.of(context) : null;
     final restaurantId = widget.restaurant.id;
 
     return Scaffold(
@@ -81,6 +469,22 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
             children: [
               HeaderCard(restaurant: widget.restaurant),
               const SizedBox(height: 8),
+              if (widget.groupOrderId == null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _startGroupOrder,
+                    icon: const Icon(Icons.group_add),
+                    label: const Text('Start Group Order'),
+                  ),
+                )
+              else
+                _GroupOrderStatusBar(
+                  groupOrderId: widget.groupOrderId!,
+                  customerId: widget.customer.id,
+                ),
+              const SizedBox(height: 8),
 
               TabBar(
                 controller: _tabController,
@@ -111,14 +515,70 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                         final item = filtered[index];
                         return _MenuItemTile(
                           item: item,
-                          onAdd: () {
-                            cart.addItem(
-                              restaurantId: restaurantId,
-                              item: item,
+                          onAdd: () async {
+                            if (widget.groupOrderId == null) {
+                              cart!.addItem(
+                                restaurantId: restaurantId,
+                                item: item,
+                              );
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('${item.name} added to cart'),
+                                ),
+                              );
+
+                              return;
+                            }
+
+                            final member = await DatabaseService()
+                                .getGroupMember(
+                                  groupOrderId: widget.groupOrderId!,
+                                  customerId: widget.customer.id,
+                                );
+
+                            if (member == null) {
+                              if (!context.mounted) return;
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'You are not a member of this group order.',
+                                  ),
+                                ),
+                              );
+
+                              return;
+                            }
+
+                            if (member.status == GroupMemberStatus.ready ||
+                                member.status == GroupMemberStatus.paid) {
+                              if (!context.mounted) return;
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'You already marked yourself ready. You cannot add more items.',
+                                  ),
+                                ),
+                              );
+
+                              return;
+                            }
+
+                            await DatabaseService().addItemToGroupOrder(
+                              groupOrderId: widget.groupOrderId!,
+                              memberId: widget.customer.id,
+                              menuItem: item,
                             );
+
+                            if (!context.mounted) return;
+
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('${item.name} added to cart'),
+                                content: Text(
+                                  '${item.name} added to group order',
+                                ),
                               ),
                             );
                           },
@@ -132,54 +592,115 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
           );
         },
       ),
-      floatingActionButton: AnimatedBuilder(
-        animation: cart,
-        builder: (_, _) {
-          final count = cart.itemCount(restaurantId);
+      floatingActionButton: widget.groupOrderId == null
+          ? AnimatedBuilder(
+              animation: cart!,
+              builder: (_, _) {
+                final count = cart.itemCount(restaurantId);
 
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              FloatingActionButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CartScope(
-                        notifier: cart,
-                        child: CartScreen(
-                          restaurantId: restaurantId,
-                          customerId: widget.customerId,
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    FloatingActionButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CartScope(
+                              notifier: cart,
+                              child: CartScreen(
+                                restaurantId: restaurantId,
+                                customerId: widget.customer.id,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Icon(Icons.shopping_cart_outlined),
+                    ),
+                    if (count > 0)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$count',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
                       ),
+                  ],
+                );
+              },
+            )
+          : StreamBuilder<List<GroupOrderItem>>(
+              stream: DatabaseService().watchGroupItems(widget.groupOrderId!),
+              builder: (context, snapshot) {
+                final allItems = snapshot.data ?? [];
+
+                final myItemCount = allItems
+                    .where((item) => item.memberId == widget.customer.id)
+                    .fold<int>(
+                      0,
+                      (sum, item) => sum + item.quantity,
+                    );
+
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    FloatingActionButton.extended(
+                      onPressed: () {
+                        _openGroupOrderSummary(
+                          groupOrderId: widget.groupOrderId!,
+                          restaurantId: restaurantId,
+                        );
+                      },
+                      icon: const Icon(Icons.receipt_long),
+                      label: const Text('Group Order'),
                     ),
-                  );
-                },
-                child: const Icon(Icons.shopping_cart_outlined),
-              ),
-              if (count > 0)
-                Positioned(
-                  right: -2,
-                  top: -2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '$count',
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
+
+                    if (myItemCount > 0)
+                      Positioned(
+                        right: -2,
+                        top: -6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.surface,
+                              width: 2,
+                            ),
+                          ),
+                          child: Text(
+                            '$myItemCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
     );
   }
 }
@@ -283,6 +804,7 @@ class HeaderCard extends StatelessWidget {
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
+                      runSpacing: 6,
                       children: restaurant.tags
                           .map((tag) => _TagChip(text: tag.label))
                           .toList(),
@@ -323,7 +845,7 @@ class _MenuItemTile extends StatelessWidget {
   });
 
   final MenuItem item;
-  final VoidCallback onAdd;
+  final Future<void> Function() onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -399,7 +921,238 @@ class _MenuItemTile extends StatelessWidget {
             ),
             child: IconButton(
               icon: Icon(Icons.add, color: scheme.onPrimary),
-              onPressed: onAdd,
+              onPressed: () async {
+                await onAdd();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupOrderStatusBar extends StatelessWidget {
+  const _GroupOrderStatusBar({
+    required this.groupOrderId,
+    required this.customerId,
+  });
+
+  final String groupOrderId;
+  final String customerId;
+
+  void _showQrDialog(BuildContext context, String code) {
+    showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('Group Order QR'),
+          content: SizedBox(
+            width: 260,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 220,
+                  height: 220,
+                  child: QrImageView(
+                    data: code,
+                    version: QrVersions.auto,
+                    size: 220,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SelectableText(
+                  code,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final db = DatabaseService();
+    final scheme = Theme.of(context).colorScheme;
+
+    return StreamBuilder<GroupOrder?>(
+      stream: db.watchGroupOrder(groupOrderId),
+      builder: (context, snapshot) {
+        final groupOrder = snapshot.data;
+
+        if (groupOrder == null) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: LinearProgressIndicator(),
+          );
+        }
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: scheme.primaryContainer,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.groups,
+                  color: scheme.onPrimary,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Group Order Active',
+                      style: TextStyle(
+                        color: scheme.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Code: ${groupOrder.joinCode} • ${groupOrder.status.name}',
+                      style: TextStyle(
+                        color: scheme.onPrimaryContainer.withOpacity(0.75),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              InkWell(
+                onTap: () => _showQrDialog(context, groupOrder.joinCode),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: QrImageView(
+                    data: groupOrder.joinCode,
+                    version: QrVersions.auto,
+                    size: 46,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GroupSummaryRow extends StatelessWidget {
+  const _GroupSummaryRow({
+    required this.label,
+    required this.value,
+    this.isBold = false,
+  });
+
+  final String label;
+  final double value;
+  final bool isBold;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: style),
+          Text('${value.toStringAsFixed(2)} SAR', style: style),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemberStatusChip extends StatelessWidget {
+  const _MemberStatusChip({
+    required this.status,
+  });
+
+  final GroupMemberStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    String text;
+    IconData icon;
+
+    switch (status) {
+      case GroupMemberStatus.ordering:
+        color = Colors.orange;
+        text = 'Ordering';
+        icon = Icons.shopping_bag_outlined;
+        break;
+      case GroupMemberStatus.ready:
+        color = Colors.blue;
+        text = 'Ready';
+        icon = Icons.check;
+        break;
+      case GroupMemberStatus.paid:
+        color = Colors.green;
+        text = 'Paid';
+        icon = Icons.payments_outlined;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],

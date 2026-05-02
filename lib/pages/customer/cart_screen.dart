@@ -36,7 +36,7 @@ class _CartScreenState extends State<CartScreen> {
   // Dependencies
   // ---------------------------------------------------------------------------
   final MockCartRepository _repo = MockCartRepository();
-  late final CartController _cart;
+  late CartController _cart;
 
   // ---------------------------------------------------------------------------
   // State
@@ -46,7 +46,7 @@ class _CartScreenState extends State<CartScreen> {
   List<cart_models.Address> _addresses = [];
   cart_models.Coupon? _appliedCoupon;
   bool _isValidatingCoupon = false;
-  bool _isShowingCheckout = false;
+
   String? _selectedAddressId;
   _DeliveryTimeOption _deliveryTimeOption = _DeliveryTimeOption.asap;
   DateTime? _scheduledDateTime;
@@ -191,6 +191,7 @@ class _CartScreenState extends State<CartScreen> {
 
   void _proceedToCheckout() {
     final cartItems = _cart.itemsForRestaurant(widget.restaurantId);
+
     if (cartItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -201,60 +202,36 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
-    setState(() => _isShowingCheckout = true);
-  }
-
-  Future<void> _onDeliveryTimeTapped(_DeliveryTimeOption option) async {
-    if (option == _DeliveryTimeOption.asap) {
-      setState(() {
-        _deliveryTimeOption = _DeliveryTimeOption.asap;
-        _scheduledDateTime = null;
-      });
-      return;
-    }
-
-    final now = DateTime.now();
-
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: now.add(const Duration(hours: 1)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 30)),
-      helpText: 'Select delivery date',
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CheckoutScreen(
+          cartItems: cartItems
+              .map(
+                (item) => cart_models.CartItem(
+                  id: item.menuItem.id,
+                  name: item.menuItem.name,
+                  description: item.menuItem.description,
+                  imagePath: item.menuItem.imageUrl,
+                  unitPrice: item.menuItem.price,
+                  quantity: item.quantity,
+                ),
+              )
+              .toList(),
+          checkoutData: _checkoutData!,
+          subtotal: _subtotal,
+          tax: _tax,
+          discount: _discount,
+          total: _total,
+          appliedCoupon: _appliedCoupon,
+          customerId: widget.customerId,
+          restaurantId: widget.restaurantId,
+          onOrderPlaced: () {
+            _cart.clearRestaurantCart(widget.restaurantId);
+          },
+        ),
+      ),
     );
-
-    if (pickedDate == null || !mounted) return;
-
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
-      helpText: 'Select delivery time',
-    );
-
-    if (pickedTime == null || !mounted) return;
-
-    setState(() {
-      _deliveryTimeOption = _DeliveryTimeOption.schedule;
-      _scheduledDateTime = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
-        pickedTime.hour,
-        pickedTime.minute,
-      );
-    });
-  }
-
-  // Place order logic is now handled in CheckoutScreen.
-  // The _placeOrder method previously here has been removed.
-  // Please ensure CheckoutScreen is used for the checkout flow.
-
-  String _formatScheduled() {
-    if (_scheduledDateTime == null) return '';
-    final dt = _scheduledDateTime!;
-    final hour = dt.hour.toString().padLeft(2, '0');
-    final min = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day}/${dt.month}/${dt.year} at $hour:$min';
   }
 
   // ---------------------------------------------------------------------------
@@ -273,16 +250,11 @@ class _CartScreenState extends State<CartScreen> {
         return Scaffold(
           backgroundColor: bg,
           appBar: AppBar(
-            leading: _isShowingCheckout
-                ? IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new),
-                    onPressed: () => setState(() => _isShowingCheckout = false),
-                  )
-                : null,
-            title: Text(
-              _isShowingCheckout ? 'Checkout' : 'Cart',
-              style: const TextStyle(fontWeight: FontWeight.w700),
+            title: const Text(
+              'Cart',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
+            centerTitle: true,
             backgroundColor: Theme.of(context).colorScheme.surface,
             foregroundColor: Theme.of(context).colorScheme.onSurface,
             elevation: 0,
@@ -290,12 +262,8 @@ class _CartScreenState extends State<CartScreen> {
           ),
           body: _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : (_isShowingCheckout
-                    ? _buildCheckoutBody(cartItems)
-                    : _buildCartBody(cartItems)),
-          bottomNavigationBar: _isLoading
-              ? null
-              : (_isShowingCheckout ? null : _buildCheckoutBar(cartItems)),
+              : _buildCartBody(cartItems),
+          bottomNavigationBar: _isLoading ? null : _buildCheckoutBar(cartItems),
         );
       },
     );
@@ -355,31 +323,6 @@ class _CartScreenState extends State<CartScreen> {
         ),
         const SizedBox(height: 16),
       ],
-    );
-  }
-
-  Widget _buildCheckoutBody(List<app_models.CartItem> cartItems) {
-    return CheckoutScreen(
-      cartItems: cartItems
-          .map(
-            (item) => cart_models.CartItem(
-              id: item.menuItem.id,
-              name: item.menuItem.name,
-              description: item.menuItem.description,
-              imagePath: item.menuItem.imageUrl,
-              unitPrice: item.menuItem.price,
-              quantity: item.quantity,
-            ),
-          )
-          .toList(),
-      checkoutData: _checkoutData!,
-      subtotal: _subtotal,
-      tax: _tax,
-      discount: _discount,
-      total: _total,
-      appliedCoupon: _appliedCoupon,
-      customerId: widget.customerId,
-      restaurantId: widget.restaurantId,
     );
   }
 

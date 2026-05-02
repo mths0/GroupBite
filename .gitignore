@@ -68,3 +68,6 @@ android/app/src/main/AndroidManifest.xml
 ios/Runner/AppDelegate.swift
 lib/firebase_options.dart
 android/app/google-services.json
+
+# js
+node_modules/

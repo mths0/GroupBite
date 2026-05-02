@@ -1,8 +1,11 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:food_delivery_platform/models/abstract_user.dart';
 import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/customer_address.dart';
+import 'package:food_delivery_platform/models/group_order.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
@@ -102,6 +105,17 @@ class DatabaseService {
             return Restaurant.fromMap(data);
           }).toList();
         });
+  }
+
+  Future<Restaurant?> getRestaurantById(String restaurantId) async {
+    final doc = await _db.collection('users').doc(restaurantId).get();
+
+    if (!doc.exists) return null;
+
+    final data = doc.data();
+    if (data == null) return null;
+
+    return Restaurant.fromMap(data);
   }
 
   Future<List<MenuItem>> getMenuForRestaurant({
@@ -579,4 +593,425 @@ class DatabaseService {
       return Order.fromFirestore(doc);
     });
   }
+
+  // group order
+  String _generateJoinCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final random = Random();
+
+    return List.generate(
+      6,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
+  }
+
+  Future<GroupOrder?> getGroupOrderById(String groupOrderId) async {
+    final doc = await _db.collection('groupOrders').doc(groupOrderId).get();
+
+    if (!doc.exists) return null;
+
+    return GroupOrder.fromFirestore(doc);
+  }
+
+  Future<void> markGroupMemberReady({
+    required String groupOrderId,
+    required String customerId,
+  }) async {
+    await _db
+        .collection('groupOrders')
+        .doc(groupOrderId)
+        .collection('members')
+        .doc(customerId)
+        .update({
+          'status': GroupMemberStatus.ready.name,
+          'updatedAt': firestore.FieldValue.serverTimestamp(),
+        });
+  }
+
+  Future<void> placeFinalGroupOrder({
+    required String groupOrderId,
+    required String customerId,
+    required String restaurantId,
+  }) async {
+    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+
+    final membersSnapshot = await groupRef.collection('members').get();
+    final itemsSnapshot = await groupRef.collection('items').get();
+
+    if (membersSnapshot.docs.isEmpty) {
+      throw Exception('No members in this group order.');
+    }
+
+    if (itemsSnapshot.docs.isEmpty) {
+      throw Exception('No items in this group order.');
+    }
+
+    final allPaid = membersSnapshot.docs.every((doc) {
+      final data = doc.data();
+      return data['status'] == GroupMemberStatus.paid.name;
+    });
+
+    if (!allPaid) {
+      throw Exception('Not all members have paid yet.');
+    }
+
+    final orderItems = itemsSnapshot.docs.map((doc) {
+      final item = GroupOrderItem.fromFirestore(doc);
+
+      return OrderItem(
+        menuId: item.menuItemId,
+        name: item.name,
+        quantity: item.quantity,
+        priceAtPurchase: item.unitPrice,
+      );
+    }).toList();
+
+    final subtotal = itemsSnapshot.docs.fold<double>(0.0, (sum, doc) {
+      final item = GroupOrderItem.fromFirestore(doc);
+      return sum + item.lineTotal;
+    });
+
+    final restaurant = await getRestaurantById(restaurantId);
+    final deliveryFee = restaurant?.deliveryFee ?? 0.0;
+
+    final tax = subtotal * 0.15;
+    final total = subtotal + deliveryFee + tax;
+
+    await addOrder(
+      customerId: customerId,
+      restaurantId: restaurantId,
+      totalPrice: total,
+      items: orderItems,
+    );
+
+    await groupRef.update({
+      'status': GroupOrderStatus.completed.name,
+      'finalSubtotal': subtotal,
+      'finalDeliveryFee': deliveryFee,
+      'finalTax': tax,
+      'finalTotal': total,
+      'completedAt': firestore.FieldValue.serverTimestamp(),
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<GroupPaymentResult> payGroupMemberAndMaybePlaceOrder({
+    required String groupOrderId,
+    required String customerId,
+    required String restaurantId,
+  }) async {
+    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+
+    final groupSnapshot = await groupRef.get();
+    final groupData = groupSnapshot.data();
+
+    if (groupData == null) {
+      throw Exception('Group order not found.');
+    }
+
+    final hostCustomerId = groupData['hostCustomerId'] as String?;
+
+    if (hostCustomerId == null || hostCustomerId.isEmpty) {
+      throw Exception('Host customer ID not found.');
+    }
+
+    final membersSnapshot = await groupRef.collection('members').get();
+
+    if (membersSnapshot.docs.isEmpty) {
+      throw Exception('No members found in this group order.');
+    }
+
+    final currentMemberDoc = membersSnapshot.docs
+        .where((doc) => doc.id == customerId)
+        .toList();
+
+    if (currentMemberDoc.isEmpty) {
+      throw Exception('You are not a member of this group order.');
+    }
+
+    final isHost = customerId == hostCustomerId;
+
+    final otherMembersNotPaid = membersSnapshot.docs.where((doc) {
+      if (doc.id == hostCustomerId) return false;
+
+      final data = doc.data();
+      return data['status'] != GroupMemberStatus.paid.name;
+    }).toList();
+
+    // Host is not allowed to pay before everyone else.
+    if (isHost && otherMembersNotPaid.isNotEmpty) {
+      throw Exception('Host must pay last. Wait until all members pay first.');
+    }
+
+    // Mark current member paid.
+    await groupRef.collection('members').doc(customerId).update({
+      'status': GroupMemberStatus.paid.name,
+      'paidAt': firestore.FieldValue.serverTimestamp(),
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+
+    // If this payer is not the host, do not create final order.
+    if (!isHost) {
+      return const GroupPaymentResult(finalOrderPlaced: false);
+    }
+
+    // Host just paid, so now everyone should be paid.
+    final updatedMembersSnapshot = await groupRef.collection('members').get();
+
+    final allPaid = updatedMembersSnapshot.docs.every((doc) {
+      final data = doc.data();
+      return data['status'] == GroupMemberStatus.paid.name;
+    });
+
+    if (!allPaid) {
+      return const GroupPaymentResult(finalOrderPlaced: false);
+    }
+
+    await placeFinalGroupOrder(
+      groupOrderId: groupOrderId,
+      customerId: hostCustomerId,
+      restaurantId: restaurantId,
+    );
+
+    return const GroupPaymentResult(finalOrderPlaced: true);
+  }
+
+  Future<GroupOrderMember?> getGroupMember({
+    required String groupOrderId,
+    required String customerId,
+  }) async {
+    final doc = await _db
+        .collection('groupOrders')
+        .doc(groupOrderId)
+        .collection('members')
+        .doc(customerId)
+        .get();
+
+    if (!doc.exists) return null;
+
+    return GroupOrderMember.fromFirestore(doc);
+  }
+
+  Future<String> createGroupOrder({
+    required String hostCustomerId,
+    required String hostName,
+    required String restaurantId,
+  }) async {
+    final groupRef = _db.collection('groupOrders').doc();
+    final joinCode = _generateJoinCode();
+
+    await groupRef.set({
+      'hostCustomerId': hostCustomerId,
+      'restaurantId': restaurantId,
+      'joinCode': joinCode,
+      'status': GroupOrderStatus.open.name,
+      'createdAt': firestore.FieldValue.serverTimestamp(),
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+
+    await groupRef.collection('members').doc(hostCustomerId).set({
+      'customerId': hostCustomerId,
+      'name': hostName,
+      'status': GroupMemberStatus.ordering.name,
+      'joinedAt': firestore.FieldValue.serverTimestamp(),
+    });
+
+    return groupRef.id;
+  }
+
+  Future<String?> findGroupOrderIdByJoinCode(String joinCode) async {
+    final snapshot = await firestore.FirebaseFirestore.instance
+        .collection('groupOrders')
+        .where('joinCode', isEqualTo: joinCode.trim().toUpperCase())
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) return null;
+
+    return snapshot.docs.first.id;
+  }
+
+  Future<void> joinGroupOrder({
+    required String groupOrderId,
+    required String customerId,
+    required String customerName,
+  }) async {
+    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupSnap = await groupRef.get();
+
+    if (!groupSnap.exists) {
+      throw Exception('Group order not found.');
+    }
+
+    final data = groupSnap.data() ?? {};
+    if (data['status'] != GroupOrderStatus.open.name) {
+      throw Exception('This group order is not open anymore.');
+    }
+
+    await groupRef.collection('members').doc(customerId).set({
+      'customerId': customerId,
+      'name': customerName,
+      'status': GroupMemberStatus.ordering.name,
+      'joinedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  Stream<GroupOrder?> watchGroupOrder(String groupOrderId) {
+    return _db.collection('groupOrders').doc(groupOrderId).snapshots().map((
+      doc,
+    ) {
+      if (!doc.exists) return null;
+      return GroupOrder.fromFirestore(doc);
+    });
+  }
+
+  Stream<List<GroupOrderMember>> watchGroupMembers(String groupOrderId) {
+    return _db
+        .collection('groupOrders')
+        .doc(groupOrderId)
+        .collection('members')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map(GroupOrderMember.fromFirestore).toList();
+        });
+  }
+
+  Stream<List<GroupOrderItem>> watchGroupItems(String groupOrderId) {
+    return _db
+        .collection('groupOrders')
+        .doc(groupOrderId)
+        .collection('items')
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map(GroupOrderItem.fromFirestore).toList();
+        });
+  }
+
+  Future<void> addItemToGroupOrder({
+    required String groupOrderId,
+    required String memberId,
+    required MenuItem menuItem,
+  }) async {
+    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final itemRef = groupRef
+        .collection('items')
+        .doc('${memberId}_${menuItem.id}');
+    final itemSnap = await itemRef.get();
+
+    if (itemSnap.exists) {
+      await itemRef.update({
+        'quantity': firestore.FieldValue.increment(1),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+    } else {
+      await itemRef.set({
+        'menuItemId': menuItem.id,
+        'memberId': memberId,
+        'name': menuItem.name,
+        'description': menuItem.description,
+        'imageUrl': menuItem.imageUrl,
+        'unitPrice': menuItem.price,
+        'quantity': 1,
+        'createdAt': firestore.FieldValue.serverTimestamp(),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    await groupRef.update({
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> decreaseGroupOrderItem({
+    required String groupOrderId,
+    required String memberId,
+    required String menuItemId,
+  }) async {
+    final itemRef = _db
+        .collection('groupOrders')
+        .doc(groupOrderId)
+        .collection('items')
+        .doc('${memberId}_$menuItemId');
+
+    final itemSnap = await itemRef.get();
+
+    if (!itemSnap.exists) return;
+
+    final data = itemSnap.data() ?? {};
+    final quantity = data['quantity'] ?? 1;
+
+    if (quantity <= 1) {
+      await itemRef.delete();
+    } else {
+      await itemRef.update({
+        'quantity': firestore.FieldValue.increment(-1),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  Future<void> removeGroupOrderItem({
+    required String groupOrderId,
+    required String memberId,
+    required String menuItemId,
+  }) async {
+    await _db
+        .collection('groupOrders')
+        .doc(groupOrderId)
+        .collection('items')
+        .doc('${memberId}_$menuItemId')
+        .delete();
+  }
+
+  Future<void> markGroupMemberPaid({
+    required String groupOrderId,
+    required String customerId,
+  }) async {
+    await _db
+        .collection('groupOrders')
+        .doc(groupOrderId)
+        .collection('members')
+        .doc(customerId)
+        .update({
+          'status': GroupMemberStatus.paid.name,
+          'paidAt': firestore.FieldValue.serverTimestamp(),
+          'updatedAt': firestore.FieldValue.serverTimestamp(),
+        });
+  }
+
+  Future<void> lockGroupOrder({
+    required String groupOrderId,
+  }) async {
+    await _db.collection('groupOrders').doc(groupOrderId).update({
+      'status': GroupOrderStatus.locked.name,
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> completeGroupOrder({
+    required String groupOrderId,
+  }) async {
+    await _db.collection('groupOrders').doc(groupOrderId).update({
+      'status': GroupOrderStatus.completed.name,
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> cancelGroupOrder({
+    required String groupOrderId,
+  }) async {
+    await _db.collection('groupOrders').doc(groupOrderId).update({
+      'status': GroupOrderStatus.cancelled.name,
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+}
+
+class GroupPaymentResult {
+  const GroupPaymentResult({
+    required this.finalOrderPlaced,
+  });
+
+  final bool finalOrderPlaced;
 }
