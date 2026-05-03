@@ -6,11 +6,13 @@
 // All state is managed with plain setState.
 
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/order.dart';
 
 import 'package:food_delivery_platform/models/cart_models.dart';
+import 'package:food_delivery_platform/models/saved_card.dart';
+import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
+import 'package:food_delivery_platform/utils/id_generator.dart';
 
 //! This class needs to be refactored and cleaned up
 //Todo This class needs to be refactored and cleaned up
@@ -64,6 +66,12 @@ const String _kPaymentCreditCard = 'pay_credit';
 const String _kPaymentWallet = 'pay_wallet';
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
+  // ---------------------------------------------------------------------------
+  // Dependencies
+  // ---------------------------------------------------------------------------
+
+  final DatabaseService _db = DatabaseService();
+
   /// Whether delivery is ASAP or scheduled.
   _DeliveryTimeOption _deliveryTimeOption = _DeliveryTimeOption.asap;
 
@@ -142,6 +150,42 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   // ---------------------------------------------------------------------------
+  // Add Card (from checkout)
+  // ---------------------------------------------------------------------------
+
+  Future<void> _openAddCardSheet() async {
+    final input = await showModalBottomSheet<CardInput>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const CardFormSheet(),
+    );
+
+    if (input == null) return;
+
+    try {
+      await _db.addCustomerCard(
+        customerId: widget.customerId,
+        card: SavedCard(
+          id: IdGenerator.generateCardId(),
+          brand: SavedCard.brandFromNumber(input.number),
+          last4: SavedCard.last4FromNumber(input.number),
+          expiry: input.expiry,
+          holderName: input.holderName,
+          isDefault: true,
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _selectedPaymentId = _kPaymentCreditCard);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save card: $e')),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Place Order
   // ---------------------------------------------------------------------------
 
@@ -149,12 +193,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _isPlacingOrder = true);
 
     try {
-      final databaseService = DatabaseService();
+      if (_selectedPaymentId == _kPaymentWallet) {
+        await _db.deductFromWallet(
+          customerId: widget.customerId,
+          amount: widget.total,
+        );
+      }
 
       // GROUP CHECKOUT:
       // Member only pays their part. Do NOT create order yet.
       if (widget.groupOrderId != null) {
-        final result = await databaseService.payGroupMemberAndMaybePlaceOrder(
+        final result = await _db.payGroupMemberAndMaybePlaceOrder(
           groupOrderId: widget.groupOrderId!,
           customerId: widget.customerId,
           restaurantId: widget.restaurantId,
@@ -207,7 +256,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           )
           .toList();
 
-      await databaseService.addOrder(
+      await _db.addOrder(
         customerId: widget.customerId,
         restaurantId: widget.restaurantId,
         totalPrice: widget.total,
@@ -327,29 +376,59 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         _SectionCard(
           title: 'Payment Method',
           icon: Icons.credit_card_outlined,
-          child: Column(
-            children: [
-              _PaymentTile(
-                id: _kPaymentCreditCard,
-                label: 'Credit Card',
-                subtitle: '•••• 4242',
-                icon: Icons.credit_card_rounded,
-                isSelected: _selectedPaymentId == _kPaymentCreditCard,
-                onTap: () =>
-                    setState(() => _selectedPaymentId = _kPaymentCreditCard),
-              ),
-              const SizedBox(height: 8),
-              _PaymentTile(
-                id: _kPaymentWallet,
-                label: 'Family Wallet',
-                subtitle:
-                    'Balance: \$${widget.checkoutData.walletBalance.toStringAsFixed(2)}',
-                icon: Icons.account_balance_wallet_outlined,
-                isSelected: _selectedPaymentId == _kPaymentWallet,
-                onTap: () =>
-                    setState(() => _selectedPaymentId = _kPaymentWallet),
-              ),
-            ],
+          child: StreamBuilder<List<SavedCard>>(
+            stream: _db.streamCustomerCards(widget.customerId),
+            builder: (context, cardsSnap) {
+              final cards = cardsSnap.data ?? [];
+              final card = cards.isEmpty ? null : cards.first;
+
+              return StreamBuilder<double>(
+                stream: _db.streamWalletBalance(widget.customerId),
+                builder: (context, balanceSnap) {
+                  final balance = balanceSnap.data ?? 0.0;
+                  final hasEnough = balance >= widget.total;
+
+                  return Column(
+                    children: [
+                      if (card == null)
+                        _PaymentTile(
+                          id: 'add_card',
+                          label: 'Add Card',
+                          subtitle: 'No card on file — tap to add one',
+                          icon: Icons.add_card,
+                          isSelected: false,
+                          onTap: _openAddCardSheet,
+                        )
+                      else
+                        _PaymentTile(
+                          id: _kPaymentCreditCard,
+                          label: card.brand,
+                          subtitle: '•••• ${card.last4}',
+                          icon: Icons.credit_card_rounded,
+                          isSelected: _selectedPaymentId == _kPaymentCreditCard,
+                          onTap: () => setState(
+                            () => _selectedPaymentId = _kPaymentCreditCard,
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      _PaymentTile(
+                        id: _kPaymentWallet,
+                        label: 'Wallet',
+                        subtitle: hasEnough
+                            ? 'Balance: \$${balance.toStringAsFixed(2)}'
+                            : 'Insufficient balance — \$${balance.toStringAsFixed(2)}',
+                        icon: Icons.account_balance_wallet_outlined,
+                        isSelected: _selectedPaymentId == _kPaymentWallet,
+                        disabled: !hasEnough,
+                        onTap: () => setState(
+                          () => _selectedPaymentId = _kPaymentWallet,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
           ),
         ),
 
@@ -591,6 +670,7 @@ class _PaymentTile extends StatelessWidget {
     required this.icon,
     required this.isSelected,
     required this.onTap,
+    this.disabled = false,
   });
 
   final String id;
@@ -598,78 +678,82 @@ class _PaymentTile extends StatelessWidget {
   final String subtitle;
   final IconData icon;
   final bool isSelected;
+  final bool disabled;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
+    final tile = AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
+          width: isSelected ? 1.8 : 0.8,
+        ),
+        color: isSelected
+            ? colorScheme.primaryContainer.withOpacity(0.25)
+            : Colors.transparent,
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: isSelected
                 ? colorScheme.primary
-                : colorScheme.outlineVariant,
-            width: isSelected ? 1.8 : 0.8,
+                : colorScheme.surfaceContainerHigh,
+            child: Icon(
+              icon,
+              color: isSelected
+                  ? colorScheme.onPrimary
+                  : colorScheme.onSurfaceVariant,
+              size: 20,
+            ),
           ),
-          color: isSelected
-              ? colorScheme.primaryContainer.withOpacity(0.25)
-              : Colors.transparent,
-        ),
-        child: Row(
-          children: [
-            // Icon avatar
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: isSelected
-                  ? colorScheme.primary
-                  : colorScheme.surfaceContainerHigh,
-              child: Icon(
-                icon,
-                color: isSelected
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurfaceVariant,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Label + subtitle
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                ),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: disabled
+                        ? colorScheme.error
+                        : colorScheme.onSurfaceVariant,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            // Radio indicator
-            Radio<String>(
-              value: id,
-              groupValue: isSelected ? id : null,
-              onChanged: (_) => onTap(),
-              activeColor: colorScheme.primary,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ],
-        ),
+          ),
+          Radio<String>(
+            value: id,
+            groupValue: isSelected ? id : null,
+            onChanged: disabled ? null : (_) => onTap(),
+            activeColor: colorScheme.primary,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ],
       ),
     );
+
+    if (disabled) {
+      return Opacity(
+        opacity: 0.5,
+        child: AbsorbPointer(child: tile),
+      );
+    }
+
+    return GestureDetector(onTap: onTap, child: tile);
   }
 }
 

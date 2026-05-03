@@ -9,12 +9,14 @@ class IdGenerator {
 
     return '${prefix}_$time$random';
   }
+
   static String generateOrderId() {
     final random = Random().nextInt(900) + 100; // 3 digits
     final time = DateTime.now().millisecondsSinceEpoch % 1000000;
 
     return 'order_$time$random';
   }
+
   static String generatePaymentId() {
     final random = Random().nextInt(900) + 100; // 3 digits
     final time = DateTime.now().millisecondsSinceEpoch % 1000000;
@@ -27,5 +29,12 @@ class IdGenerator {
     // final time = DateTime.now().millisecondsSinceEpoch % 1000000;
 
     return 'group_order_$random';
+  }
+
+  static String generateCardId() {
+    final random = Random().nextInt(900) + 100;
+    final time = DateTime.now().millisecondsSinceEpoch % 1000000;
+
+    return 'card_$time$random';
   }
 }
