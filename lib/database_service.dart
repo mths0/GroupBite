@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:food_delivery_platform/models/abstract_user.dart';
 import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/customer_address.dart';
+import 'package:food_delivery_platform/models/family_wallet.dart';
+import 'package:food_delivery_platform/models/family_wallet_invite.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
+import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'models/driver.dart';
 import 'models/order.dart';
@@ -670,5 +675,317 @@ class DatabaseService {
     required String cardId,
   }) async {
     await _cardsCollection(customerId).doc(cardId).delete();
+  }
+
+  // ---------------- FAMILY WALLET ----------------
+
+  firestore.CollectionReference<Map<String, dynamic>>
+      get _familyWalletsCollection => _db.collection('family_wallets');
+
+  firestore.CollectionReference<Map<String, dynamic>>
+      get _familyWalletInvitesCollection =>
+          _db.collection('family_wallet_invites');
+
+  Stream<FamilyWallet?> streamFamilyWalletForUser(String userId) {
+    FamilyWallet? extractFirst(
+      firestore.QuerySnapshot<Map<String, dynamic>> snap,
+    ) {
+      if (snap.docs.isEmpty) return null;
+      return FamilyWallet.fromMap(snap.docs.first.data());
+    }
+
+    // Merge two parallel queries (owner OR member). A user can only be in one
+    // wallet, so at most one side is non-null at a time. We re-emit on every
+    // update from either side.
+    final controller = StreamController<FamilyWallet?>();
+    FamilyWallet? asOwner;
+    FamilyWallet? asMember;
+
+    void emit() {
+      if (controller.isClosed) return;
+      controller.add(asOwner ?? asMember);
+    }
+
+    final ownerSub = _familyWalletsCollection
+        .where('ownerId', isEqualTo: userId)
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      asOwner = extractFirst(snap);
+      emit();
+    }, onError: controller.addError);
+
+    final memberSub = _familyWalletsCollection
+        .where('memberIds', arrayContains: userId)
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      asMember = extractFirst(snap);
+      emit();
+    }, onError: controller.addError);
+
+    controller.onCancel = () async {
+      await ownerSub.cancel();
+      await memberSub.cancel();
+    };
+
+    return controller.stream;
+  }
+
+  Stream<List<FamilyWalletInvite>> streamPendingInvites(String userId) {
+    return _familyWalletInvitesCollection
+        .where('inviteeId', isEqualTo: userId)
+        .where('status', isEqualTo: InviteStatus.pending.name)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => FamilyWalletInvite.fromMap(doc.data()))
+            .toList());
+  }
+
+  Stream<List<FamilyWalletInvite>> streamWalletPendingInvites(String walletId) {
+    return _familyWalletInvitesCollection
+        .where('walletId', isEqualTo: walletId)
+        .where('status', isEqualTo: InviteStatus.pending.name)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => FamilyWalletInvite.fromMap(doc.data()))
+            .toList());
+  }
+
+  Future<bool> _userIsInAnyWallet(
+    firestore.Transaction tx,
+    String userId,
+  ) async {
+    final asOwner = await _familyWalletsCollection
+        .where('ownerId', isEqualTo: userId)
+        .limit(1)
+        .get();
+    if (asOwner.docs.isNotEmpty) return true;
+
+    final asMember = await _familyWalletsCollection
+        .where('memberIds', arrayContains: userId)
+        .limit(1)
+        .get();
+    return asMember.docs.isNotEmpty;
+  }
+
+  Future<FamilyWallet> createFamilyWallet({
+    required String ownerId,
+    required String ownerName,
+  }) async {
+    return _db.runTransaction<FamilyWallet>((tx) async {
+      if (await _userIsInAnyWallet(tx, ownerId)) {
+        throw Exception('You are already in a family wallet');
+      }
+
+      final id = IdGenerator.generateFamilyWalletId();
+      final ref = _familyWalletsCollection.doc(id);
+
+      final data = {
+        'id': id,
+        'name': 'Family Wallet',
+        'ownerId': ownerId,
+        'ownerName': ownerName,
+        'balance': 0.0,
+        'memberIds': <String>[],
+        'createdAt': firestore.FieldValue.serverTimestamp(),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      };
+      tx.set(ref, data);
+
+      return FamilyWallet(
+        id: id,
+        name: 'Family Wallet',
+        ownerId: ownerId,
+        ownerName: ownerName,
+        balance: 0.0,
+        memberIds: const [],
+      );
+    });
+  }
+
+  Future<FamilyWalletInviteResult> inviteToFamilyWallet({
+    required String walletId,
+    required String ownerId,
+    required String ownerName,
+    required String phone,
+  }) async {
+    final invitee = await getUserByPhone(phone);
+    if (invitee == null) return FamilyWalletInviteResult.notFound;
+    if (invitee.role != UserRole.customer) {
+      return FamilyWalletInviteResult.notCustomer;
+    }
+    if (invitee.id == ownerId) return FamilyWalletInviteResult.self;
+
+    final inAnyWallet = await _familyWalletsCollection
+        .where('memberIds', arrayContains: invitee.id)
+        .limit(1)
+        .get();
+    if (inAnyWallet.docs.isNotEmpty) {
+      return FamilyWalletInviteResult.alreadyInWallet;
+    }
+    final asOwner = await _familyWalletsCollection
+        .where('ownerId', isEqualTo: invitee.id)
+        .limit(1)
+        .get();
+    if (asOwner.docs.isNotEmpty) {
+      return FamilyWalletInviteResult.alreadyInWallet;
+    }
+
+    final existing = await _familyWalletInvitesCollection
+        .where('walletId', isEqualTo: walletId)
+        .where('inviteeId', isEqualTo: invitee.id)
+        .where('status', isEqualTo: InviteStatus.pending.name)
+        .limit(1)
+        .get();
+    if (existing.docs.isNotEmpty) {
+      return FamilyWalletInviteResult.alreadyInvited;
+    }
+
+    final id = IdGenerator.generateInviteId();
+    await _familyWalletInvitesCollection.doc(id).set({
+      'id': id,
+      'walletId': walletId,
+      'ownerId': ownerId,
+      'ownerName': ownerName,
+      'inviteeId': invitee.id,
+      'inviteePhone': phone,
+      'status': InviteStatus.pending.name,
+      'createdAt': firestore.FieldValue.serverTimestamp(),
+    });
+
+    return FamilyWalletInviteResult.ok;
+  }
+
+  Future<void> acceptFamilyWalletInvite(String inviteId) async {
+    await _db.runTransaction((tx) async {
+      final inviteRef = _familyWalletInvitesCollection.doc(inviteId);
+      final inviteSnap = await tx.get(inviteRef);
+      if (!inviteSnap.exists) throw Exception('Invite not found');
+
+      final invite = FamilyWalletInvite.fromMap(inviteSnap.data()!);
+      if (invite.status != InviteStatus.pending) {
+        throw Exception('Invite no longer pending');
+      }
+
+      if (await _userIsInAnyWallet(tx, invite.inviteeId)) {
+        throw Exception('You are already in a family wallet');
+      }
+
+      final walletRef = _familyWalletsCollection.doc(invite.walletId);
+      final walletSnap = await tx.get(walletRef);
+      if (!walletSnap.exists) throw Exception('Family wallet not found');
+
+      tx.update(walletRef, {
+        'memberIds': firestore.FieldValue.arrayUnion([invite.inviteeId]),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+      tx.update(inviteRef, {'status': InviteStatus.accepted.name});
+    });
+  }
+
+  Future<void> rejectFamilyWalletInvite(String inviteId) async {
+    await _familyWalletInvitesCollection.doc(inviteId).update({
+      'status': InviteStatus.rejected.name,
+    });
+  }
+
+  Future<void> removeFamilyWalletMember({
+    required String walletId,
+    required String memberId,
+  }) async {
+    await _familyWalletsCollection.doc(walletId).update({
+      'memberIds': firestore.FieldValue.arrayRemove([memberId]),
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> leaveFamilyWallet({
+    required String walletId,
+    required String userId,
+  }) async {
+    await removeFamilyWalletMember(walletId: walletId, memberId: userId);
+  }
+
+  Future<void> addFundsToFamilyWallet({
+    required String walletId,
+    required double amount,
+  }) async {
+    if (amount <= 0) return;
+    await _familyWalletsCollection.doc(walletId).update({
+      'balance': firestore.FieldValue.increment(amount),
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> deductFromFamilyWallet({
+    required String walletId,
+    required double amount,
+  }) async {
+    if (amount <= 0) return;
+    final ref = _familyWalletsCollection.doc(walletId);
+
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) throw Exception('Family wallet not found');
+
+      final balance =
+          ((snap.data()?['balance'] as num?)?.toDouble()) ?? 0.0;
+      if (balance < amount) {
+        throw Exception('Insufficient family wallet balance');
+      }
+
+      tx.update(ref, {
+        'balance': firestore.FieldValue.increment(-amount),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  Future<void> deleteFamilyWallet({
+    required String walletId,
+    required String ownerId,
+  }) async {
+    await _db.runTransaction((tx) async {
+      final walletRef = _familyWalletsCollection.doc(walletId);
+      final personalRef = _walletDoc(ownerId);
+
+      final walletSnap = await tx.get(walletRef);
+      if (!walletSnap.exists) return;
+
+      final balance =
+          ((walletSnap.data()?['balance'] as num?)?.toDouble()) ?? 0.0;
+
+      // Read personal wallet (must read before any writes in a transaction).
+      final personalSnap = await tx.get(personalRef);
+
+      if (balance > 0) {
+        if (!personalSnap.exists) {
+          tx.set(personalRef, {
+            'balance': balance,
+            'updatedAt': firestore.FieldValue.serverTimestamp(),
+          });
+        } else {
+          tx.update(personalRef, {
+            'balance': firestore.FieldValue.increment(balance),
+            'updatedAt': firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      tx.delete(walletRef);
+    });
+
+    // Cancel any leftover pending invites (separate batch — outside the tx,
+    // since we don't know the count ahead of time).
+    final pending = await _familyWalletInvitesCollection
+        .where('walletId', isEqualTo: walletId)
+        .where('status', isEqualTo: InviteStatus.pending.name)
+        .get();
+    final batch = _db.batch();
+    for (final doc in pending.docs) {
+      batch.update(doc.reference, {'status': InviteStatus.rejected.name});
+    }
+    if (pending.docs.isNotEmpty) await batch.commit();
   }
 }
