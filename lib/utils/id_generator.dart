@@ -21,4 +21,11 @@ class IdGenerator {
 
     return 'payment_$time$random';
   }
+
+  static String generateCardId() {
+    final random = Random().nextInt(900) + 100;
+    final time = DateTime.now().millisecondsSinceEpoch % 1000000;
+
+    return 'card_$time$random';
+  }
 }

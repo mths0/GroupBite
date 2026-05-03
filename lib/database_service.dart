@@ -5,6 +5,7 @@ import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'models/driver.dart';
 import 'models/order.dart';
@@ -578,5 +579,96 @@ class DatabaseService {
       if (!doc.exists) return null;
       return Order.fromFirestore(doc);
     });
+  }
+
+  // ---------------- WALLET ----------------
+
+  firestore.DocumentReference<Map<String, dynamic>> _walletDoc(
+    String customerId,
+  ) =>
+      _db.collection('users').doc(customerId).collection('wallet').doc('main');
+
+  Stream<double> streamWalletBalance(String customerId) {
+    return _walletDoc(customerId).snapshots().map((doc) {
+      if (!doc.exists) return 0.0;
+      final data = doc.data();
+      final raw = data?['balance'];
+      if (raw is num) return raw.toDouble();
+      return double.tryParse('$raw') ?? 0.0;
+    });
+  }
+
+  Future<void> addFundsToWallet({
+    required String customerId,
+    required double amount,
+  }) async {
+    if (amount <= 0) return;
+    final ref = _walletDoc(customerId);
+
+    await _db.runTransaction((transaction) async {
+      final snap = await transaction.get(ref);
+      if (!snap.exists) {
+        transaction.set(ref, {
+          'balance': amount,
+          'updatedAt': firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        transaction.update(ref, {
+          'balance': firestore.FieldValue.increment(amount),
+          'updatedAt': firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+
+  Future<void> deductFromWallet({
+    required String customerId,
+    required double amount,
+  }) async {
+    if (amount <= 0) return;
+    final ref = _walletDoc(customerId);
+
+    await _db.runTransaction((transaction) async {
+      final snap = await transaction.get(ref);
+      final balance = !snap.exists
+          ? 0.0
+          : ((snap.data()?['balance'] as num?)?.toDouble() ?? 0.0);
+
+      if (balance < amount) {
+        throw Exception('Insufficient wallet balance');
+      }
+
+      transaction.update(ref, {
+        'balance': firestore.FieldValue.increment(-amount),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  // ---------------- CUSTOMER CARDS ----------------
+
+  firestore.CollectionReference<Map<String, dynamic>> _cardsCollection(
+    String customerId,
+  ) =>
+      _db.collection('users').doc(customerId).collection('cards');
+
+  Stream<List<SavedCard>> streamCustomerCards(String customerId) {
+    return _cardsCollection(customerId).snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => SavedCard.fromMap(doc.data())).toList();
+    });
+  }
+
+  Future<void> addCustomerCard({
+    required String customerId,
+    required SavedCard card,
+  }) async {
+    await _cardsCollection(customerId).doc(card.id).set(card.toJson());
+  }
+
+  Future<void> deleteCustomerCard({
+    required String customerId,
+    required String cardId,
+  }) async {
+    await _cardsCollection(customerId).doc(cardId).delete();
   }
 }
