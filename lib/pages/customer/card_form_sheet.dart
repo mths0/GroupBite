@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:food_delivery_platform/utils/validators.dart';
 
 class CardInput {
   const CardInput({
@@ -34,38 +35,6 @@ class _CardFormSheetState extends State<CardFormSheet> {
     _cvvController.dispose();
     _holderController.dispose();
     super.dispose();
-  }
-
-  String? _validateNumber(String? value) {
-    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
-    if (digits.length != 16) {
-      return 'Enter a 16-digit card number';
-    }
-    return null;
-  }
-
-  String? _validateExpiry(String? value) {
-    final v = (value ?? '').trim();
-    final match = RegExp(r'^(0[1-9]|1[0-2])\/(\d{2})$').firstMatch(v);
-    if (match == null) return 'Format MM/YY';
-
-    final month = int.parse(match.group(1)!);
-    final year = 2000 + int.parse(match.group(2)!);
-    final endOfMonth = DateTime(year, month + 1, 0);
-
-    if (endOfMonth.isBefore(DateTime.now())) return 'Card expired';
-    return null;
-  }
-
-  String? _validateCvv(String? value) {
-    final v = (value ?? '').trim();
-    if (!RegExp(r'^\d{3}$').hasMatch(v)) return '3 digits';
-    return null;
-  }
-
-  String? _validateHolder(String? value) {
-    if ((value ?? '').trim().isEmpty) return 'Required';
-    return null;
   }
 
   void _submit() {
@@ -115,7 +84,7 @@ class _CardFormSheetState extends State<CardFormSheet> {
                   prefixIcon: Icon(Icons.credit_card),
                   border: OutlineInputBorder(),
                 ),
-                validator: _validateNumber,
+                validator: Validators.validateCardNumber,
               ),
               const SizedBox(height: 12),
               Row(
@@ -131,7 +100,7 @@ class _CardFormSheetState extends State<CardFormSheet> {
                         prefixIcon: Icon(Icons.calendar_today_outlined),
                         border: OutlineInputBorder(),
                       ),
-                      validator: _validateExpiry,
+                      validator: Validators.validateExpiry,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -149,7 +118,7 @@ class _CardFormSheetState extends State<CardFormSheet> {
                         prefixIcon: Icon(Icons.lock_outline),
                         border: OutlineInputBorder(),
                       ),
-                      validator: _validateCvv,
+                      validator: Validators.validateCardCvv,
                     ),
                   ),
                 ],
@@ -163,7 +132,7 @@ class _CardFormSheetState extends State<CardFormSheet> {
                   prefixIcon: Icon(Icons.person_outline),
                   border: OutlineInputBorder(),
                 ),
-                validator: _validateHolder,
+                validator: Validators.validateCardHolder,
               ),
               const SizedBox(height: 20),
               SizedBox(

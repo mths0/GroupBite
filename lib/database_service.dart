@@ -206,7 +206,6 @@ class DatabaseService {
 
     final customerLocation = await getLocation(customerId);
     final restaurantLocation = await getLocation(restaurantId);
-
     await docRef.set({
       'id': orderId,
       'customerId': customerId,
@@ -215,6 +214,14 @@ class DatabaseService {
       'status': OrderStatus.pending.name,
       'totalPrice': totalPrice,
       'createdAt': firestore.FieldValue.serverTimestamp(),
+
+      // Cancel window: customer can cancel for 2 minutes
+      'canCancelUntil': firestore.Timestamp.fromDate(
+        DateTime.now().add(const Duration(minutes: 2)),
+      ),
+      'cancelledAt': null,
+      'cancelledBy': null,
+
       'items': items.map((item) => item.toJson()).toList(),
       'customerLocation': customerLocation,
       'restaurantLocation': restaurantLocation,
@@ -222,7 +229,6 @@ class DatabaseService {
       "restaurantRating": null,
       "driverRating": null,
     });
-
     final snapshot = await docRef.get();
     return Order.fromFirestore(snapshot);
   }
@@ -693,6 +699,57 @@ class DatabaseService {
       'finalTotal': total,
       'completedAt': firestore.FieldValue.serverTimestamp(),
       'updatedAt': firestore.FieldValue.serverTimestamp(),
+      'canCancelUntil': firestore.Timestamp.fromDate(
+        DateTime.now().add(const Duration(minutes: 2)),
+      ),
+      'cancelledAt': null,
+      'cancelledBy': null,
+    });
+  }
+
+  Future<void> cancelOrderByCustomer({
+    required String orderId,
+    required String customerId,
+  }) async {
+    final orderRef = _db.collection('orders').doc(orderId);
+
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(orderRef);
+
+      if (!snapshot.exists) {
+        throw Exception('Order not found.');
+      }
+
+      final data = snapshot.data() as Map<String, dynamic>;
+
+      if (data['customerId'] != customerId) {
+        throw Exception('You cannot cancel this order.');
+      }
+
+      final status = data['status'] as String? ?? '';
+
+      if (status != OrderStatus.pending.name) {
+        throw Exception('This order can no longer be cancelled.');
+      }
+
+      final canCancelUntil = data['canCancelUntil'];
+
+      if (canCancelUntil is! firestore.Timestamp) {
+        throw Exception('Cancellation time not found.');
+      }
+
+      final now = DateTime.now();
+      final expiry = canCancelUntil.toDate();
+
+      if (now.isAfter(expiry)) {
+        throw Exception('Cancellation time has expired.');
+      }
+
+      transaction.update(orderRef, {
+        'status': OrderStatus.cancelled.name,
+        'cancelledAt': firestore.FieldValue.serverTimestamp(),
+        'cancelledBy': customerId,
+      });
     });
   }
 
@@ -1095,6 +1152,20 @@ class DatabaseService {
     required String cardId,
   }) async {
     await _cardsCollection(customerId).doc(cardId).delete();
+  }
+
+  Future<CustomerAddress?> getDefaultCustomerAddress(String customerId) async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(customerId)
+        .collection('addresses')
+        .where('isDefault', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) return null;
+
+    return CustomerAddress.fromMap(snapshot.docs.first.data());
   }
 }
 

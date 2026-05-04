@@ -1,8 +1,12 @@
+import 'dart:math';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/mock/mock_restaurant_repository.dart';
 import 'package:food_delivery_platform/models/customer.dart';
+import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/customer/join_group_order_screen.dart';
 import 'package:food_delivery_platform/pages/customer/restaurant_menu_page.dart';
@@ -19,6 +23,11 @@ class CustomerHomeScreen extends StatefulWidget {
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
+  GeoPoint? _deliveryLocation;
+  CustomerAddress? _defaultAddress;
+  bool _isLoadingAddress = true;
+  String? _addressMessage;
+
   RestaurantTag? _selectedTag;
   String _selectedSort = "Nearest";
 
@@ -29,7 +38,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     "Name",
   ];
   double _distanceFromCustomer(Restaurant restaurant) {
-    final customerLocation = widget.customer.location;
+    final customerLocation = _deliveryLocation;
     final restaurantLocation = restaurant.location;
 
     if (customerLocation == null || restaurantLocation == null) {
@@ -40,6 +49,70 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     final lngDiff = customerLocation.longitude - restaurantLocation.longitude;
 
     return (latDiff * latDiff) + (lngDiff * lngDiff);
+  }
+
+  String _distanceLabel(Restaurant restaurant) {
+    final customerLocation = _deliveryLocation;
+    final restaurantLocation = restaurant.location;
+
+    if (customerLocation == null || restaurantLocation == null) {
+      return '';
+    }
+
+    const kmPerLatDegree = 111.0;
+
+    final latDiff = customerLocation.latitude - restaurantLocation.latitude;
+    final lngDiff = customerLocation.longitude - restaurantLocation.longitude;
+
+    final distanceKm =
+        sqrt((latDiff * latDiff) + (lngDiff * lngDiff)) * kmPerLatDegree;
+
+    return '${distanceKm.toStringAsFixed(1)} km';
+  }
+
+  Future<void> _loadDeliveryLocation() async {
+    setState(() {
+      _isLoadingAddress = true;
+      _addressMessage = null;
+    });
+
+    try {
+      final defaultAddress = await DatabaseService().getDefaultCustomerAddress(
+        widget.customer.id,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _defaultAddress = defaultAddress;
+        _deliveryLocation =
+            defaultAddress?.location ?? widget.customer.location;
+        _isLoadingAddress = false;
+
+        if (defaultAddress != null) {
+          _addressMessage = 'Showing restaurants near ${defaultAddress.label}';
+        } else if (widget.customer.location != null) {
+          _addressMessage = 'Showing restaurants near your saved location';
+        } else {
+          _addressMessage =
+              'No delivery location found. Distance is unavailable.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _deliveryLocation = widget.customer.location;
+        _isLoadingAddress = false;
+        _addressMessage = 'Could not load default address.';
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDeliveryLocation();
   }
 
   @override
@@ -122,7 +195,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ),
             ],
           ),
-          const SizedBox(width: 12 , height: 12),
+          const SizedBox(width: 12, height: 12),
           FilledButton.icon(
             onPressed: () {
               Navigator.push(
@@ -138,13 +211,40 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             label: const Text('Join Group Order'),
           ),
           const SizedBox(height: 16),
-          Text(
-            //Todo : Get user location and show nearby restaurants (later)
-            'Restaurants Near You',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Restaurants Near You',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: _isLoadingAddress ? null : _loadDeliveryLocation,
+                icon: _isLoadingAddress
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.location_on_outlined),
+                tooltip: 'Refresh delivery address',
+              ),
+            ],
           ),
+
+          if (_addressMessage != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              _addressMessage!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+
           const SizedBox(height: 12),
           StreamBuilder<List<Restaurant>>(
             stream: DatabaseService().getRestaurants(),
@@ -159,7 +259,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 );
               }
 
-              final query = _searchController.text.toLowerCase();
 
               final filteredRestaurants = snapshot.data!.where((r) {
                 final query = _searchController.text.toLowerCase();
@@ -176,6 +275,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 return searchMatch && categoryMatch;
               }).toList();
               filteredRestaurants.sort((a, b) {
+                // Open restaurants always come first.
+                if (a.isOpen != b.isOpen) {
+                  return a.isOpen ? -1 : 1;
+                }
+
                 switch (_selectedSort) {
                   case "Delivery Fee":
                     return a.deliveryFee.compareTo(b.deliveryFee);
@@ -230,156 +334,177 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   Widget buildRestaurantCard(Restaurant restaurant, ColorScheme scheme) {
+    final distanceLabel = _distanceLabel(restaurant);
+    final isClosed = !restaurant.isOpen;
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        final cart = CartScope.of(context);
+      onTap: restaurant.isOpen
+          ? () {
+              final cart = CartScope.of(context);
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CartScope(
-              notifier: cart,
-              child: RestaurantMenuPage(
-                restaurant: restaurant,
-                customer: widget.customer,
-              ),
-            ),
-          ),
-        );
-      },
-      child: Card(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        margin: const EdgeInsets.only(bottom: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                  child: Image.network(
-                    restaurant.imageUrl,
-                    height: 160,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      height: 160,
-                      color: scheme.surfaceContainerHighest,
-                      child: const Center(
-                        child: Icon(Icons.image_not_supported),
-                      ),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CartScope(
+                    notifier: cart,
+                    child: RestaurantMenuPage(
+                      restaurant: restaurant,
+                      customer: widget.customer,
                     ),
                   ),
                 ),
-                Positioned(
-                  right: 10,
-                  top: 10,
-                  child: Row(
-                    children: [
-                      if (restaurant.hasOffer)
+              );
+            }
+          : null,
+      child: Opacity(
+        opacity: isClosed ? 0.55 : 1.0,
+        child: Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
+                    child: Image.network(
+                      restaurant.imageUrl,
+                      height: 160,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        height: 160,
+                        color: scheme.surfaceContainerHighest,
+                        child: const Center(
+                          child: Icon(Icons.image_not_supported),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 10,
+                    top: 10,
+                    child: Row(
+                      children: [
+                        if (restaurant.hasOffer)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: scheme.secondary,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              'Offer',
+                              style: TextStyle(color: scheme.onSecondary),
+                            ),
+                          ),
+                        if (restaurant.hasOffer) const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: scheme.secondary,
+                            color: restaurant.isOpen
+                                ? Colors.green
+                                : scheme.outline,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            'Offer',
-                            style: TextStyle(color: scheme.onSecondary),
+                            restaurant.isOpen ? 'Open' : 'Closed',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      if (restaurant.hasOffer) const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: restaurant.isOpen
-                              ? Colors.green
-                              : scheme.outline,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          restaurant.isOpen ? 'Open' : 'Closed',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    restaurant.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 16),
-                      const SizedBox(width: 4),
-                      Text(restaurant.rating.toStringAsFixed(1)),
-                      const SizedBox(width: 12),
-                      const Icon(Icons.access_time, size: 16),
-                      const SizedBox(width: 4),
-                      Text(_estimateDeliveryTime(restaurant)),
-                      const SizedBox(width: 12),
-                      const Icon(Icons.attach_money, size: 16),
-                      const SizedBox(width: 4),
-                      Text(
-                        restaurant.deliveryFee == 0
-                            ? 'Free'
-                            : '${restaurant.deliveryFee.toStringAsFixed(0)} SAR',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: restaurant.tags
-                        .map(
-                          (tag) => Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: scheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(tag.label),
-                          ),
-                        )
-                        .toList(),
                   ),
                 ],
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      restaurant.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.star, color: Colors.amber, size: 16),
+                        const SizedBox(width: 4),
+                        Text(restaurant.rating.toStringAsFixed(1)),
+                        const SizedBox(width: 12),
+
+                        if (distanceLabel.isNotEmpty) ...[
+                          const Icon(Icons.location_on_outlined, size: 16),
+                          const SizedBox(width: 4),
+                          Text(distanceLabel),
+                          const SizedBox(width: 12),
+                        ],
+
+                        const Icon(Icons.access_time, size: 16),
+                        const SizedBox(width: 4),
+                        Text(_estimateDeliveryTime(restaurant)),
+
+                        const SizedBox(width: 12),
+
+                        const Icon(Icons.attach_money, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          restaurant.deliveryFee == 0
+                              ? 'Free'
+                              : '${restaurant.deliveryFee.toStringAsFixed(0)} SAR',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: restaurant.tags
+                          .map(
+                            (tag) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: scheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(tag.label),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   String _estimateDeliveryTime(Restaurant restaurant) {
+    //Todo : add min and max delivery time in restaurant model and calculate based on that and distance from customer
     if (!restaurant.isOpen) {
       return 'Unavailable';
     }

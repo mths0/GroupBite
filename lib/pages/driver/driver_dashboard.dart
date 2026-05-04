@@ -66,6 +66,8 @@ class _DriverDashboardState extends State<DriverDashboard>
         return 'Picked Up';
       case OrderStatus.delivered:
         return 'Delivered';
+      case OrderStatus.cancelled:
+        return 'Cancelled';
     }
   }
 

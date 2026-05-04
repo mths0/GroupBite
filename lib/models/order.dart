@@ -7,6 +7,7 @@ enum OrderStatus {
   assigned,
   pickedUp,
   delivered,
+  cancelled,
 }
 
 class Order {
@@ -24,6 +25,7 @@ class Order {
   final bool isRated;
   final int? restaurantRating;
   final int? driverRating;
+  final DateTime? canCancelUntil;
 
   Order({
     required this.id,
@@ -40,11 +42,13 @@ class Order {
     this.driverRating,
     this.driverId,
     this.paymentId,
+    required this.canCancelUntil,
   });
 
   factory Order.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
+    final rawCanCancelUntil = data['canCancelUntil'];
     return Order(
       id: doc.id,
       customerId: (data['customerId'] ?? '').toString(),
@@ -65,6 +69,9 @@ class Order {
       items: (data['items'] as List<dynamic>? ?? [])
           .map((item) => OrderItem.fromMap(item as Map<String, dynamic>))
           .toList(),
+      canCancelUntil: rawCanCancelUntil is Timestamp
+          ? rawCanCancelUntil.toDate()
+          : null,
     );
   }
 

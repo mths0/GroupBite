@@ -41,16 +41,18 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard> {
     switch (status) {
       case OrderStatus.pending:
         return Colors.orange;
-      case OrderStatus.rejected:
-        return Colors.red;
       case OrderStatus.accepted:
         return Colors.blue;
-      case OrderStatus.assigned:
-        return Colors.teal;
+      case OrderStatus.rejected:
+        return Colors.red;
       case OrderStatus.pickedUp:
-        return Colors.purple;
+        return Colors.deepPurple;
       case OrderStatus.delivered:
         return Colors.green;
+      case OrderStatus.assigned:
+        return Colors.cyan;
+      case OrderStatus.cancelled:
+        return Colors.grey;
     }
   }
 
@@ -68,6 +70,8 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard> {
         return 'Picked Up';
       case OrderStatus.delivered:
         return 'Delivered';
+      case OrderStatus.cancelled:
+        return 'Cancelled';
     }
   }
 
@@ -85,6 +89,8 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard> {
         return 'Order picked up by driver';
       case OrderStatus.delivered:
         return 'Order delivered successfully';
+      case OrderStatus.cancelled:
+        return 'Order was cancelled';
     }
   }
 
@@ -142,7 +148,9 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: _statusColor(order.status).withOpacity(0.15),
+                              color: _statusColor(
+                                order.status,
+                              ).withOpacity(0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(

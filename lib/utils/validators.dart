@@ -11,7 +11,7 @@ class Validators {
       return 'Name must contain letters only';
     }
 
-    var splitName = value.split(RegExp(r'\s+'));
+    final splitName = trimmed.split(RegExp(r'\s+'));
     if (splitName.length < 2) {
       return "Enter full name";
     }
@@ -58,6 +58,65 @@ class Validators {
     if (value.isEmpty) return "Email is required";
     final emailRegex = RegExp(r"^[^\s@]+@[^\s@]+\.[^\s@]+$");
     if (!emailRegex.hasMatch(value)) return "Enter a valid email";
+    return null;
+  }
+
+  static String? validateExpiry(String? value) {
+    final v = (value ?? '').trim();
+
+    final match = RegExp(r'^(0[1-9]|1[0-2])\/(\d{2})$').firstMatch(v);
+    if (match == null) return 'Format MM/YY';
+
+    final month = int.parse(match.group(1)!);
+    final year = 2000 + int.parse(match.group(2)!);
+
+    final now = DateTime.now();
+    final endOfMonth = DateTime(year, month + 1, 0);
+
+    if (endOfMonth.isBefore(DateTime(now.year, now.month, 1))) {
+      return 'Card expired';
+    }
+
+    final maxAllowedYear = now.year + 15;
+
+    if (year > maxAllowedYear) {
+      return 'Invalid expiry year';
+    }
+
+    return null;
+  }
+
+  static String? validateCardNumber(String? value) {
+    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+    if (digits.length != 16) {
+      return 'Enter a 16-digit card number';
+    }
+    return null;
+  }
+
+  static String? validateCardCvv(String? value) {
+    final v = (value ?? '').trim();
+    if (!RegExp(r'^\d{3}$').hasMatch(v)) return '3 digits';
+    return null;
+  }
+
+  static String? validateCardHolder(String? value) {
+    final v = (value ?? '').trim();
+
+    if (v.isEmpty) {
+      return 'Holder name is required';
+    }
+
+    final nameRegex = RegExp(r'^[A-Za-z\s]+$');
+    if (!nameRegex.hasMatch(v)) {
+      return 'Holder name must contain letters only';
+    }
+
+    final parts = v.split(RegExp(r'\s+'));
+    if (parts.length < 2) {
+      return 'Enter full holder name';
+    }
+
     return null;
   }
 }
