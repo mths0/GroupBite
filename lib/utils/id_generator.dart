@@ -37,4 +37,18 @@ class IdGenerator {
 
     return 'card_$time$random';
   }
+
+  static String generateFamilyWalletId() {
+    final random = Random().nextInt(900) + 100;
+    final time = DateTime.now().millisecondsSinceEpoch % 1000000;
+
+    return 'fwallet_$time$random';
+  }
+
+  static String generateInviteId() {
+    final random = Random().nextInt(900) + 100;
+    final time = DateTime.now().millisecondsSinceEpoch % 1000000;
+
+    return 'invite_$time$random';
+  }
 }

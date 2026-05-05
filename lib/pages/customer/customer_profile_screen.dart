@@ -8,6 +8,7 @@ import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
+import 'package:food_delivery_platform/pages/customer/family_wallet_tab.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 
@@ -190,7 +191,10 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     customerId: widget.customer.id,
                     db: _db,
                   ),
-                  const _FamilyWalletTab(),
+                  FamilyWalletTab(
+                    customerId: widget.customer.id,
+                    customerName: widget.customer.name,
+                  ),
                 ],
               ),
             ),
@@ -650,47 +654,6 @@ class _AddFundsDialogState extends State<_AddFundsDialog> {
           child: const Text('Confirm'),
         ),
       ],
-    );
-  }
-}
-
-class _FamilyWalletTab extends StatelessWidget {
-  const _FamilyWalletTab();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.family_restroom,
-              size: 72,
-              color: scheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Family Wallet',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Coming soon — features will be added later',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: scheme.outline,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

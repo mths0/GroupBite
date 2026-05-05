@@ -10,6 +10,7 @@ import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/order.dart';
 
 import 'package:food_delivery_platform/models/cart_models.dart';
+import 'package:food_delivery_platform/models/family_wallet.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
@@ -64,6 +65,7 @@ enum _DeliveryTimeOption { asap, schedule }
 // ---------------------------------------------------------------------------
 const String _kPaymentCreditCard = 'pay_credit';
 const String _kPaymentWallet = 'pay_wallet';
+const String _kPaymentFamilyWallet = 'pay_family_wallet';
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   // ---------------------------------------------------------------------------
@@ -91,6 +93,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     return widget.isGroupHost;
   }
+
+  /// Latest family wallet snapshot, kept in sync via a stream subscription so
+  /// _placeOrder can read the wallet ID without re-querying.
+  FamilyWallet? _familyWallet;
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -196,6 +202,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (_selectedPaymentId == _kPaymentWallet) {
         await _db.deductFromWallet(
           customerId: widget.customerId,
+          amount: widget.total,
+        );
+      } else if (_selectedPaymentId == _kPaymentFamilyWallet) {
+        final wallet = _familyWallet;
+        if (wallet == null) {
+          throw Exception('Family wallet not loaded');
+        }
+        await _db.deductFromFamilyWallet(
+          walletId: wallet.id,
           amount: widget.total,
         );
       }
@@ -388,43 +403,80 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   final balance = balanceSnap.data ?? 0.0;
                   final hasEnough = balance >= widget.total;
 
-                  return Column(
-                    children: [
-                      if (card == null)
-                        _PaymentTile(
-                          id: 'add_card',
-                          label: 'Add Card',
-                          subtitle: 'No card on file — tap to add one',
-                          icon: Icons.add_card,
-                          isSelected: false,
-                          onTap: _openAddCardSheet,
-                        )
-                      else
-                        _PaymentTile(
-                          id: _kPaymentCreditCard,
-                          label: card.brand,
-                          subtitle: '•••• ${card.last4}',
-                          icon: Icons.credit_card_rounded,
-                          isSelected: _selectedPaymentId == _kPaymentCreditCard,
-                          onTap: () => setState(
-                            () => _selectedPaymentId = _kPaymentCreditCard,
+                  return StreamBuilder<FamilyWallet?>(
+                    stream: _db.streamFamilyWalletForUser(widget.customerId),
+                    builder: (context, familySnap) {
+                      final family = familySnap.data;
+                      // Cache for _placeOrder — schedule after build to avoid
+                      // calling setState during a build pass.
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        if (_familyWallet?.id != family?.id ||
+                            _familyWallet?.balance != family?.balance) {
+                          setState(() => _familyWallet = family);
+                        }
+                      });
+                      final familyHasEnough =
+                          family != null && family.balance >= widget.total;
+
+                      return Column(
+                        children: [
+                          if (card == null)
+                            _PaymentTile(
+                              id: 'add_card',
+                              label: 'Add Card',
+                              subtitle: 'No card on file — tap to add one',
+                              icon: Icons.add_card,
+                              isSelected: false,
+                              onTap: _openAddCardSheet,
+                            )
+                          else
+                            _PaymentTile(
+                              id: _kPaymentCreditCard,
+                              label: card.brand,
+                              subtitle: '•••• ${card.last4}',
+                              icon: Icons.credit_card_rounded,
+                              isSelected:
+                                  _selectedPaymentId == _kPaymentCreditCard,
+                              onTap: () => setState(
+                                () => _selectedPaymentId = _kPaymentCreditCard,
+                              ),
+                            ),
+                          const SizedBox(height: 8),
+                          _PaymentTile(
+                            id: _kPaymentWallet,
+                            label: 'Wallet',
+                            subtitle: hasEnough
+                                ? 'Balance: \$${balance.toStringAsFixed(2)}'
+                                : 'Insufficient balance — \$${balance.toStringAsFixed(2)}',
+                            icon: Icons.account_balance_wallet_outlined,
+                            isSelected: _selectedPaymentId == _kPaymentWallet,
+                            disabled: !hasEnough,
+                            onTap: () => setState(
+                              () => _selectedPaymentId = _kPaymentWallet,
+                            ),
                           ),
-                        ),
-                      const SizedBox(height: 8),
-                      _PaymentTile(
-                        id: _kPaymentWallet,
-                        label: 'Wallet',
-                        subtitle: hasEnough
-                            ? 'Balance: \$${balance.toStringAsFixed(2)}'
-                            : 'Insufficient balance — \$${balance.toStringAsFixed(2)}',
-                        icon: Icons.account_balance_wallet_outlined,
-                        isSelected: _selectedPaymentId == _kPaymentWallet,
-                        disabled: !hasEnough,
-                        onTap: () => setState(
-                          () => _selectedPaymentId = _kPaymentWallet,
-                        ),
-                      ),
-                    ],
+                          if (family != null) ...[
+                            const SizedBox(height: 8),
+                            _PaymentTile(
+                              id: _kPaymentFamilyWallet,
+                              label: 'Family Wallet',
+                              subtitle: familyHasEnough
+                                  ? 'Balance: \$${family.balance.toStringAsFixed(2)}'
+                                  : 'Insufficient balance — \$${family.balance.toStringAsFixed(2)}',
+                              icon: Icons.family_restroom,
+                              isSelected: _selectedPaymentId ==
+                                  _kPaymentFamilyWallet,
+                              disabled: !familyHasEnough,
+                              onTap: () => setState(
+                                () => _selectedPaymentId =
+                                    _kPaymentFamilyWallet,
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
                   );
                 },
               );
