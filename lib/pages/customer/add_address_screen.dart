@@ -307,12 +307,14 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                     title: const Text('Set as default'),
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: _save,
-                      child: const Text('Save Address'),
+                  SafeArea(
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: _save,
+                        child: const Text('Save Address'),
+                      ),
                     ),
                   ),
                 ],

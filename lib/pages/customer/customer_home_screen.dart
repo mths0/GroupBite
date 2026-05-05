@@ -26,7 +26,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   GeoPoint? _deliveryLocation;
   CustomerAddress? _defaultAddress;
   bool _isLoadingAddress = true;
-  String? _addressMessage;
+  String? _addressLabel;
 
   RestaurantTag? _selectedTag;
   String _selectedSort = "Nearest";
@@ -73,7 +73,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   Future<void> _loadDeliveryLocation() async {
     setState(() {
       _isLoadingAddress = true;
-      _addressMessage = null;
+      _addressLabel = null;
     });
 
     try {
@@ -90,12 +90,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         _isLoadingAddress = false;
 
         if (defaultAddress != null) {
-          _addressMessage = 'Showing restaurants near ${defaultAddress.label}';
+          _addressLabel = defaultAddress.label;
         } else if (widget.customer.location != null) {
-          _addressMessage = 'Showing restaurants near your saved location';
+          _addressLabel = 'your saved location';
         } else {
-          _addressMessage =
-              'No delivery location found. Distance is unavailable.';
+          _addressLabel = null;
         }
       });
     } catch (e) {
@@ -104,7 +103,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       setState(() {
         _deliveryLocation = widget.customer.location;
         _isLoadingAddress = false;
-        _addressMessage = 'Could not load default address.';
+        _addressLabel = null;
       });
     }
   }
@@ -215,7 +214,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'Restaurants Near You',
+                  _addressLabel == null
+                      ? 'Restaurants Near You'
+                      : 'Restaurants Near $_addressLabel',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -235,16 +236,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             ],
           ),
 
-          if (_addressMessage != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              _addressMessage!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-
           const SizedBox(height: 12),
           StreamBuilder<List<Restaurant>>(
             stream: DatabaseService().getRestaurants(),
@@ -258,7 +249,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   child: Text("No Data found"),
                 );
               }
-
 
               final filteredRestaurants = snapshot.data!.where((r) {
                 final query = _searchController.text.toLowerCase();
