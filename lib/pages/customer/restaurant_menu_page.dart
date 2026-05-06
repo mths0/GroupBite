@@ -4,7 +4,6 @@ import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/group_order.dart';
-
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart' as app_models;
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
@@ -83,6 +82,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                     );
 
                     final memberCount = members.isEmpty ? 1 : members.length;
+                    final hasMinimumMembers = members.length >= 2;
                     final deliveryFee = widget.restaurant.deliveryFee;
                     final deliveryShare = deliveryFee / memberCount;
                     final tax = mySubtotal * 0.15;
@@ -121,12 +121,6 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                               (member) =>
                                   member.status == GroupMemberStatus.paid,
                             );
-
-                    final allPaid =
-                        members.isNotEmpty &&
-                        members.every(
-                          (member) => member.status == GroupMemberStatus.paid,
-                        );
 
                     return SafeArea(
                       child: Padding(
@@ -168,7 +162,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                                     : ListView.separated(
                                         scrollDirection: Axis.horizontal,
                                         itemCount: members.length,
-                                        separatorBuilder: (_, __) =>
+                                        separatorBuilder: (_, _) =>
                                             const SizedBox(width: 8),
                                         itemBuilder: (context, index) {
                                           final member = members[index];
@@ -232,6 +226,22 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                               ),
 
                               const SizedBox(height: 8),
+                              if (!hasMinimumMembers)
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text(
+                                    'Group order needs at least 2 members before checkout.',
+                                    style: TextStyle(
+                                      color: Colors.orange,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
 
                               if (myItems.isEmpty)
                                 const Expanded(
@@ -245,19 +255,95 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                                 Expanded(
                                   child: ListView.separated(
                                     itemCount: myItems.length,
-                                    separatorBuilder: (_, __) =>
+                                    separatorBuilder: (_, _) =>
                                         const SizedBox(height: 8),
                                     itemBuilder: (context, index) {
                                       final item = myItems[index];
 
                                       return Card(
-                                        child: ListTile(
-                                          title: Text(item.name),
-                                          subtitle: Text(
-                                            '${item.unitPrice.toStringAsFixed(2)} SAR x${item.quantity}',
-                                          ),
-                                          trailing: Text(
-                                            '${item.lineTotal.toStringAsFixed(2)} SAR',
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      item.name,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      '${item.unitPrice.toStringAsFixed(2)} SAR x${item.quantity}',
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      'Total: ${item.lineTotal.toStringAsFixed(2)} SAR',
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  IconButton(
+                                                    onPressed: () async {
+                                                      await DatabaseService()
+                                                          .decrementGroupOrderItem(
+                                                            groupOrderId:
+                                                                groupOrderId,
+                                                            memberId: widget
+                                                                .customer
+                                                                .id,
+                                                            itemId: item.id,
+                                                          );
+                                                    },
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .remove_circle_outline,
+                                                    ),
+                                                  ),
+                                                  Text('${item.quantity}'),
+                                                  IconButton(
+                                                    onPressed: () async {
+                                                      await DatabaseService()
+                                                          .incrementGroupOrderItem(
+                                                            groupOrderId:
+                                                                groupOrderId,
+                                                            memberId: widget
+                                                                .customer
+                                                                .id,
+                                                            itemId: item.id,
+                                                          );
+                                                    },
+                                                    icon: const Icon(
+                                                      Icons.add_circle_outline,
+                                                    ),
+                                                  ),
+                                                  IconButton(
+                                                    onPressed: () async {
+                                                      await DatabaseService()
+                                                          .removeGroupOrderItem(
+                                                            groupOrderId:
+                                                                groupOrderId,
+                                                            memberId: widget
+                                                                .customer
+                                                                .id,
+                                                            itemId: item.id,
+                                                          );
+                                                    },
+                                                    icon: const Icon(
+                                                      Icons.delete_outline,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       );
@@ -290,7 +376,8 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
 
                               if (!iAmReady && !iAlreadyPaid)
                                 FilledButton.icon(
-                                  onPressed: myItems.isEmpty
+                                  onPressed:
+                                      (!hasMinimumMembers || myItems.isEmpty)
                                       ? null
                                       : () async {
                                           await DatabaseService()
@@ -321,10 +408,12 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                               if (iAmReady)
                                 FilledButton(
                                   onPressed:
-                                      (isHost
-                                          ? allOtherMembersPaid
-                                          : allReadyOrPaid)
-                                      ? () {
+                                      (!hasMinimumMembers ||
+                                          (isHost
+                                              ? !allOtherMembersPaid
+                                              : !allReadyOrPaid))
+                                      ? null
+                                      : () {
                                           Navigator.pop(bottomSheetContext);
 
                                           Navigator.push(
@@ -360,8 +449,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                                               ),
                                             ),
                                           );
-                                        }
-                                      : null,
+                                        },
                                   style: FilledButton.styleFrom(
                                     minimumSize: const Size.fromHeight(52),
                                   ),

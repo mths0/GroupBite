@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/models/customer.dart';
-
 import 'package:food_delivery_platform/pages/customer/customer_home_screen.dart';
 import 'package:food_delivery_platform/pages/customer/customer_orders_screen.dart';
 import 'package:food_delivery_platform/pages/customer/customer_profile_screen.dart';
@@ -32,7 +31,6 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -46,29 +44,10 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               ),
             ),
             const SizedBox(height: 2),
-            Text(
-              'Riyadh, Al Olaya',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.outline,
-              ),
-            ),
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {},
-          ),
           const SizedBox(width: 6),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              child: Text(
-                'A',
-                style: TextStyle(color: scheme.onPrimary),
-              ),
-            ),
-          ),
         ],
       ),
       body: PageView(

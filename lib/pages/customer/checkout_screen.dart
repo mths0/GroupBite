@@ -1,17 +1,9 @@
-// lib/pages/customer/checkout_screen.dart
-//
-// Displays the Checkout flow: address selection, delivery time selection,
-// and payment method selection. Pre-calculated totals are passed in from
-// CartScreen so there is no duplication of logic.
-// All state is managed with plain setState.
-
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/order.dart';
-
 import 'package:food_delivery_platform/models/cart_models.dart';
 import 'package:food_delivery_platform/models/family_wallet.dart';
 import 'package:food_delivery_platform/models/family_wallet_member.dart';
+import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
@@ -235,12 +227,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           barrierDismissible: false,
           builder: (_) => AlertDialog(
             title: Text(
-              result.finalOrderPlaced
-                  ? 'Group Order Placed 🎉'
-                  : 'Payment Done',
+              result ? 'Group Order Placed 🎉' : 'Payment Done',
             ),
             content: Text(
-              result.finalOrderPlaced
+              result
                   ? 'Everyone has paid. The final group order has been placed successfully.'
                   : 'Your part of ${widget.total.toStringAsFixed(2)} SAR has been paid successfully.\n\n'
                         'You will now return to the home page.',
@@ -461,11 +451,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               family: family,
                               currentUserId: widget.customerId,
                               total: widget.total,
-                              isSelected: _selectedPaymentId ==
-                                  _kPaymentFamilyWallet,
+                              isSelected:
+                                  _selectedPaymentId == _kPaymentFamilyWallet,
                               onSelected: () => setState(
-                                () => _selectedPaymentId =
-                                    _kPaymentFamilyWallet,
+                                () =>
+                                    _selectedPaymentId = _kPaymentFamilyWallet,
                               ),
                             ),
                           ],
@@ -857,8 +847,9 @@ class _FamilyWalletTile extends StatelessWidget {
         final remainingLimit = limit == null
             ? family.balance
             : (limit - spent).clamp(0.0, double.infinity);
-        final available =
-            remainingLimit < family.balance ? remainingLimit : family.balance;
+        final available = remainingLimit < family.balance
+            ? remainingLimit
+            : family.balance;
 
         final hasEnough = available >= total;
         final overLimit = limit != null && remainingLimit <= 0;

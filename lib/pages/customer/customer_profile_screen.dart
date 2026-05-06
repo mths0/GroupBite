@@ -243,24 +243,10 @@ class _AccountTabState extends State<_AccountTab>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        CircleAvatar(
-          radius: 42,
-          backgroundColor: scheme.primary.withOpacity(0.12),
-          child: Text(
-            widget.customer.name.isNotEmpty
-                ? widget.customer.name[0].toUpperCase()
-                : 'C',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: scheme.primary,
-            ),
-          ),
-        ),
         const SizedBox(height: 16),
 
         Text(
-          'Customer Profile',
+          '${widget.customer.name} Profile',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
@@ -634,4 +620,3 @@ class _ProfileTextField extends StatelessWidget {
     );
   }
 }
-
