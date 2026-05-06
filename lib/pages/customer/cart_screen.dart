@@ -340,7 +340,7 @@ class _CartScreenState extends State<CartScreen> {
           ),
           child: Text(
             cartItems.isNotEmpty
-                ? 'Proceed to Checkout  •  \$${_total.toStringAsFixed(2)}'
+                ? 'Proceed to Checkout  •  ${_total.toStringAsFixed(2)} SAR'
                 : "Try to put some items",
             style: const TextStyle(
               fontSize: 16,
@@ -462,7 +462,7 @@ class _CartItemCard extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        '\$${item.lineTotal.toStringAsFixed(2)}',
+                        '${item.lineTotal.toStringAsFixed(2)} SAR',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: colorScheme.primary,
                           fontWeight: FontWeight.w700,
@@ -811,7 +811,7 @@ class _BillSummaryCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '\$${total.toStringAsFixed(2)}',
+                  '${total.toStringAsFixed(2)} SAR',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: colorScheme.primary,
@@ -842,8 +842,8 @@ class _BillRow extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isNegative = value < 0;
     final display = isNegative
-        ? '-\$${(-value).toStringAsFixed(2)}'
-        : '\$${value.toStringAsFixed(2)}';
+        ? '-${(-value).toStringAsFixed(2)} SAR'
+        : '${value.toStringAsFixed(2)} SAR';
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1230,7 +1230,7 @@ class _CheckoutSummary extends StatelessWidget {
               ),
             ),
             Text(
-              '\$${total.toStringAsFixed(2)}',
+              '${total.toStringAsFixed(2)} SAR',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: colorScheme.primary,
@@ -1258,8 +1258,8 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final display = value < 0
-        ? '-\$${(-value).toStringAsFixed(2)}'
-        : '\$${value.toStringAsFixed(2)}';
+        ? '-${(-value).toStringAsFixed(2)} SAR'
+        : '${value.toStringAsFixed(2)} SAR';
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,

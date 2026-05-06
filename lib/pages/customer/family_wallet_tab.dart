@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/family_wallet.dart';
 import 'package:food_delivery_platform/models/family_wallet_invite.dart';
+import 'package:food_delivery_platform/models/family_wallet_member.dart';
 
 class FamilyWalletTab extends StatefulWidget {
   const FamilyWalletTab({
@@ -281,6 +282,24 @@ class _WalletView extends StatelessWidget {
     }
   }
 
+  Future<void> _editLimit(
+    BuildContext context,
+    String memberId,
+    FamilyWalletMember? member,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _EditLimitSheet(
+        walletId: wallet.id,
+        memberId: memberId,
+        member: member,
+        db: db,
+      ),
+    );
+  }
+
   Future<void> _leave(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -421,14 +440,29 @@ class _WalletView extends StatelessWidget {
             ),
           ),
         ),
-        ...wallet.memberIds.map(
-          (memberId) => _MemberTile(
-            memberId: memberId,
-            isCurrentUser: memberId == currentUserId,
-            isOwnerView: isOwner,
-            onRemove: () => _removeMember(context, memberId),
-            onLeave: () => _leave(context),
-          ),
+        StreamBuilder<List<FamilyWalletMember>>(
+          stream: db.streamFamilyWalletMembers(wallet.id),
+          builder: (context, snap) {
+            final byId = {
+              for (final m in (snap.data ?? const <FamilyWalletMember>[]))
+                m.userId: m
+            };
+            return Column(
+              children: wallet.memberIds.map((memberId) {
+                final m = byId[memberId];
+                final showProgress = isOwner || memberId == currentUserId;
+                return _MemberTile(
+                  memberId: memberId,
+                  member: showProgress ? m : null,
+                  isCurrentUser: memberId == currentUserId,
+                  isOwnerView: isOwner,
+                  onRemove: () => _removeMember(context, memberId),
+                  onLeave: () => _leave(context),
+                  onEdit: () => _editLimit(context, memberId, m),
+                );
+              }).toList(),
+            );
+          },
         ),
 
         if (isOwner) ...[
@@ -469,22 +503,64 @@ class _WalletView extends StatelessWidget {
 class _MemberTile extends StatelessWidget {
   const _MemberTile({
     required this.memberId,
+    required this.member,
     required this.isCurrentUser,
     required this.isOwnerView,
     required this.onRemove,
     required this.onLeave,
+    required this.onEdit,
   });
 
   final String memberId;
+  final FamilyWalletMember? member;
   final bool isCurrentUser;
   final bool isOwnerView;
   final VoidCallback onRemove;
   final VoidCallback onLeave;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
     final db = DatabaseService();
+
+    final m = member;
+    final hasLimit = m != null && m.limit != null;
+    final spent = m == null ? 0.0 : m.effectiveSpent(DateTime.now());
+    final progress = hasLimit ? (spent / m.limit!).clamp(0.0, 1.0) : 0.0;
+    final atOrOverLimit = hasLimit && spent >= m.limit!;
+    final showProgressBar = m != null;
+
+    String subtitle;
+    if (m == null) {
+      subtitle = 'No limit';
+    } else if (m.limit == null) {
+      subtitle = 'No limit';
+    } else {
+      subtitle =
+          '${spent.toStringAsFixed(0)} / ${m.limit!.toStringAsFixed(0)} SAR  ·  ${limitPeriodLabel(m.period)}';
+    }
+
+    final trailingButtons = <Widget>[];
+    if (isOwnerView) {
+      trailingButtons.add(IconButton(
+        icon: const Icon(Icons.tune),
+        onPressed: onEdit,
+        tooltip: 'Edit limit',
+      ));
+      trailingButtons.add(IconButton(
+        icon: const Icon(Icons.person_remove_outlined),
+        onPressed: onRemove,
+        tooltip: 'Remove',
+      ));
+    } else if (isCurrentUser) {
+      trailingButtons.add(IconButton(
+        icon: const Icon(Icons.exit_to_app),
+        onPressed: onLeave,
+        tooltip: 'Leave',
+      ));
+    }
 
     return FutureBuilder(
       future: db.getUserById(memberId),
@@ -492,29 +568,58 @@ class _MemberTile extends StatelessWidget {
         final name = snap.data?.name ?? memberId;
         final initial = name.isNotEmpty ? name[0].toUpperCase() : 'M';
 
-        Widget? trailing;
-        if (isOwnerView) {
-          trailing = IconButton(
-            icon: const Icon(Icons.person_remove_outlined),
-            onPressed: onRemove,
-            tooltip: 'Remove',
-          );
-        } else if (isCurrentUser) {
-          trailing = IconButton(
-            icon: const Icon(Icons.exit_to_app),
-            onPressed: onLeave,
-            tooltip: 'Leave',
-          );
-        }
-
         return Card(
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: scheme.surfaceContainerHigh,
-              child: Text(initial),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  backgroundColor: scheme.surfaceContainerHigh,
+                  child: Text(initial),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: atOrOverLimit
+                              ? scheme.error
+                              : scheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (showProgressBar && hasLimit) ...[
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 6,
+                            backgroundColor: scheme.surfaceContainerHigh,
+                            valueColor: AlwaysStoppedAnimation(
+                              atOrOverLimit
+                                  ? scheme.error
+                                  : scheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                ...trailingButtons,
+              ],
             ),
-            title: Text(name),
-            trailing: trailing,
           ),
         );
       },
@@ -634,13 +739,24 @@ class _AddMemberSheet extends StatefulWidget {
 }
 
 class _AddMemberSheetState extends State<_AddMemberSheet> {
-  final _controller = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _limitController = TextEditingController();
+  LimitPeriod _period = LimitPeriod.manual;
   String? _error;
   bool _busy = false;
 
+  bool get _hasLimit => _limitController.text.trim().isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _limitController.addListener(() => setState(() {}));
+  }
+
   @override
   void dispose() {
-    _controller.dispose();
+    _phoneController.dispose();
+    _limitController.dispose();
     super.dispose();
   }
 
@@ -662,10 +778,19 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
   }
 
   Future<void> _submit() async {
-    final phone = _controller.text.trim();
+    final phone = _phoneController.text.trim();
     if (phone.isEmpty) {
       setState(() => _error = 'Enter a phone number');
       return;
+    }
+
+    double? limit;
+    if (_hasLimit) {
+      limit = double.tryParse(_limitController.text.trim());
+      if (limit == null || limit <= 0) {
+        setState(() => _error = 'Enter a valid limit (or leave blank)');
+        return;
+      }
     }
 
     setState(() {
@@ -679,6 +804,8 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
         ownerId: widget.ownerId,
         ownerName: widget.ownerName,
         phone: phone,
+        limit: limit,
+        period: limit == null ? LimitPeriod.manual : _period,
       );
 
       if (!mounted) return;
@@ -728,7 +855,7 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: _controller,
+              controller: _phoneController,
               autofocus: true,
               keyboardType: TextInputType.phone,
               maxLength: 9,
@@ -739,6 +866,42 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
                 errorText: _error,
                 errorStyle: TextStyle(color: scheme.error),
               ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _limitController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+              decoration: const InputDecoration(
+                labelText: 'Spending Limit (optional)',
+                hintText: 'Leave blank for no limit',
+                prefixIcon: Icon(Icons.speed_outlined),
+                suffixText: 'SAR',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<LimitPeriod>(
+              value: _period,
+              onChanged: _hasLimit
+                  ? (v) => setState(() => _period = v ?? LimitPeriod.manual)
+                  : null,
+              decoration: InputDecoration(
+                labelText: 'Reset',
+                prefixIcon: const Icon(Icons.event_repeat),
+                border: const OutlineInputBorder(),
+                helperText:
+                    _hasLimit ? null : 'Set a limit to choose a reset cadence',
+              ),
+              items: LimitPeriod.values
+                  .map((p) => DropdownMenuItem(
+                        value: p,
+                        child: Text(limitPeriodLabel(p)),
+                      ))
+                  .toList(),
             ),
             const SizedBox(height: 20),
             SizedBox(
@@ -752,6 +915,192 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Text('Send Invite'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditLimitSheet extends StatefulWidget {
+  const _EditLimitSheet({
+    required this.walletId,
+    required this.memberId,
+    required this.member,
+    required this.db,
+  });
+
+  final String walletId;
+  final String memberId;
+  final FamilyWalletMember? member;
+  final DatabaseService db;
+
+  @override
+  State<_EditLimitSheet> createState() => _EditLimitSheetState();
+}
+
+class _EditLimitSheetState extends State<_EditLimitSheet> {
+  late final TextEditingController _limitController;
+  late LimitPeriod _period;
+  bool _busy = false;
+  String? _error;
+
+  bool get _hasLimit => _limitController.text.trim().isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    final m = widget.member;
+    _limitController = TextEditingController(
+      text: m?.limit == null ? '' : m!.limit!.toStringAsFixed(0),
+    );
+    _period = m?.period ?? LimitPeriod.manual;
+    _limitController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _limitController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    double? limit;
+    if (_hasLimit) {
+      limit = double.tryParse(_limitController.text.trim());
+      if (limit == null || limit <= 0) {
+        setState(() => _error = 'Enter a valid limit (or leave blank)');
+        return;
+      }
+    }
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    try {
+      await widget.db.setMemberLimit(
+        walletId: widget.walletId,
+        userId: widget.memberId,
+        limit: limit,
+        period: limit == null ? LimitPeriod.manual : _period,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = '$e';
+      });
+    }
+  }
+
+  Future<void> _resetSpend() async {
+    setState(() => _busy = true);
+    try {
+      await widget.db.resetMemberSpend(
+        walletId: widget.walletId,
+        userId: widget.memberId,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = '$e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final showResetButton = _period == LimitPeriod.manual &&
+        (widget.member?.spentInPeriod ?? 0) > 0;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 8,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Edit Limit',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _limitController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+              decoration: InputDecoration(
+                labelText: 'Spending Limit',
+                hintText: 'Leave blank for no limit',
+                prefixIcon: const Icon(Icons.speed_outlined),
+                suffixText: 'SAR',
+                border: const OutlineInputBorder(),
+                errorText: _error,
+                errorStyle: TextStyle(color: scheme.error),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<LimitPeriod>(
+              value: _period,
+              onChanged: _hasLimit
+                  ? (v) => setState(() => _period = v ?? LimitPeriod.manual)
+                  : null,
+              decoration: InputDecoration(
+                labelText: 'Reset',
+                prefixIcon: const Icon(Icons.event_repeat),
+                border: const OutlineInputBorder(),
+                helperText: _hasLimit
+                    ? 'Changing the period resets the spent total'
+                    : 'Set a limit to choose a reset cadence',
+              ),
+              items: LimitPeriod.values
+                  .map((p) => DropdownMenuItem(
+                        value: p,
+                        child: Text(limitPeriodLabel(p)),
+                      ))
+                  .toList(),
+            ),
+            if (showResetButton) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _resetSpend,
+                icon: const Icon(Icons.restart_alt),
+                label: const Text('Reset spending'),
+              ),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _busy ? null : _save,
+                child: _busy
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save'),
               ),
             ),
           ],

@@ -8,6 +8,7 @@ import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/group_order.dart';
 import 'package:food_delivery_platform/models/family_wallet.dart';
 import 'package:food_delivery_platform/models/family_wallet_invite.dart';
+import 'package:food_delivery_platform/models/family_wallet_member.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
@@ -1177,6 +1178,83 @@ class DatabaseService {
   firestore.CollectionReference<Map<String, dynamic>>
   get _familyWalletInvitesCollection => _db.collection('family_wallet_invites');
 
+  firestore.CollectionReference<Map<String, dynamic>> _familyMembersCollection(
+    String walletId,
+  ) =>
+      _familyWalletsCollection.doc(walletId).collection('members');
+
+  Stream<List<FamilyWalletMember>> streamFamilyWalletMembers(String walletId) {
+    return _familyMembersCollection(walletId).snapshots().map((snap) =>
+        snap.docs.map((d) => FamilyWalletMember.fromMap(d.data())).toList());
+  }
+
+  Stream<FamilyWalletMember?> streamFamilyWalletMember({
+    required String walletId,
+    required String userId,
+  }) {
+    return _familyMembersCollection(walletId)
+        .doc(userId)
+        .snapshots()
+        .map((d) {
+      if (!d.exists) return null;
+      final data = d.data();
+      if (data == null) return null;
+      return FamilyWalletMember.fromMap(data);
+    });
+  }
+
+  Future<void> setMemberLimit({
+    required String walletId,
+    required String userId,
+    required double? limit,
+    required LimitPeriod period,
+  }) async {
+    final ref = _familyMembersCollection(walletId).doc(userId);
+
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      final now = DateTime.now();
+
+      if (!snap.exists) {
+        // Legacy: member existed before this feature; create the doc fresh.
+        tx.set(ref, {
+          'userId': userId,
+          'limit': limit,
+          'period': period.name,
+          'spentInPeriod': 0.0,
+          'periodStartedAt':
+              firestore.Timestamp.fromDate(currentPeriodStart(period, now)),
+          'joinedAt': firestore.FieldValue.serverTimestamp(),
+        });
+        return;
+      }
+
+      final existing = FamilyWalletMember.fromMap(snap.data()!);
+      final periodChanged = existing.period != period;
+
+      final update = <String, dynamic>{
+        'limit': limit,
+        'period': period.name,
+      };
+      if (periodChanged) {
+        update['spentInPeriod'] = 0.0;
+        update['periodStartedAt'] =
+            firestore.Timestamp.fromDate(currentPeriodStart(period, now));
+      }
+      tx.update(ref, update);
+    });
+  }
+
+  Future<void> resetMemberSpend({
+    required String walletId,
+    required String userId,
+  }) async {
+    await _familyMembersCollection(walletId).doc(userId).update({
+      'spentInPeriod': 0.0,
+      'periodStartedAt': firestore.Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
   Stream<FamilyWallet?> streamFamilyWalletForUser(String userId) {
     FamilyWallet? extractFirst(
       firestore.QuerySnapshot<Map<String, dynamic>> snap,
@@ -1304,6 +1382,8 @@ class DatabaseService {
     required String ownerId,
     required String ownerName,
     required String phone,
+    double? limit,
+    LimitPeriod period = LimitPeriod.manual,
   }) async {
     final invitee = await getUserByPhone(phone);
     if (invitee == null) return FamilyWalletInviteResult.notFound;
@@ -1346,6 +1426,8 @@ class DatabaseService {
       'inviteeId': invitee.id,
       'inviteePhone': phone,
       'status': InviteStatus.pending.name,
+      'inviteeLimit': limit,
+      'inviteePeriod': period.name,
       'createdAt': firestore.FieldValue.serverTimestamp(),
     });
 
@@ -1371,6 +1453,19 @@ class DatabaseService {
       final walletSnap = await tx.get(walletRef);
       if (!walletSnap.exists) throw Exception('Family wallet not found');
 
+      final memberRef = _familyMembersCollection(invite.walletId)
+          .doc(invite.inviteeId);
+      final now = DateTime.now();
+      tx.set(memberRef, {
+        'userId': invite.inviteeId,
+        'limit': invite.inviteeLimit,
+        'period': invite.inviteePeriod.name,
+        'spentInPeriod': 0.0,
+        'periodStartedAt':
+            firestore.Timestamp.fromDate(currentPeriodStart(invite.inviteePeriod, now)),
+        'joinedAt': firestore.FieldValue.serverTimestamp(),
+      });
+
       tx.update(walletRef, {
         'memberIds': firestore.FieldValue.arrayUnion([invite.inviteeId]),
         'updatedAt': firestore.FieldValue.serverTimestamp(),
@@ -1389,10 +1484,13 @@ class DatabaseService {
     required String walletId,
     required String memberId,
   }) async {
-    await _familyWalletsCollection.doc(walletId).update({
+    final batch = _db.batch();
+    batch.update(_familyWalletsCollection.doc(walletId), {
       'memberIds': firestore.FieldValue.arrayRemove([memberId]),
       'updatedAt': firestore.FieldValue.serverTimestamp(),
     });
+    batch.delete(_familyMembersCollection(walletId).doc(memberId));
+    await batch.commit();
   }
 
   Future<void> leaveFamilyWallet({
@@ -1415,21 +1513,73 @@ class DatabaseService {
 
   Future<void> deductFromFamilyWallet({
     required String walletId,
+    required String userId,
     required double amount,
   }) async {
     if (amount <= 0) return;
-    final ref = _familyWalletsCollection.doc(walletId);
+    final walletRef = _familyWalletsCollection.doc(walletId);
+    final memberRef = _familyMembersCollection(walletId).doc(userId);
 
     await _db.runTransaction((tx) async {
-      final snap = await tx.get(ref);
-      if (!snap.exists) throw Exception('Family wallet not found');
+      final walletSnap = await tx.get(walletRef);
+      if (!walletSnap.exists) throw Exception('Family wallet not found');
 
-      final balance = ((snap.data()?['balance'] as num?)?.toDouble()) ?? 0.0;
+      final balance =
+          ((walletSnap.data()?['balance'] as num?)?.toDouble()) ?? 0.0;
       if (balance < amount) {
         throw Exception('Insufficient family wallet balance');
       }
 
-      tx.update(ref, {
+      final isOwner = walletSnap.data()?['ownerId'] == userId;
+
+      if (!isOwner) {
+        final memberSnap = await tx.get(memberRef);
+
+        // Legacy: member doc may not exist for wallets created before this
+        // feature shipped. Treat as "no limit, manual" and create the doc.
+        final FamilyWalletMember member = memberSnap.exists
+            ? FamilyWalletMember.fromMap(memberSnap.data()!)
+            : FamilyWalletMember(
+                userId: userId,
+                limit: null,
+                period: LimitPeriod.manual,
+                spentInPeriod: 0.0,
+                periodStartedAt:
+                    DateTime.fromMillisecondsSinceEpoch(0),
+              );
+
+        final now = DateTime.now();
+        final boundary = currentPeriodStart(member.period, now);
+        final effectiveSpent = member.periodStartedAt.isBefore(boundary)
+            ? 0.0
+            : member.spentInPeriod;
+
+        if (member.limit != null &&
+            effectiveSpent + amount > member.limit!) {
+          throw Exception('Spending limit reached');
+        }
+
+        final newSpent = effectiveSpent + amount;
+        final newPeriodStart = member.periodStartedAt.isBefore(boundary)
+            ? boundary
+            : member.periodStartedAt;
+
+        final update = <String, dynamic>{
+          'userId': userId,
+          'limit': member.limit,
+          'period': member.period.name,
+          'spentInPeriod': newSpent,
+          'periodStartedAt': firestore.Timestamp.fromDate(newPeriodStart),
+        };
+        if (!memberSnap.exists) {
+          update['joinedAt'] = firestore.FieldValue.serverTimestamp();
+          tx.set(memberRef, update);
+        } else {
+          tx.update(memberRef, update);
+        }
+      }
+
+      tx.update(walletRef, {
         'balance': firestore.FieldValue.increment(-amount),
         'updatedAt': firestore.FieldValue.serverTimestamp(),
       });

@@ -425,7 +425,12 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
+    _menuFuture = DatabaseService().getMenuForRestaurant(
+      restaurantId: widget.restaurant.id,
+    );
   }
+
+  late final Future<List<MenuItem>> _menuFuture;
 
   @override
   void dispose() {
@@ -437,7 +442,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final cart = widget.groupOrderId == null ? CartScope.of(context) : null;
+    final cart = widget.groupOrderId == null ? CartScope.read(context) : null;
     final restaurantId = widget.restaurant.id;
 
     return Scaffold(
@@ -449,9 +454,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
       ),
 
       body: FutureBuilder<List<MenuItem>>(
-        future: DatabaseService().getMenuForRestaurant(
-          restaurantId: widget.restaurant.id,
-        ),
+        future: _menuFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

@@ -1,3 +1,5 @@
+import 'package:food_delivery_platform/models/family_wallet_member.dart';
+
 enum InviteStatus { pending, accepted, rejected }
 
 InviteStatus _statusFromString(String? raw) {
@@ -20,6 +22,8 @@ class FamilyWalletInvite {
   final String inviteeId;
   final String inviteePhone;
   final InviteStatus status;
+  final double? inviteeLimit;
+  final LimitPeriod inviteePeriod;
 
   const FamilyWalletInvite({
     required this.id,
@@ -29,6 +33,8 @@ class FamilyWalletInvite {
     required this.inviteeId,
     required this.inviteePhone,
     required this.status,
+    required this.inviteeLimit,
+    required this.inviteePeriod,
   });
 
   Map<String, dynamic> toJson() => {
@@ -39,9 +45,12 @@ class FamilyWalletInvite {
         'inviteeId': inviteeId,
         'inviteePhone': inviteePhone,
         'status': status.name,
+        'inviteeLimit': inviteeLimit,
+        'inviteePeriod': inviteePeriod.name,
       };
 
   factory FamilyWalletInvite.fromMap(Map<String, dynamic> map) {
+    final rawLimit = map['inviteeLimit'];
     return FamilyWalletInvite(
       id: (map['id'] ?? '').toString(),
       walletId: (map['walletId'] ?? '').toString(),
@@ -50,6 +59,8 @@ class FamilyWalletInvite {
       inviteeId: (map['inviteeId'] ?? '').toString(),
       inviteePhone: (map['inviteePhone'] ?? '').toString(),
       status: _statusFromString(map['status']?.toString()),
+      inviteeLimit: rawLimit is num ? rawLimit.toDouble() : null,
+      inviteePeriod: limitPeriodFromString(map['inviteePeriod']?.toString()),
     );
   }
 }

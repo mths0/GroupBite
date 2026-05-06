@@ -11,6 +11,7 @@ import 'package:food_delivery_platform/models/order.dart';
 
 import 'package:food_delivery_platform/models/cart_models.dart';
 import 'package:food_delivery_platform/models/family_wallet.dart';
+import 'package:food_delivery_platform/models/family_wallet_member.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
@@ -211,6 +212,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         }
         await _db.deductFromFamilyWallet(
           walletId: wallet.id,
+          userId: widget.customerId,
           amount: widget.total,
         );
       }
@@ -336,7 +338,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new),
@@ -416,9 +418,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           setState(() => _familyWallet = family);
                         }
                       });
-                      final familyHasEnough =
-                          family != null && family.balance >= widget.total;
-
                       return Column(
                         children: [
                           if (card == null)
@@ -447,8 +446,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             id: _kPaymentWallet,
                             label: 'Wallet',
                             subtitle: hasEnough
-                                ? 'Balance: \$${balance.toStringAsFixed(2)}'
-                                : 'Insufficient balance — \$${balance.toStringAsFixed(2)}',
+                                ? 'Balance: ${balance.toStringAsFixed(2)} SAR'
+                                : 'Insufficient balance — ${balance.toStringAsFixed(2)} SAR',
                             icon: Icons.account_balance_wallet_outlined,
                             isSelected: _selectedPaymentId == _kPaymentWallet,
                             disabled: !hasEnough,
@@ -458,17 +457,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           ),
                           if (family != null) ...[
                             const SizedBox(height: 8),
-                            _PaymentTile(
-                              id: _kPaymentFamilyWallet,
-                              label: 'Family Wallet',
-                              subtitle: familyHasEnough
-                                  ? 'Balance: \$${family.balance.toStringAsFixed(2)}'
-                                  : 'Insufficient balance — \$${family.balance.toStringAsFixed(2)}',
-                              icon: Icons.family_restroom,
+                            _FamilyWalletTile(
+                              family: family,
+                              currentUserId: widget.customerId,
+                              total: widget.total,
                               isSelected: _selectedPaymentId ==
                                   _kPaymentFamilyWallet,
-                              disabled: !familyHasEnough,
-                              onTap: () => setState(
+                              onSelected: () => setState(
                                 () => _selectedPaymentId =
                                     _kPaymentFamilyWallet,
                               ),
@@ -811,6 +806,89 @@ class _PaymentTile extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+/// Family-wallet payment tile. Computes the effective spendable amount
+/// (`min(remainingLimit, balance)` for members; `balance` for the owner)
+/// and disables the tile when that amount is below the order total.
+class _FamilyWalletTile extends StatelessWidget {
+  const _FamilyWalletTile({
+    required this.family,
+    required this.currentUserId,
+    required this.total,
+    required this.isSelected,
+    required this.onSelected,
+  });
+
+  final FamilyWallet family;
+  final String currentUserId;
+  final double total;
+  final bool isSelected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final isOwner = family.ownerId == currentUserId;
+
+    if (isOwner) {
+      // Owner spends without per-member limits.
+      final hasEnough = family.balance >= total;
+      return _PaymentTile(
+        id: _kPaymentFamilyWallet,
+        label: 'Family Wallet',
+        subtitle: hasEnough
+            ? 'Available: ${family.balance.toStringAsFixed(2)} SAR'
+            : 'Insufficient balance — ${family.balance.toStringAsFixed(2)} SAR',
+        icon: Icons.family_restroom,
+        isSelected: isSelected,
+        disabled: !hasEnough,
+        onTap: onSelected,
+      );
+    }
+
+    return StreamBuilder<FamilyWalletMember?>(
+      stream: DatabaseService().streamFamilyWalletMember(
+        walletId: family.id,
+        userId: currentUserId,
+      ),
+      builder: (context, snap) {
+        final member = snap.data;
+        final spent = member?.effectiveSpent(DateTime.now()) ?? 0.0;
+        final limit = member?.limit;
+
+        final remainingLimit = limit == null
+            ? family.balance
+            : (limit - spent).clamp(0.0, double.infinity);
+        final available =
+            remainingLimit < family.balance ? remainingLimit : family.balance;
+
+        final hasEnough = available >= total;
+        final overLimit = limit != null && remainingLimit <= 0;
+
+        String subtitle;
+        if (overLimit) {
+          subtitle = 'Spending limit reached';
+        } else if (hasEnough) {
+          subtitle = 'Available: ${available.toStringAsFixed(2)} SAR';
+        } else {
+          subtitle =
+              'Insufficient — only ${available.toStringAsFixed(2)} SAR available';
+        }
+
+        return _PaymentTile(
+          id: _kPaymentFamilyWallet,
+          label: 'Family Wallet',
+          subtitle: subtitle,
+          icon: Icons.family_restroom,
+          isSelected: isSelected,
+          disabled: !hasEnough,
+          onTap: onSelected,
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
 /// Read-only order summary displayed at the bottom of the Checkout screen.
 class _CheckoutSummary extends StatelessWidget {
   const _CheckoutSummary({
@@ -862,7 +940,7 @@ class _CheckoutSummary extends StatelessWidget {
               ),
             ),
             Text(
-              '\$${total.toStringAsFixed(2)}',
+              '${total.toStringAsFixed(2)} SAR',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: colorScheme.primary,
@@ -890,8 +968,8 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final display = value < 0
-        ? '-\$${(-value).toStringAsFixed(2)}'
-        : '\$${value.toStringAsFixed(2)}';
+        ? '-${(-value).toStringAsFixed(2)} SAR'
+        : '${value.toStringAsFixed(2)} SAR';
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
