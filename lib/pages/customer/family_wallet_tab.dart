@@ -4,6 +4,7 @@ import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/family_wallet.dart';
 import 'package:food_delivery_platform/models/family_wallet_invite.dart';
 import 'package:food_delivery_platform/models/family_wallet_member.dart';
+import 'package:food_delivery_platform/pages/customer/add_funds_sheet.dart';
 
 class FamilyWalletTab extends StatefulWidget {
   const FamilyWalletTab({
@@ -218,9 +219,14 @@ class _WalletView extends StatelessWidget {
   bool get isOwner => wallet.isOwner(currentUserId);
 
   Future<void> _addFunds(BuildContext context) async {
-    final amount = await showDialog<double>(
+    final amount = await showModalBottomSheet<double>(
       context: context,
-      builder: (_) => const _AddFundsDialog(),
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => AddFundsSheet(
+        customerId: currentUserId,
+        title: 'Add funds to Family Wallet',
+      ),
     );
     if (amount == null || amount <= 0) return;
 
@@ -669,54 +675,6 @@ class _PendingInvitesSection extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _AddFundsDialog extends StatefulWidget {
-  const _AddFundsDialog();
-
-  @override
-  State<_AddFundsDialog> createState() => _AddFundsDialogState();
-}
-
-class _AddFundsDialogState extends State<_AddFundsDialog> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _confirm() {
-    Navigator.pop(context, double.tryParse(_controller.text));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add funds'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: 'Amount (SAR)',
-          border: OutlineInputBorder(),
-        ),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-        ],
-        onSubmitted: (_) => _confirm(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Center(child: const Text('Cancel')),
-        ),
-        ElevatedButton(onPressed: _confirm, child: const Text('Confirm')),
-      ],
     );
   }
 }

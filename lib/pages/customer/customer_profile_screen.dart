@@ -1,12 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
+import 'package:food_delivery_platform/pages/customer/add_funds_sheet.dart';
 import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
 import 'package:food_delivery_platform/pages/customer/family_wallet_tab.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
@@ -431,9 +431,11 @@ class _PaymentTabState extends State<_PaymentTab>
   bool get wantKeepAlive => true;
 
   Future<void> _showAddFundsDialog() async {
-    final amount = await showDialog<double>(
+    final amount = await showModalBottomSheet<double>(
       context: context,
-      builder: (_) => const _AddFundsDialog(),
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => AddFundsSheet(customerId: widget.customerId),
     );
 
     if (amount == null || amount <= 0) return;
@@ -600,58 +602,6 @@ class _PaymentTabState extends State<_PaymentTab>
               ),
             );
           },
-        ),
-      ],
-    );
-  }
-}
-
-class _AddFundsDialog extends StatefulWidget {
-  const _AddFundsDialog();
-
-  @override
-  State<_AddFundsDialog> createState() => _AddFundsDialogState();
-}
-
-class _AddFundsDialogState extends State<_AddFundsDialog> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _confirm() {
-    final parsed = double.tryParse(_controller.text);
-    Navigator.pop(context, parsed);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add funds'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: 'Amount (SAR)',
-          border: OutlineInputBorder(),
-        ),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-        ],
-        onSubmitted: (_) => _confirm(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: _confirm,
-          child: const Text('Confirm'),
         ),
       ],
     );
