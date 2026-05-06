@@ -816,7 +816,6 @@ class HeaderCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // صورة كبيرة (لو عندك imageUrl في Restaurant لاحقاً استبدلها)
               SizedBox(
                 height: 200,
                 width: double.infinity,

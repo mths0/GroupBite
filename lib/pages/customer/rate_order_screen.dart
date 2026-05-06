@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/pages/customer/map_track_screen.dart';
 
 class RateOrderSheet extends StatefulWidget {
   const RateOrderSheet({
+    super.key,
     required this.order,
     required this.onSubmit,
   });

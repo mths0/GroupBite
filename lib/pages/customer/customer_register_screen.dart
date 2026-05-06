@@ -1,16 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/abstract_user.dart';
 import 'package:food_delivery_platform/models/customer.dart';
+import 'package:food_delivery_platform/models/customer_address.dart';
+import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'package:food_delivery_platform/utils/validators.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:food_delivery_platform/models/customer_address.dart';
-import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 
 class CustomerRegisterScreen extends StatefulWidget {
   const CustomerRegisterScreen({super.key, required this.email});

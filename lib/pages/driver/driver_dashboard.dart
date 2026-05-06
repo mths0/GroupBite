@@ -175,50 +175,6 @@ class _DriverDashboardState extends State<DriverDashboard>
     );
   }
 
-  Widget _buildActiveOrderSection() {
-    return StreamBuilder<List<Order>>(
-      stream: _driverOrdersStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (snapshot.hasError) {
-          return Center(child: Text("Error: ${snapshot.error}"));
-        }
-
-        final orders = snapshot.data ?? [];
-
-        final activeOrders = orders.where((order) {
-          return order.status == OrderStatus.assigned ||
-              order.status == OrderStatus.pickedUp;
-        }).toList();
-
-        final Order? activeOrder = activeOrders.isNotEmpty
-            ? activeOrders.first
-            : null;
-
-        if (activeOrder == null) {
-          return const Center(
-            child: Text("No active order"),
-          );
-        }
-
-        return DriverActiveOrderCard(
-          order: activeOrder,
-          driver: widget.driver,
-          onPickedUp: () async {
-            await DatabaseService().markOrderPickedUp(activeOrder.id);
-          },
-          onDelivered: () async {
-            await DatabaseService().markOrderDelivered(activeOrder.id);
-            _updateDriverStatus(DriverStatus.available);
-          },
-        );
-      },
-    );
-  }
-
   void _updateDriverStatus(DriverStatus status) {
     setState(() {
       widget.driver.updateStatus(status);

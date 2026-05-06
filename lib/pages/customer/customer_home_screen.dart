@@ -4,9 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/mock/mock_restaurant_repository.dart';
 import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/customer/join_group_order_screen.dart';
 import 'package:food_delivery_platform/pages/customer/restaurant_menu_page.dart';
@@ -24,7 +22,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   GeoPoint? _deliveryLocation;
-  CustomerAddress? _defaultAddress;
   bool _isLoadingAddress = true;
   String? _addressLabel;
 
@@ -84,7 +81,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       if (!mounted) return;
 
       setState(() {
-        _defaultAddress = defaultAddress;
         _deliveryLocation =
             defaultAddress?.location ?? widget.customer.location;
         _isLoadingAddress = false;

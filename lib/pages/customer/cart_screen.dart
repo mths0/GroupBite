@@ -2,20 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
+import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
 
+import '../../cart/cart_controller.dart';
+import '../../cart/cart_scope.dart';
 import '../../mock/mock_cart_repository.dart';
 import '../../models/cart_item.dart' as app_models;
 import '../../models/cart_models.dart' as cart_models;
-import 'package:food_delivery_platform/models/cart_models.dart';
-import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
-import '../../cart/cart_controller.dart';
-import 'package:food_delivery_platform/models/cart_models.dart';
-import '../../cart/cart_scope.dart';
-
-enum _DeliveryTimeOption { asap, schedule }
-
-const String _kPaymentCreditCard = 'pay_credit';
-const String _kPaymentWallet = 'pay_wallet';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({
@@ -43,15 +36,9 @@ class _CartScreenState extends State<CartScreen> {
   // ---------------------------------------------------------------------------
   bool _isLoading = true;
   cart_models.CheckoutData? _checkoutData;
-  List<cart_models.Address> _addresses = [];
   cart_models.Coupon? _appliedCoupon;
   bool _isValidatingCoupon = false;
 
-  String? _selectedAddressId;
-  _DeliveryTimeOption _deliveryTimeOption = _DeliveryTimeOption.asap;
-  DateTime? _scheduledDateTime;
-  String _selectedPaymentId = _kPaymentCreditCard;
-  bool _isPlacingOrder = false;
   final TextEditingController _promoController = TextEditingController();
 
   // ---------------------------------------------------------------------------
@@ -90,10 +77,6 @@ class _CartScreenState extends State<CartScreen> {
 
     setState(() {
       _checkoutData = results[0] as cart_models.CheckoutData;
-      _addresses = results[1] as List<cart_models.Address>;
-      if (_addresses.isNotEmpty) {
-        _selectedAddressId = _addresses.first.id;
-      }
       _isLoading = false;
     });
   }
@@ -396,7 +379,7 @@ class _CartItemCard extends StatelessWidget {
                 width: 76,
                 height: 76,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (_, _, _) => Container(
                   width: 76,
                   height: 76,
                   decoration: BoxDecoration(
@@ -866,54 +849,6 @@ class _BillRow extends StatelessWidget {
   }
 }
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.icon,
-    required this.child,
-  });
-
-  final String title;
-  final IconData icon;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      color: colorScheme.surface,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant, width: 0.8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: colorScheme.primary, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class AddressTile extends StatelessWidget {
   const AddressTile({
     super.key,
@@ -985,299 +920,5 @@ class AddressTile extends StatelessWidget {
 
   String? _dummyRadioGroupValue(bool isSelected, String id) {
     return isSelected ? id : null;
-  }
-}
-
-class _DeliveryTimeSelector extends StatelessWidget {
-  const _DeliveryTimeSelector({
-    required this.selected,
-    required this.scheduledDateTime,
-    required this.onTap,
-  });
-
-  final _DeliveryTimeOption selected;
-  final DateTime? scheduledDateTime;
-  final Future<void> Function(_DeliveryTimeOption) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _DeliveryOptionTile(
-            label: 'ASAP',
-            subtitle: '25-35 min',
-            isSelected: selected == _DeliveryTimeOption.asap,
-            onTap: () => onTap(_DeliveryTimeOption.asap),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _DeliveryOptionTile(
-            label: 'Schedule',
-            subtitle:
-                selected == _DeliveryTimeOption.schedule &&
-                    scheduledDateTime != null
-                ? _formatDate(scheduledDateTime!)
-                : 'Choose time',
-            isSelected: selected == _DeliveryTimeOption.schedule,
-            onTap: () => onTap(_DeliveryTimeOption.schedule),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatDate(DateTime dt) {
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day}/${dt.month} $h:$m';
-  }
-}
-
-class _DeliveryOptionTile extends StatelessWidget {
-  const _DeliveryOptionTile({
-    required this.label,
-    required this.subtitle,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final String subtitle;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? colorScheme.primary
-                : colorScheme.outlineVariant,
-            width: isSelected ? 1.8 : 0.8,
-          ),
-          color: isSelected
-              ? colorScheme.primaryContainer.withOpacity(0.25)
-              : Colors.transparent,
-        ),
-        child: Column(
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: isSelected ? colorScheme.primary : colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PaymentTile extends StatelessWidget {
-  const _PaymentTile({
-    required this.id,
-    required this.label,
-    required this.subtitle,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String id;
-  final String label;
-  final String subtitle;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? colorScheme.primary
-                : colorScheme.outlineVariant,
-            width: isSelected ? 1.8 : 0.8,
-          ),
-          color: isSelected
-              ? colorScheme.primaryContainer.withOpacity(0.25)
-              : Colors.transparent,
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: isSelected
-                  ? colorScheme.primary
-                  : colorScheme.surfaceContainerHigh,
-              child: Icon(
-                icon,
-                color: isSelected
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurfaceVariant,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Radio<String>(
-              value: id,
-              groupValue: isSelected ? id : null,
-              onChanged: (_) => onTap(),
-              activeColor: colorScheme.primary,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CheckoutSummary extends StatelessWidget {
-  const _CheckoutSummary({
-    required this.subtotal,
-    required this.deliveryFee,
-    required this.tax,
-    required this.discount,
-    required this.total,
-    this.appliedCoupon,
-  });
-
-  final double subtotal;
-  final double deliveryFee;
-  final double tax;
-  final double discount;
-  final double total;
-  final cart_models.Coupon? appliedCoupon;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Column(
-      children: [
-        _SummaryRow(label: 'Subtotal', value: subtotal),
-        const SizedBox(height: 8),
-        _SummaryRow(label: 'Delivery Fee', value: deliveryFee),
-        const SizedBox(height: 8),
-        _SummaryRow(label: 'Tax (15%)', value: tax),
-        if (appliedCoupon != null) ...[
-          const SizedBox(height: 8),
-          _SummaryRow(
-            label: 'Discount (${appliedCoupon!.label})',
-            value: -discount,
-            valueColor: Colors.green,
-          ),
-        ],
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 10),
-          child: Divider(height: 1),
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Total',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            Text(
-              '${total.toStringAsFixed(2)} SAR',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
-
-  final String label;
-  final double value;
-  final Color? valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final display = value < 0
-        ? '-${(-value).toStringAsFixed(2)} SAR'
-        : '${value.toStringAsFixed(2)} SAR';
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-        ),
-        Text(
-          display,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: valueColor ?? colorScheme.onSurface,
-          ),
-        ),
-      ],
-    );
   }
 }

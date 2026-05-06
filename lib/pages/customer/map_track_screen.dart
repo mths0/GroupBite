@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/models/driver.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:location/location.dart';
-import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/driver.dart';
+import 'package:food_delivery_platform/models/order.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class MapScreen extends StatefulWidget {
@@ -23,19 +21,6 @@ class _MapScreenState extends State<MapScreen> {
   BitmapDescriptor? _restaurantIcon;
   BitmapDescriptor? _customerIcon;
   BitmapDescriptor? _driverIcon;
-
-  Driver? _driver;
-  bool _isLoadingDriver = true;
-
-  LatLng get _customerLocation => LatLng(
-    widget.order.customerLocation.latitude,
-    widget.order.customerLocation.longitude,
-  );
-
-  LatLng get _restaurantLocation => LatLng(
-    widget.order.restaurantLocation.latitude,
-    widget.order.restaurantLocation.longitude,
-  );
 
   @override
   void initState() {
@@ -98,28 +83,6 @@ class _MapScreenState extends State<MapScreen> {
         );
       },
     );
-  }
-
-  Future<void> _loadDriver() async {
-    if (widget.order.driverId == null || widget.order.driverId!.isEmpty) {
-      setState(() => _isLoadingDriver = false);
-      return;
-    }
-
-    try {
-      final driver = await DatabaseService().getDriverById(
-        widget.order.driverId!,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _driver = driver;
-        _isLoadingDriver = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoadingDriver = false);
-    }
   }
 
   Future<void> _callDriver(String phone) async {
@@ -388,8 +351,6 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final initialTarget = _customerLocation;
-
     return StreamBuilder<Order?>(
       stream: DatabaseService().streamOrderById(widget.order.id),
       builder: (context, orderSnapshot) {
