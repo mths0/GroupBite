@@ -7,6 +7,7 @@ import '../../mock/mock_cart_repository.dart';
 import '../../models/cart_item.dart' as app_models;
 import '../../models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/cart_models.dart';
+import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
 import '../../cart/cart_controller.dart';
 import 'package:food_delivery_platform/models/cart_models.dart';
@@ -46,6 +47,7 @@ class _CartScreenState extends State<CartScreen> {
   List<cart_models.Address> _addresses = [];
   cart_models.Coupon? _appliedCoupon;
   bool _isValidatingCoupon = false;
+  double _deliveryFee = 0.0;
 
   String? _selectedAddressId;
   _DeliveryTimeOption _deliveryTimeOption = _DeliveryTimeOption.asap;
@@ -84,13 +86,17 @@ class _CartScreenState extends State<CartScreen> {
     final results = await Future.wait([
       _repo.getCheckoutData(),
       _repo.getAddresses(),
+      DatabaseService().getRestaurantById(widget.restaurantId),
     ]);
 
     if (!mounted) return;
 
+    final restaurant = results[2] as Restaurant?;
+
     setState(() {
       _checkoutData = results[0] as cart_models.CheckoutData;
       _addresses = results[1] as List<cart_models.Address>;
+      _deliveryFee = restaurant?.deliveryFee ?? 0.0;
       if (_addresses.isNotEmpty) {
         _selectedAddressId = _addresses.first.id;
       }
@@ -141,8 +147,7 @@ class _CartScreenState extends State<CartScreen> {
         : _appliedCoupon!.discountValue;
   }
 
-  double get _total =>
-      _subtotal + (_checkoutData?.deliveryFee ?? 0.0) + _tax - _discount;
+  double get _total => _subtotal + _deliveryFee + _tax - _discount;
 
   // ---------------------------------------------------------------------------
   // Promo Code
@@ -220,6 +225,7 @@ class _CartScreenState extends State<CartScreen> {
               .toList(),
           checkoutData: _checkoutData!,
           subtotal: _subtotal,
+          deliveryFee: _deliveryFee,
           tax: _tax,
           discount: _discount,
           total: _total,
@@ -316,7 +322,7 @@ class _CartScreenState extends State<CartScreen> {
         const SizedBox(height: 12),
         _BillSummaryCard(
           subtotal: _subtotal,
-          deliveryFee: _checkoutData?.deliveryFee ?? 0.0,
+          deliveryFee: _deliveryFee,
           tax: _tax,
           discount: _discount,
           total: _total,
