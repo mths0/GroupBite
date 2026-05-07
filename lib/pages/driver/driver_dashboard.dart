@@ -3,6 +3,7 @@ import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/driver.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/pages/driver/driver_active_order_card.dart';
+import 'package:food_delivery_platform/pages/driver/driver_profile_screen.dart';
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({super.key, required this.driver});
@@ -15,6 +16,7 @@ class DriverDashboard extends StatefulWidget {
 
 class _DriverDashboardState extends State<DriverDashboard>
     with WidgetsBindingObserver {
+  int _selectedIndex = 0;
   late Stream<List<Order>> _availableOrdersStream;
   late Stream<List<Order>> _driverOrdersStream;
 
@@ -208,6 +210,50 @@ class _DriverDashboardState extends State<DriverDashboard>
     return (latDiff * latDiff) + (lngDiff * lngDiff);
   }
 
+  Widget _buildOrdersBody() {
+    return SafeArea(
+      child: StreamBuilder<List<Order>>(
+        stream: _driverOrdersStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          }
+
+          final orders = snapshot.data ?? [];
+
+          final activeOrders = orders.where((order) {
+            return order.status == OrderStatus.assigned ||
+                order.status == OrderStatus.pickedUp;
+          }).toList();
+
+          if (activeOrders.isNotEmpty) {
+            return DriverActiveOrderCard(
+              order: activeOrders.first,
+              driver: widget.driver,
+              onPickedUp: () async {
+                await DatabaseService().markOrderPickedUp(
+                  activeOrders.first.id,
+                );
+              },
+              onDelivered: () async {
+                await DatabaseService().markOrderDelivered(
+                  activeOrders.first.id,
+                );
+                _updateDriverStatus(DriverStatus.available);
+              },
+            );
+          }
+
+          return _buildAvailableOrdersSection();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -241,46 +287,28 @@ class _DriverDashboardState extends State<DriverDashboard>
           ],
         ),
       ),
-      body: SafeArea(
-        child: StreamBuilder<List<Order>>(
-          stream: _driverOrdersStream,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (snapshot.hasError) {
-              return Center(child: Text("Error: ${snapshot.error}"));
-            }
-
-            final orders = snapshot.data ?? [];
-
-            final activeOrders = orders.where((order) {
-              return order.status == OrderStatus.assigned ||
-                  order.status == OrderStatus.pickedUp;
-            }).toList();
-
-            if (activeOrders.isNotEmpty) {
-              return DriverActiveOrderCard(
-                order: activeOrders.first,
-                driver: widget.driver,
-                onPickedUp: () async {
-                  await DatabaseService().markOrderPickedUp(
-                    activeOrders.first.id,
-                  );
-                },
-                onDelivered: () async {
-                  await DatabaseService().markOrderDelivered(
-                    activeOrders.first.id,
-                  );
-                  _updateDriverStatus(DriverStatus.available);
-                },
-              );
-            }
-
-            return _buildAvailableOrdersSection();
-          },
-        ),
+      body: _selectedIndex == 0
+          ? _buildOrdersBody()
+          : DriverProfileTab(driver: widget.driver),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long),
+            label: 'Orders',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
       ),
     );
   }
