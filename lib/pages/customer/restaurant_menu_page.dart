@@ -441,6 +441,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                                                       walletBalance: 100.0,
                                                     ),
                                                 subtotal: mySubtotal,
+                                                deliveryFee: deliveryShare,
                                                 tax: tax,
                                                 discount: 0.0,
                                                 total: total,

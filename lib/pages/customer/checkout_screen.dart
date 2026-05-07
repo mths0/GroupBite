@@ -16,6 +16,7 @@ class CheckoutScreen extends StatefulWidget {
     required this.cartItems,
     required this.checkoutData,
     required this.subtotal,
+    required this.deliveryFee,
     required this.tax,
     required this.discount,
     required this.total,
@@ -39,6 +40,7 @@ class CheckoutScreen extends StatefulWidget {
 
   /// Pre-computed values forwarded from CartScreen.
   final double subtotal;
+  final double deliveryFee;
   final double tax;
   final double discount;
   final double total;
@@ -476,7 +478,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           icon: Icons.receipt_long_outlined,
           child: _CheckoutSummary(
             subtotal: widget.subtotal,
-            deliveryFee: widget.checkoutData.deliveryFee,
+            deliveryFee: widget.deliveryFee,
             tax: widget.tax,
             discount: widget.discount,
             total: widget.total,

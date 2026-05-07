@@ -38,6 +38,7 @@ class _CartScreenState extends State<CartScreen> {
   cart_models.CheckoutData? _checkoutData;
   cart_models.Coupon? _appliedCoupon;
   bool _isValidatingCoupon = false;
+  final double _deliveryFee = 0.0;
 
   final TextEditingController _promoController = TextEditingController();
 
@@ -71,6 +72,7 @@ class _CartScreenState extends State<CartScreen> {
     final results = await Future.wait([
       _repo.getCheckoutData(),
       _repo.getAddresses(),
+      DatabaseService().getRestaurantById(widget.restaurantId),
     ]);
 
     if (!mounted) return;
@@ -129,8 +131,7 @@ class _CartScreenState extends State<CartScreen> {
         : _appliedCoupon!.discountValue;
   }
 
-  double get _total =>
-      _subtotal + (_checkoutData?.deliveryFee ?? 0.0) + _tax - _discount;
+  double get _total => _subtotal + _deliveryFee + _tax - _discount;
 
   // ---------------------------------------------------------------------------
   // Promo Code
@@ -209,6 +210,7 @@ class _CartScreenState extends State<CartScreen> {
               .toList(),
           checkoutData: _checkoutData!,
           subtotal: _subtotal,
+          deliveryFee: _deliveryFee,
           tax: _tax,
           discount: _discount,
           total: _total,
@@ -305,7 +307,7 @@ class _CartScreenState extends State<CartScreen> {
         const SizedBox(height: 12),
         _BillSummaryCard(
           subtotal: _subtotal,
-          deliveryFee: _checkoutData?.deliveryFee ?? 0.0,
+          deliveryFee: _deliveryFee,
           tax: _tax,
           discount: _discount,
           total: _total,
