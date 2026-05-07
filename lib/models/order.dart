@@ -26,6 +26,7 @@ class Order {
   final int? restaurantRating;
   final int? driverRating;
   final DateTime? canCancelUntil;
+  final DateTime? scheduledFor;
 
   Order({
     required this.id,
@@ -43,12 +44,14 @@ class Order {
     this.driverId,
     this.paymentId,
     required this.canCancelUntil,
+    this.scheduledFor,
   });
 
   factory Order.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
     final rawCanCancelUntil = data['canCancelUntil'];
+    final rawScheduledFor = data['scheduledFor'];
     return Order(
       id: doc.id,
       customerId: (data['customerId'] ?? '').toString(),
@@ -72,6 +75,9 @@ class Order {
       canCancelUntil: rawCanCancelUntil is Timestamp
           ? rawCanCancelUntil.toDate()
           : null,
+      scheduledFor: rawScheduledFor is Timestamp
+          ? rawScheduledFor.toDate()
+          : null,
     );
   }
 
@@ -89,6 +95,9 @@ class Order {
     'createdAt': Timestamp.fromDate(createdAt),
     'totalPrice': totalPrice,
     'paymentId': paymentId,
+    'scheduledFor': scheduledFor != null
+        ? Timestamp.fromDate(scheduledFor!)
+        : null,
   };
 }
 
