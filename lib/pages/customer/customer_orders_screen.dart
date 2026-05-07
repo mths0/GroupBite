@@ -26,6 +26,12 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
     return status == OrderStatus.assigned || status == OrderStatus.pickedUp;
   }
 
+  String _formatScheduledFor(DateTime dt) {
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year} at $hour:$min';
+  }
+
   Color _statusColor(OrderStatus status) {
     switch (status) {
       case OrderStatus.pending:
@@ -195,6 +201,12 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
                     Text('Total: ${order.totalPrice.toStringAsFixed(2)} SAR'),
                     const SizedBox(height: 6),
                     Text('Items: ${order.items.length}'),
+                    if (order.scheduledFor != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Scheduled for: ${_formatScheduledFor(order.scheduledFor!)}',
+                      ),
+                    ],
                     const SizedBox(height: 12),
 
                     ...order.items.map(

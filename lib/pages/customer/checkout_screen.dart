@@ -280,6 +280,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         restaurantId: widget.restaurantId,
         totalPrice: widget.total,
         items: orderItems,
+        scheduledFor: _deliveryTimeOption == _DeliveryTimeOption.schedule
+            ? _scheduledDateTime
+            : null,
       );
 
       if (!mounted) return;

@@ -203,6 +203,7 @@ class DatabaseService {
     required String restaurantId,
     required double totalPrice,
     required List<OrderItem> items,
+    DateTime? scheduledFor,
   }) async {
     final orderId = IdGenerator.generateOrderId();
     final docRef = _db.collection('orders').doc(orderId);
@@ -217,6 +218,9 @@ class DatabaseService {
       'status': OrderStatus.pending.name,
       'totalPrice': totalPrice,
       'createdAt': firestore.FieldValue.serverTimestamp(),
+      'scheduledFor': scheduledFor != null
+          ? firestore.Timestamp.fromDate(scheduledFor)
+          : null,
 
       // Cancel window: customer can cancel for 2 minutes
       'canCancelUntil': firestore.Timestamp.fromDate(
