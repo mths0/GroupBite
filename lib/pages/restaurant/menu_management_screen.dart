@@ -16,40 +16,34 @@ class MenuManagementScreen extends StatefulWidget {
   State<MenuManagementScreen> createState() => _MenuManagementScreenState();
 }
 
-class _MenuManagementScreenState extends State<MenuManagementScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _MenuManagementScreenState extends State<MenuManagementScreen> {
+  static const List<String> _defaultTabs = [
+    "Mains",
+    "Appetizers",
+    "Desserts",
+    "Drinks",
+  ];
 
-  static const _tabs = ["Mains", "Appetizers", "Desserts", "Drinks"];
+  int _selectedTabIndex = 0;
 
-  firestore.CollectionReference<Map<String, dynamic>> get _itemsCol => firestore
-      .FirebaseFirestore
-      .instance
-      .collection("users")
-      .doc(widget.restaurant.id)
-      .collection("menu_items");
+  firestore.DocumentReference<Map<String, dynamic>> get _restaurantDoc =>
+      firestore.FirebaseFirestore.instance
+          .collection("users")
+          .doc(widget.restaurant.id);
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
-  }
+  firestore.CollectionReference<Map<String, dynamic>> get _itemsCol =>
+      _restaurantDoc.collection("menu_items");
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  String _activeCategory() => _tabs[_tabController.index];
-
-  Future<void> _addOrEditItem({MenuItem? existing}) async {
+  Future<void> _addOrEditItem({
+    required String category,
+    MenuItem? existing,
+  }) async {
     final result = await showModalBottomSheet<MenuItem>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _AddEditItemSheet(
         restaurantId: widget.restaurant.id,
-        category: _activeCategory(),
+        category: existing?.category ?? category,
         existing: existing,
       ),
     );
@@ -61,13 +55,14 @@ class _MenuManagementScreenState extends State<MenuManagementScreen>
     await _itemsCol.doc(docId).set(
       {
         ...result.toJson(),
-        "id": docId, // ensure ID is set in the document
-        "restaurantId": widget.restaurant.id, // ensure restaurantId is set
-        "category": result.category, // ensure category is set
-        "createdAt": existing != null
-            ? firestore.FieldValue.serverTimestamp() // keep original timestamp
-            : firestore.FieldValue.serverTimestamp(), // set new timestamp
-        "updatedAt": firestore.FieldValue.serverTimestamp(), // track updates
+        "id": docId,
+        "restaurantId": widget.restaurant.id,
+        "category": result.category,
+        "createdAt": existing == null
+            ? firestore.FieldValue.serverTimestamp()
+            : (result.toJson()["createdAt"] ??
+                  firestore.FieldValue.serverTimestamp()),
+        "updatedAt": firestore.FieldValue.serverTimestamp(),
       },
       firestore.SetOptions(merge: true),
     );
@@ -104,74 +99,398 @@ class _MenuManagementScreenState extends State<MenuManagementScreen>
     });
   }
 
+  List<String> _extractCategories(Map<String, dynamic>? data) {
+    final raw = data?["categories"];
+
+    if (raw is List) {
+      final categories = raw
+          .map((e) => e.toString())
+          .where((e) => e.trim().isNotEmpty)
+          .toList();
+      if (categories.isNotEmpty) return categories;
+    }
+
+    return List<String>.from(_defaultTabs);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Menu Management"),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: _tabs.map((t) => Tab(text: t)).toList(),
-          onTap: (_) => setState(() {}),
-        ),
-      ),
+    return StreamBuilder<firestore.DocumentSnapshot<Map<String, dynamic>>>(
+      stream: _restaurantDoc.snapshots(),
+      builder: (context, restaurantSnapshot) {
+        if (restaurantSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-      // قائمة العناصر حسب التب
-      body: TabBarView(
-        controller: _tabController,
-        children: _tabs.map((category) {
-          final query = _itemsCol.where("category", isEqualTo: category);
+        if (restaurantSnapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: const Text("Menu Management")),
+            body: Center(child: Text("Error: ${restaurantSnapshot.error}")),
+          );
+        }
 
-          return StreamBuilder<firestore.QuerySnapshot<Map<String, dynamic>>>(
-            stream: query.snapshots(),
-            builder: (context, snap) {
-              // Loading state
-              if (snap.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+        final restaurantData = restaurantSnapshot.data?.data();
+        final tabs = _extractCategories(restaurantData);
 
-              if (snap.hasError) {
-                return Center(child: Text("Error ${snap.error}"));
-              }
+        final currentIndex = _selectedTabIndex >= tabs.length
+            ? 0
+            : _selectedTabIndex;
+        final currentCategory = tabs[currentIndex];
 
-              final data = snap.data?.docs ?? [];
-              if (data.isEmpty) {
-                return const Center(child: Text("No items yet"));
-              }
+        return DefaultTabController(
+          key: ValueKey(tabs.join("|")),
+          length: tabs.length,
+          initialIndex: currentIndex,
+          child: Builder(
+            builder: (context) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: const Text("Menu Management"),
+                  bottom: TabBar(
+                    isScrollable: true,
+                    tabs: tabs.map((t) => Tab(text: t)).toList(),
+                    onTap: (index) {
+                      setState(() {
+                        _selectedTabIndex = index;
+                      });
+                    },
+                  ),
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: OutlinedButton.icon(
+                        onPressed: () => showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (_) => _ManageCategoriesSheet(
+                            initialTabs: tabs,
+                            restaurantId: widget.restaurant.id,
+                          ),
+                        ),
+                        icon: const Icon(Icons.line_weight_rounded),
+                        label: const Text("Manage Categories"),
+                      ),
+                    ),
+                  ],
+                ),
 
-              final items = data
-                  .map((doc) => MenuItem.fromFirestore(doc))
-                  .toList();
+                body: TabBarView(
+                  children: tabs.map((category) {
+                    final query = _itemsCol.where(
+                      "category",
+                      isEqualTo: category,
+                    );
 
-              return ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (context, i) {
-                  final item = items[i];
-                  return _MenuItemCard(
-                    item: item,
-                    onEdit: () => _addOrEditItem(existing: item),
-                    onDelete: () => _deleteItem(item),
-                    onToggleAvailable: (v) => _toggleAvailable(item, v),
-                  );
-                },
+                    return StreamBuilder<
+                      firestore.QuerySnapshot<Map<String, dynamic>>
+                    >(
+                      stream: query.snapshots(),
+                      builder: (context, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        if (snap.hasError) {
+                          return Center(child: Text("Error ${snap.error}"));
+                        }
+
+                        final data = snap.data?.docs ?? [];
+                        if (data.isEmpty) {
+                          return const Center(child: Text("No items yet"));
+                        }
+
+                        final items = data
+                            .map((doc) => MenuItem.fromFirestore(doc))
+                            .toList();
+
+                        return ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: items.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, i) {
+                            final item = items[i];
+                            return _MenuItemCard(
+                              item: item,
+                              onEdit: () => _addOrEditItem(
+                                category: category,
+                                existing: item,
+                              ),
+                              onDelete: () => _deleteItem(item),
+                              onToggleAvailable: (v) =>
+                                  _toggleAvailable(item, v),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  }).toList(),
+                ),
+
+                bottomNavigationBar: Builder(
+                  builder: (context) {
+                    final tabController = DefaultTabController.of(context);
+                    final activeIndex = tabController.index >= tabs.length
+                        ? 0
+                        : tabController.index;
+                    final activeCategory = tabs[activeIndex];
+
+                    return SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        child: SizedBox(
+                          height: 52,
+                          child: ElevatedButton.icon(
+                            onPressed: () =>
+                                _addOrEditItem(category: activeCategory),
+                            icon: const Icon(Icons.add),
+                            label: Text("Add New Item to $activeCategory"),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               );
             },
-          );
-        }).toList(),
-      ),
+          ),
+        );
+      },
+    );
+  }
+}
 
-      // زر إضافة
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: SizedBox(
-            height: 52,
-            child: ElevatedButton.icon(
-              onPressed: () => _addOrEditItem(),
-              icon: const Icon(Icons.add),
-              label: const Text("Add New Item"),
+class _ManageCategoriesSheet extends StatefulWidget {
+  const _ManageCategoriesSheet({
+    required this.initialTabs,
+    required this.restaurantId,
+  });
+
+  final List<String> initialTabs;
+  final String restaurantId;
+
+  @override
+  State<_ManageCategoriesSheet> createState() => _ManageCategoriesSheetState();
+}
+
+class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
+  late final TextEditingController controller;
+  late List<String> _tabs;
+  final Set<String> _removedCategories = {};
+
+  firestore.DocumentReference<Map<String, dynamic>> get _restaurantDoc =>
+      firestore.FirebaseFirestore.instance
+          .collection("users")
+          .doc(widget.restaurantId);
+
+  firestore.CollectionReference<Map<String, dynamic>> get _itemsCol =>
+      _restaurantDoc.collection("menu_items");
+
+  @override
+  void initState() {
+    super.initState();
+    controller = TextEditingController();
+    _tabs = List<String>.from(widget.initialTabs);
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  void _addNewCategory() {
+    final text = controller.text.trim();
+
+    if (text.isEmpty) return;
+
+    if (_tabs.any((tab) => tab.toLowerCase() == text.toLowerCase())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("This category already exists.")),
+      );
+      return;
+    }
+
+    setState(() {
+      _tabs.add(text);
+    });
+
+    controller.clear();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Category “$text” added.")),
+    );
+  }
+
+  Future<bool?> _deleteCategory(
+    DismissDirection direction,
+    String category,
+  ) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete category?'),
+        content: Text(
+          'This will delete the category “$category” and all menu items inside it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Center(child: const Text("Keep it")),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+
+    return shouldDelete;
+  }
+
+  Future<void> _saveCategories() async {
+    if (_tabs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You need at least one category.")),
+      );
+      return;
+    }
+
+    for (final removedCategory in _removedCategories) {
+      final snapshot = await _itemsCol
+          .where("category", isEqualTo: removedCategory)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        await doc.reference.delete();
+      }
+    }
+
+    await _restaurantDoc.set(
+      {
+        "categories": _tabs,
+        "updatedAt": firestore.FieldValue.serverTimestamp(),
+      },
+      firestore.SetOptions(merge: true),
+    );
+
+    if (!mounted) return;
+
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Categories updated successfully.")),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Manage Categories",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  height: 250,
+                  child: _tabs.isEmpty
+                      ? const Center(child: Text("No categories yet"))
+                      : ReorderableListView(
+                          buildDefaultDragHandles: false,
+                          children: [
+                            for (int index = 0; index < _tabs.length; index++)
+                              Dismissible(
+                                key: ValueKey(_tabs[index]),
+                                direction: DismissDirection.endToStart,
+                                confirmDismiss: (direction) =>
+                                    _deleteCategory(direction, _tabs[index]),
+                                onDismissed: (_) {
+                                  final removed = _tabs[index];
+                                  setState(() {
+                                    _removedCategories.add(removed);
+                                    _tabs.removeAt(index);
+                                  });
+                                },
+                                background: Container(
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  color: Colors.red.shade100,
+                                  child: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                                child: ListTile(
+                                  title: Text("${index + 1} - ${_tabs[index]}"),
+                                  trailing: ReorderableDragStartListener(
+                                    index: index,
+                                    child: const Icon(
+                                      Icons.format_line_spacing_sharp,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                          onReorder: (oldIndex, newIndex) {
+                            setState(() {
+                              if (newIndex > oldIndex) {
+                                newIndex -= 1;
+                              }
+                              final tab = _tabs.removeAt(oldIndex);
+                              _tabs.insert(newIndex, tab);
+                            });
+                          },
+                        ),
+                ),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        keyboardType: TextInputType.text,
+                        textCapitalization: TextCapitalization.words,
+                        controller: controller,
+                        decoration: const InputDecoration(
+                          labelText: "Category",
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _addNewCategory,
+                      label: const Text("Add Category"),
+                      icon: const Icon(Icons.add),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _saveCategories,
+                    icon: const Icon(Icons.download_done_outlined),
+                    label: const Text("Save"),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
