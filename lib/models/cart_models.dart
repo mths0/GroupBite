@@ -4,19 +4,24 @@
 // Designed to be Firebase-ready: each model includes a `toMap` and
 // a named `fromMap` constructor for future Firestore serialization.
 
+import 'package:food_delivery_platform/models/selected_option_choice.dart';
+
 /// Represents a single item in the user's shopping cart.
 class CartItem {
   final String id;
   final String name;
 
-  /// A short descriptor shown below the name (e.g., "Medium • Extra Cheese").
+  /// A short descriptor shown below the name.
   final String description;
 
-  /// Path to the local asset image (e.g., "assets/restaurant_assets/pizza.jpg").
+  /// Path or URL to the item image.
   final String imagePath;
 
   /// The price for ONE unit of this item.
   final double unitPrice;
+
+  /// Selected customization choices.
+  final List<SelectedOptionChoice> selectedOptions;
 
   /// Mutable quantity — updated via +/- buttons in the cart.
   int quantity;
@@ -27,11 +32,20 @@ class CartItem {
     required this.description,
     required this.imagePath,
     required this.unitPrice,
+    this.selectedOptions = const [],
     this.quantity = 1,
   });
 
   /// The total price for this line item (unitPrice × quantity).
   double get lineTotal => unitPrice * quantity;
+
+  String get customizationSummary {
+    if (selectedOptions.isEmpty) return '';
+
+    return selectedOptions
+        .map((option) => '${option.groupTitle}: ${option.choiceName}')
+        .join(' • ');
+  }
 
   // --- Firebase-ready serialization ---
 
@@ -42,6 +56,7 @@ class CartItem {
     'imagePath': imagePath,
     'unitPrice': unitPrice,
     'quantity': quantity,
+    'selectedOptions': selectedOptions.map((e) => e.toJson()).toList(),
   };
 
   factory CartItem.fromMap(Map<String, dynamic> map) => CartItem(
@@ -51,6 +66,11 @@ class CartItem {
     imagePath: map['imagePath'] as String,
     unitPrice: (map['unitPrice'] as num).toDouble(),
     quantity: (map['quantity'] as num).toInt(),
+    selectedOptions: (map['selectedOptions'] as List<dynamic>? ?? [])
+        .map(
+          (e) => SelectedOptionChoice.fromMap(e as Map<String, dynamic>),
+        )
+        .toList(),
   );
 }
 
@@ -122,6 +142,7 @@ class Coupon {
     discountValue: (map['discountValue'] as num).toDouble(),
   );
 }
+
 // ---------------------------------------------------------------------------
 
 /// Holds global checkout configuration fetched from the repository.

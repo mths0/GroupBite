@@ -14,6 +14,7 @@ import 'package:food_delivery_platform/models/group_order.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
+import 'package:food_delivery_platform/models/selected_option_choice.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 
 import 'models/driver.dart';
@@ -638,19 +639,28 @@ class DatabaseService {
     required String groupOrderId,
     required String memberId,
     required MenuItem menuItem,
+    List<SelectedOptionChoice> selectedOptions = const [],
+    double? customUnitPrice,
   }) async {
     final groupRef = _db.collection('groupOrders').doc(groupOrderId);
-    final itemRef = groupRef
-        .collection('items')
-        .doc('${memberId}_${menuItem.id}');
+
+    final unitPrice = customUnitPrice ?? menuItem.price;
+
+    final customizationKey = selectedOptions
+        .map((e) => '${e.groupId}:${e.choiceId}')
+        .join('|');
+
+    final docId = customizationKey.isEmpty
+        ? '${memberId}_${menuItem.id}'
+        : '${memberId}_${menuItem.id}_$customizationKey';
+
+    final itemRef = groupRef.collection('items').doc(docId);
     final itemSnap = await itemRef.get();
 
     if (itemSnap.exists) {
       final data = itemSnap.data() ?? {};
       final oldQuantity = (data['quantity'] as num?)?.toInt() ?? 1;
       final newQuantity = oldQuantity + 1;
-      final unitPrice =
-          (data['unitPrice'] as num?)?.toDouble() ?? menuItem.price;
 
       await itemRef.update({
         'quantity': newQuantity,
@@ -664,9 +674,10 @@ class DatabaseService {
         'name': menuItem.name,
         'description': menuItem.description,
         'imageUrl': menuItem.imageUrl,
-        'unitPrice': menuItem.price,
+        'selectedOptions': selectedOptions.map((e) => e.toJson()).toList(),
+        'unitPrice': unitPrice,
         'quantity': 1,
-        'lineTotal': menuItem.price,
+        'lineTotal': unitPrice,
         'createdAt': firestore.FieldValue.serverTimestamp(),
         'updatedAt': firestore.FieldValue.serverTimestamp(),
       });

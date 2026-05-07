@@ -1,11 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
 
-import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
+import 'package:food_delivery_platform/models/menu_item_option.dart';
+import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:image_picker/image_picker.dart';
 
 class MenuManagementScreen extends StatefulWidget {
   const MenuManagementScreen({super.key, required this.restaurant});
@@ -446,6 +447,7 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _priceCtrl;
   late final TextEditingController _descriptionCtrl;
+  late List<MenuItemOptionGroup> _optionGroups;
   bool _available = true;
   File? _selectedImageFile;
   String? _existingImageUrl;
@@ -466,6 +468,9 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
       text: widget.existing?.description ?? "",
     );
     _available = widget.existing?.isAvailable ?? true;
+    _optionGroups = List<MenuItemOptionGroup>.from(
+      widget.existing?.optionGroups ?? const [],
+    );
   }
 
   @override
@@ -474,6 +479,40 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
     _priceCtrl.dispose();
     _descriptionCtrl.dispose();
     super.dispose();
+  }
+
+  void _addOptionGroup() async {
+    final result = await showModalBottomSheet<MenuItemOptionGroup>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _OptionGroupSheet(),
+    );
+
+    if (result == null) return;
+
+    setState(() {
+      _optionGroups.add(result);
+    });
+  }
+
+  void _editOptionGroup(int index) async {
+    final result = await showModalBottomSheet<MenuItemOptionGroup>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _OptionGroupSheet(existing: _optionGroups[index]),
+    );
+
+    if (result == null) return;
+
+    setState(() {
+      _optionGroups[index] = result;
+    });
+  }
+
+  void _removeOptionGroup(int index) {
+    setState(() {
+      _optionGroups.removeAt(index);
+    });
   }
 
   Future<void> _pickImage() async {
@@ -531,6 +570,7 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
       imageUrl: uploadedImageUrl,
       description: _descriptionCtrl.text.trim(),
       calories: 0,
+      optionGroups: _optionGroups,
     );
 
     if (!mounted) return;
@@ -609,7 +649,7 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
                             width: 120,
                             height: 120,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
+                            errorBuilder: (_, _, _) => Container(
                               width: 120,
                               height: 120,
                               color: Colors.grey.shade200,
@@ -644,6 +684,58 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
               onChanged: (v) => setState(() => _available = v),
               title: const Text("Available"),
             ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Text(
+                  'Customization Options',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: _addOptionGroup,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Group'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            if (_optionGroups.isEmpty)
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('No customization groups yet.'),
+              )
+            else
+              ..._optionGroups.asMap().entries.map((entry) {
+                final index = entry.key;
+                final group = entry.value;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    title: Text(group.title),
+                    subtitle: Text(
+                      '${group.isRequired ? "Required" : "Optional"} • '
+                      '${group.multiSelect ? "Multi select" : "Single select"} • '
+                      '${group.choices.length} choices',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          onPressed: () => _editOptionGroup(index),
+                          icon: const Icon(Icons.edit),
+                        ),
+                        IconButton(
+                          onPressed: () => _removeOptionGroup(index),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
 
             const SizedBox(height: 10),
             SafeArea(
@@ -660,5 +752,315 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
         ),
       ),
     );
+  }
+}
+
+class _OptionGroupSheet extends StatefulWidget {
+  const _OptionGroupSheet({this.existing});
+
+  final MenuItemOptionGroup? existing;
+
+  @override
+  State<_OptionGroupSheet> createState() => _OptionGroupSheetState();
+}
+
+class _OptionGroupSheetState extends State<_OptionGroupSheet> {
+  final _formKey = GlobalKey<FormState>();
+
+  late final TextEditingController _titleCtrl;
+  bool _isRequired = false;
+  bool _multiSelect = false;
+
+  late List<_EditableChoice> _choices;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl = TextEditingController(text: widget.existing?.title ?? '');
+    _isRequired = widget.existing?.isRequired ?? false;
+    _multiSelect = widget.existing?.multiSelect ?? false;
+
+    _choices = (widget.existing?.choices ?? [])
+        .map(
+          (choice) => _EditableChoice(
+            id: choice.id,
+            nameCtrl: TextEditingController(text: choice.name),
+            priceCtrl: TextEditingController(
+              text: choice.extraPrice == 0
+                  ? ''
+                  : choice.extraPrice.toStringAsFixed(
+                      choice.extraPrice.truncateToDouble() == choice.extraPrice
+                          ? 0
+                          : 2,
+                    ),
+            ),
+          ),
+        )
+        .toList();
+
+    if (_choices.isEmpty) {
+      _choices.add(_EditableChoice.empty());
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    for (final choice in _choices) {
+      choice.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addChoice() {
+    setState(() {
+      _choices.add(_EditableChoice.empty());
+    });
+  }
+
+  void _removeChoice(int index) {
+    if (_choices.length == 1) return;
+
+    setState(() {
+      _choices[index].dispose();
+      _choices.removeAt(index);
+    });
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final cleanedChoices = <MenuItemOptionChoice>[];
+
+    for (int i = 0; i < _choices.length; i++) {
+      final c = _choices[i];
+      final name = c.nameCtrl.text.trim();
+      final extraPrice = double.tryParse(c.priceCtrl.text.trim()) ?? 0.0;
+
+      if (name.isEmpty) continue;
+
+      cleanedChoices.add(
+        MenuItemOptionChoice(
+          id: c.id.isNotEmpty
+              ? c.id
+              : 'choice_${DateTime.now().microsecondsSinceEpoch}_$i',
+          name: name,
+          extraPrice: extraPrice,
+        ),
+      );
+    }
+
+    if (cleanedChoices.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add at least one choice.'),
+        ),
+      );
+      return;
+    }
+
+    final group = MenuItemOptionGroup(
+      id: widget.existing?.id.isNotEmpty == true
+          ? widget.existing!.id
+          : 'group_${DateTime.now().microsecondsSinceEpoch}',
+      title: _titleCtrl.text.trim(),
+      isRequired: _isRequired,
+      multiSelect: _multiSelect,
+      choices: cleanedChoices,
+    );
+
+    Navigator.pop(context, group);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
+      child: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.existing == null
+                      ? 'Add Option Group'
+                      : 'Edit Option Group',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                TextFormField(
+                  controller: _titleCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Group title',
+                    hintText: 'Example: Choose Size',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Required';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 10),
+
+                SwitchListTile(
+                  value: _isRequired,
+                  onChanged: (value) {
+                    setState(() {
+                      _isRequired = value;
+                    });
+                  },
+                  title: const Text('Required'),
+                  subtitle: const Text('Customer must select from this group'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+
+                SwitchListTile(
+                  value: _multiSelect,
+                  onChanged: (value) {
+                    setState(() {
+                      _multiSelect = value;
+                    });
+                  },
+                  title: const Text('Multi select'),
+                  subtitle: const Text('Allow selecting more than one choice'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+
+                const SizedBox(height: 8),
+
+                Row(
+                  children: [
+                    const Text(
+                      'Choices',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: _addChoice,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Choice'),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 6),
+
+                ..._choices.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final choice = entry.value;
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Choice ${index + 1}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                onPressed: () => _removeChoice(index),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: choice.nameCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Choice name',
+                              hintText: 'Example: Large',
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Required';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          TextFormField(
+                            controller: choice.priceCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Extra price (SAR)',
+                              hintText: '0',
+                            ),
+                            validator: (value) {
+                              final text = (value ?? '').trim();
+                              if (text.isEmpty) return null;
+
+                              final parsed = double.tryParse(text);
+                              if (parsed == null || parsed < 0) {
+                                return 'Enter valid price';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _save,
+                    child: const Text('Save Group'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditableChoice {
+  _EditableChoice({
+    required this.id,
+    required this.nameCtrl,
+    required this.priceCtrl,
+  });
+
+  final String id;
+  final TextEditingController nameCtrl;
+  final TextEditingController priceCtrl;
+
+  factory _EditableChoice.empty() {
+    return _EditableChoice(
+      id: '',
+      nameCtrl: TextEditingController(),
+      priceCtrl: TextEditingController(),
+    );
+  }
+
+  void dispose() {
+    nameCtrl.dispose();
+    priceCtrl.dispose();
   }
 }

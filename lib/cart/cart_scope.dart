@@ -8,6 +8,7 @@ class CartScope extends InheritedNotifier<CartController> {
     required CartController notifier,
     required super.child,
   }) : super(notifier: notifier);
+  
 
   static CartController of(BuildContext context) {
   final scope = context.dependOnInheritedWidgetOfExactType<CartScope>();

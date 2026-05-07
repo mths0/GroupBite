@@ -107,6 +107,8 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
           cart.addItem(
             restaurantId: order.restaurantId,
             item: menuitem,
+            selectedOptions: const [],
+            customUnitPrice: menuitem.price,
           );
         }
       }

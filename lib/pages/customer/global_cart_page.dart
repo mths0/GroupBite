@@ -1,5 +1,3 @@
-// this is the global cart feature will not be included in the app for now
-
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/models/cart_item.dart';
@@ -45,13 +43,15 @@ class GlobalCartPage extends StatelessWidget {
                 child: ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: entries.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 16),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 16),
                   itemBuilder: (context, index) {
                     final entry = entries[index];
                     final restaurantId = entry.key;
                     final items = entry.value;
                     final restaurantName =
-                        restaurantNamesById[restaurantId] ?? 'Restaurant $restaurantId';
+                        restaurantNamesById[restaurantId] ??
+                        'Restaurant $restaurantId';
 
                     return _RestaurantSection(
                       restaurantName: restaurantName,
@@ -64,15 +64,17 @@ class GlobalCartPage extends StatelessWidget {
                               item: item,
                               onDecrease: () => cart.decreaseItem(
                                 restaurantId: restaurantId,
-                                menuItemId: item.menuItem.id,
+                                menuItemId: item.cartKey,
                               ),
                               onIncrease: () => cart.addItem(
                                 restaurantId: restaurantId,
                                 item: item.menuItem,
+                                selectedOptions: item.selectedOptions,
+                                customUnitPrice: item.customUnitPrice,
                               ),
                               onRemove: () => cart.removeLine(
                                 restaurantId: restaurantId,
-                                menuItemId: item.menuItem.id,
+                                menuItemId: item.cartKey,
                               ),
                             ),
                           )
@@ -212,9 +214,16 @@ class _CartLineTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item.menuItem.name, style: titleStyle),
+                if (item.customizationSummary.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    item.customizationSummary,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
                 const SizedBox(height: 2),
                 Text(
-                  '${item.menuItem.price.toStringAsFixed(0)} SAR x ${item.quantity}',
+                  '${item.unitPrice.toStringAsFixed(0)} SAR x ${item.quantity}',
                 ),
               ],
             ),

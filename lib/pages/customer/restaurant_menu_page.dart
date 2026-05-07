@@ -4,11 +4,13 @@ import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/group_order.dart';
+import 'package:food_delivery_platform/models/item_customization_result.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/restaurant.dart' as app_models;
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
+import 'package:food_delivery_platform/pages/customer/item_customization_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class RestaurantMenuPage extends StatefulWidget {
@@ -607,10 +609,30 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                         return _MenuItemTile(
                           item: item,
                           onAdd: () async {
+                            ItemCustomizationResult? customization;
+
+                            if (item.optionGroups.isNotEmpty) {
+                              customization =
+                                  await Navigator.push<ItemCustomizationResult>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          ItemCustomizationScreen(item: item),
+                                    ),
+                                  );
+
+                              if (customization == null) {
+                                return;
+                              }
+                            }
+
                             if (widget.groupOrderId == null) {
                               cart!.addItem(
                                 restaurantId: restaurantId,
                                 item: item,
+                                selectedOptions:
+                                    customization?.selectedOptions ?? const [],
+                                customUnitPrice: customization?.finalUnitPrice,
                               );
 
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -638,7 +660,6 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                                   ),
                                 ),
                               );
-
                               return;
                             }
 
@@ -653,7 +674,6 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                                   ),
                                 ),
                               );
-
                               return;
                             }
 
@@ -661,6 +681,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                               groupOrderId: widget.groupOrderId!,
                               memberId: widget.customer.id,
                               menuItem: item,
+                              selectedOptions:
+                                  customization?.selectedOptions ?? const [],
+                              customUnitPrice: customization?.finalUnitPrice,
                             );
 
                             if (!context.mounted) return;

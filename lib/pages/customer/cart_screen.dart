@@ -86,20 +86,25 @@ class _CartScreenState extends State<CartScreen> {
   // ---------------------------------------------------------------------------
 
   void _incrementQuantity(app_models.CartItem item) {
-    _cart.addItem(restaurantId: widget.restaurantId, item: item.menuItem);
+    _cart.addItem(
+      restaurantId: widget.restaurantId,
+      item: item.menuItem,
+      selectedOptions: item.selectedOptions,
+      customUnitPrice: item.customUnitPrice,
+    );
   }
 
   void _decrementQuantity(app_models.CartItem item) {
     _cart.decreaseItem(
       restaurantId: widget.restaurantId,
-      menuItemId: item.menuItem.id,
+      menuItemId: item.cartKey,
     );
   }
 
   void _removeItem(app_models.CartItem item) {
     _cart.removeItem(
       restaurantId: widget.restaurantId,
-      menuItemId: item.menuItem.id,
+      menuItemId: item.cartKey,
     );
   }
 
@@ -192,11 +197,12 @@ class _CartScreenState extends State<CartScreen> {
           cartItems: cartItems
               .map(
                 (item) => cart_models.CartItem(
-                  id: item.menuItem.id,
+                  id: item.cartKey,
                   name: item.menuItem.name,
                   description: item.menuItem.description,
                   imagePath: item.menuItem.imageUrl,
-                  unitPrice: item.menuItem.price,
+                  unitPrice: item.customUnitPrice,
+                  selectedOptions: item.selectedOptions,
                   quantity: item.quantity,
                 ),
               )

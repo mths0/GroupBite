@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:food_delivery_platform/models/menu_item_option.dart';
 
 enum MenuCategory {
   appetizers,
@@ -17,6 +18,7 @@ class MenuItem {
   final bool isAvailable;
   final String imageUrl;
   final int calories;
+  final List<MenuItemOptionGroup> optionGroups;
 
   const MenuItem({
     required this.id,
@@ -28,19 +30,21 @@ class MenuItem {
     required this.imageUrl,
     required this.description,
     required this.calories,
+    required this.optionGroups,
   });
 
   Map<String, dynamic> toJson() => {
-        "id": id,
-        "restaurantId": restaurantId,
-        "name": name,
-        "price": price,
-        "description": description,
-        "category": category,
-        "isAvailable": isAvailable,
-        "imageUrl": imageUrl,
-        "calories": calories,
-      };
+    "id": id,
+    "restaurantId": restaurantId,
+    "name": name,
+    "price": price,
+    "description": description,
+    "category": category,
+    "isAvailable": isAvailable,
+    "imageUrl": imageUrl,
+    "calories": calories,
+    'optionGroups': optionGroups.map((e) => e.toJson()).toList(),
+  };
 
   factory MenuItem.fromMap(Map<dynamic, dynamic> map) {
     return MenuItem(
@@ -57,6 +61,9 @@ class MenuItem {
       calories: (map["calories"] is num)
           ? (map["calories"] as num).toInt()
           : int.tryParse("${map["calories"]}") ?? 0,
+      optionGroups: (map['optionGroups'] as List<dynamic>? ?? [])
+          .map((e) => MenuItemOptionGroup.fromMap(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 
@@ -79,6 +86,9 @@ class MenuItem {
       calories: (data["calories"] is num)
           ? (data["calories"] as num).toInt()
           : int.tryParse("${data["calories"]}") ?? 0,
+      optionGroups: (data['optionGroups'] as List<dynamic>? ?? [])
+          .map((e) => MenuItemOptionGroup.fromMap(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:food_delivery_platform/models/selected_option_choice.dart';
 
 enum GroupOrderStatus {
   open,
@@ -94,6 +95,7 @@ class GroupOrderItem {
     required this.imageUrl,
     required this.unitPrice,
     required this.quantity,
+    required this.selectedOptions,
   });
 
   final String id;
@@ -104,6 +106,7 @@ class GroupOrderItem {
   final String imageUrl;
   final double unitPrice;
   final int quantity;
+  final List<SelectedOptionChoice> selectedOptions;
 
   double get lineTotal => unitPrice * quantity;
 
@@ -121,6 +124,9 @@ class GroupOrderItem {
       imageUrl: data['imageUrl'] ?? '',
       unitPrice: (data['unitPrice'] ?? 0).toDouble(),
       quantity: data['quantity'] ?? 1,
+      selectedOptions: (data['selectedOptions'] as List<dynamic>? ?? [])
+          .map((e) => SelectedOptionChoice.fromMap(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 }

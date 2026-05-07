@@ -1,28 +1,60 @@
-// lib/cart/cart_controller.dart
 import 'package:flutter/foundation.dart';
 import 'package:food_delivery_platform/cart/cart_state.dart';
 import 'package:food_delivery_platform/models/cart_item.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
+import 'package:food_delivery_platform/models/selected_option_choice.dart';
 
 class CartController extends ValueNotifier<CartState> {
   CartController() : super(CartState.empty());
 
+  String _buildCartKey({
+    required String menuItemId,
+    required List<SelectedOptionChoice> selectedOptions,
+  }) {
+    if (selectedOptions.isEmpty) return menuItemId;
+
+    final sorted = [...selectedOptions]
+      ..sort((a, b) {
+        final byGroup = a.groupId.compareTo(b.groupId);
+        if (byGroup != 0) return byGroup;
+        return a.choiceId.compareTo(b.choiceId);
+      });
+
+    final customizationKey = sorted
+        .map((e) => '${e.groupId}:${e.choiceId}')
+        .join('|');
+
+    return '${menuItemId}__$customizationKey';
+  }
+
   void addItem({
     required String restaurantId,
     required MenuItem item,
+    required List<SelectedOptionChoice> selectedOptions,
+    double? customUnitPrice,
   }) {
     final next = _deepCopy(value.cartsByRestaurant);
     final restaurantCart = next.putIfAbsent(restaurantId, () => {});
 
-    final existing = restaurantCart[item.id];
+    final cartKey = _buildCartKey(
+      menuItemId: item.id,
+      selectedOptions: selectedOptions,
+    );
+
+    final existing = restaurantCart[cartKey];
+    final unitPrice = customUnitPrice ?? item.price;
+
     if (existing == null) {
-      restaurantCart[item.id] = CartItem(
+      restaurantCart[cartKey] = CartItem(
         restaurantId: restaurantId,
         menuItem: item,
         quantity: 1,
+        selectedOptions: selectedOptions,
+        customUnitPrice: unitPrice,
+        cartKey: cartKey,
       );
     } else {
-      restaurantCart[item.id] = existing.copyWith(
+      restaurantCart[cartKey] = existing.copyWith(
         quantity: existing.quantity + 1,
       );
     }
