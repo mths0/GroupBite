@@ -26,6 +26,9 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
 
   int _selectedTabIndex = 0;
 
+  final Map<String, Stream<firestore.QuerySnapshot<Map<String, dynamic>>>>
+      _streamCache = {};
+
   firestore.DocumentReference<Map<String, dynamic>> get _restaurantDoc =>
       firestore.FirebaseFirestore.instance
           .collection("users")
@@ -33,6 +36,15 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
 
   firestore.CollectionReference<Map<String, dynamic>> get _itemsCol =>
       _restaurantDoc.collection("menu_items");
+
+  Stream<firestore.QuerySnapshot<Map<String, dynamic>>> _streamFor(
+    String category,
+  ) {
+    return _streamCache.putIfAbsent(
+      category,
+      () => _itemsCol.where("category", isEqualTo: category).snapshots(),
+    );
+  }
 
   Future<void> _addOrEditItem({
     required String category,
@@ -133,6 +145,7 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
 
         final restaurantData = restaurantSnapshot.data?.data();
         final tabs = _extractCategories(restaurantData);
+        _streamCache.removeWhere((key, _) => !tabs.contains(key));
 
         final currentIndex = _selectedTabIndex >= tabs.length
             ? 0
@@ -140,7 +153,6 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
         final currentCategory = tabs[currentIndex];
 
         return DefaultTabController(
-          key: ValueKey(tabs.join("|")),
           length: tabs.length,
           initialIndex: currentIndex,
           child: Builder(
@@ -152,9 +164,7 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
                     isScrollable: true,
                     tabs: tabs.map((t) => Tab(text: t)).toList(),
                     onTap: (index) {
-                      setState(() {
-                        _selectedTabIndex = index;
-                      });
+                      _selectedTabIndex = index;
                     },
                   ),
                   actions: [
@@ -178,15 +188,10 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
 
                 body: TabBarView(
                   children: tabs.map((category) {
-                    final query = _itemsCol.where(
-                      "category",
-                      isEqualTo: category,
-                    );
-
                     return StreamBuilder<
                       firestore.QuerySnapshot<Map<String, dynamic>>
                     >(
-                      stream: query.snapshots(),
+                      stream: _streamFor(category),
                       builder: (context, snap) {
                         if (snap.connectionState == ConnectionState.waiting) {
                           return const Center(
@@ -234,24 +239,31 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
                 bottomNavigationBar: Builder(
                   builder: (context) {
                     final tabController = DefaultTabController.of(context);
-                    final activeIndex = tabController.index >= tabs.length
-                        ? 0
-                        : tabController.index;
-                    final activeCategory = tabs[activeIndex];
+                    return AnimatedBuilder(
+                      animation: tabController,
+                      builder: (context, _) {
+                        final activeIndex = tabController.index >= tabs.length
+                            ? 0
+                            : tabController.index;
+                        final activeCategory = tabs[activeIndex];
 
-                    return SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                        child: SizedBox(
-                          height: 52,
-                          child: ElevatedButton.icon(
-                            onPressed: () =>
-                                _addOrEditItem(category: activeCategory),
-                            icon: const Icon(Icons.add),
-                            label: Text("Add New Item to $activeCategory"),
+                        return SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                            child: SizedBox(
+                              height: 52,
+                              child: ElevatedButton.icon(
+                                onPressed: () =>
+                                    _addOrEditItem(category: activeCategory),
+                                icon: const Icon(Icons.add),
+                                label: Text(
+                                  "Add New Item to $activeCategory",
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     );
                   },
                 ),
@@ -326,10 +338,27 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
     );
   }
 
-  Future<bool?> _deleteCategory(
-    DismissDirection direction,
-    String category,
-  ) async {
+  Future<void> _promptDeleteCategory(int index) async {
+    if (_tabs.length <= 1) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Cannot delete category'),
+          content: const Text(
+            'You must have at least one category. Add another category before removing this one.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    final category = _tabs[index];
+
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -340,7 +369,7 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: Center(child: const Text("Keep it")),
+            child: const Text("Keep it"),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
@@ -350,7 +379,12 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
       ),
     );
 
-    return shouldDelete;
+    if (shouldDelete != true || !mounted) return;
+
+    setState(() {
+      _removedCategories.add(category);
+      _tabs.removeAt(index);
+    });
   }
 
   Future<void> _saveCategories() async {
@@ -414,37 +448,28 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
                           buildDefaultDragHandles: false,
                           children: [
                             for (int index = 0; index < _tabs.length; index++)
-                              Dismissible(
+                              ListTile(
                                 key: ValueKey(_tabs[index]),
-                                direction: DismissDirection.endToStart,
-                                confirmDismiss: (direction) =>
-                                    _deleteCategory(direction, _tabs[index]),
-                                onDismissed: (_) {
-                                  final removed = _tabs[index];
-                                  setState(() {
-                                    _removedCategories.add(removed);
-                                    _tabs.removeAt(index);
-                                  });
-                                },
-                                background: Container(
-                                  alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                  color: Colors.red.shade100,
-                                  child: const Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                                child: ListTile(
-                                  title: Text("${index + 1} - ${_tabs[index]}"),
-                                  trailing: ReorderableDragStartListener(
-                                    index: index,
-                                    child: const Icon(
-                                      Icons.format_line_spacing_sharp,
+                                title: Text("${index + 1} - ${_tabs[index]}"),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.red,
+                                      ),
+                                      tooltip: 'Delete category',
+                                      onPressed: () =>
+                                          _promptDeleteCategory(index),
                                     ),
-                                  ),
+                                    ReorderableDragStartListener(
+                                      index: index,
+                                      child: const Icon(
+                                        Icons.format_line_spacing_sharp,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                           ],

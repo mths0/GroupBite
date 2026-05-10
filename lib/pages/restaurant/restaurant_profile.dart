@@ -335,6 +335,12 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
             title: const Text('Email'),
             subtitle: Text(widget.restaurant.email),
           ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.badge_outlined),
+            title: const Text('Restaurant ID'),
+            subtitle: Text(widget.restaurant.id),
+          ),
           const SizedBox(height: 12),
           _ProfileTextField(
             controller: _nameController,
@@ -359,43 +365,41 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
           ),
           const SizedBox(height: 12),
 
-          Text(
-            'Restaurant Categories',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: SizedBox(
-                height: 260,
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: RestaurantTag.values.map((tag) {
-                      final isSelected = _selectedTags.contains(tag);
-
-                      return CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: isSelected,
-                        title: Text(tag.label),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        onChanged: (value) {
-                          setState(() {
-                            if (value == true) {
-                              _selectedTags.add(tag);
-                            } else {
-                              _selectedTags.remove(tag);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ),
+            clipBehavior: Clip.antiAlias,
+            child: ExpansionTile(
+              leading: const Icon(Icons.category_outlined),
+              title: const Text(
+                'Restaurant Categories',
+                style: TextStyle(fontWeight: FontWeight.w700),
               ),
+              subtitle: Text(
+                _selectedTags.isEmpty
+                    ? 'None selected'
+                    : _selectedTags.map((t) => t.label).join(', '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              childrenPadding: const EdgeInsets.symmetric(horizontal: 12),
+              children: RestaurantTag.values.map((tag) {
+                final isSelected = _selectedTags.contains(tag);
+
+                return CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: isSelected,
+                  title: Text(tag.label),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  onChanged: (value) {
+                    setState(() {
+                      if (value == true) {
+                        _selectedTags.add(tag);
+                      } else {
+                        _selectedTags.remove(tag);
+                      }
+                    });
+                  },
+                );
+              }).toList(),
             ),
           ),
           const SizedBox(height: 20),
