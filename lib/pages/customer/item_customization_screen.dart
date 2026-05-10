@@ -20,6 +20,7 @@ class ItemCustomizationScreen extends StatefulWidget {
 class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
   final Map<String, String> _singleSelections = {};
   final Map<String, Set<String>> _multiSelections = {};
+  String? _errorMessage;
 
   bool _isValid() {
     for (final group in widget.item.optionGroups) {
@@ -95,11 +96,9 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
 
   void _confirm() {
     if (!_isValid()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please complete all required options.'),
-        ),
-      );
+      setState(() {
+        _errorMessage = 'Please complete all required options.';
+      });
       return;
     }
 
@@ -114,32 +113,111 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
   @override
   Widget build(BuildContext context) {
     final finalPrice = _calculateFinalPrice();
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    final maxHeight = MediaQuery.of(context).size.height * 0.85;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.item.name),
-      ),
-      bottomNavigationBar: SafeArea(
+    return SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FilledButton(
-            onPressed: _confirm,
-            child: Text('Add • ${finalPrice.toStringAsFixed(2)} SAR'),
-          ),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            widget.item.name,
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text(widget.item.description),
-          const SizedBox(height: 16),
-
-          ...widget.item.optionGroups.map((group) {
+          padding: EdgeInsets.only(bottom: viewInsets),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    AspectRatio(
+                      aspectRatio: 16 / 10,
+                      child: widget.item.imageUrl.isNotEmpty
+                          ? Image.network(
+                              widget.item.imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Container(
+                                color: scheme.surfaceContainerHighest,
+                                child: const Center(
+                                  child: Icon(Icons.image_not_supported),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              color: scheme.surfaceContainerHighest,
+                              child: const Center(
+                                child: Icon(Icons.fastfood, size: 48),
+                              ),
+                            ),
+                    ),
+                    if (_errorMessage != null)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scheme.errorContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: scheme.onErrorContainer,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: TextStyle(
+                                  color: scheme.onErrorContainer,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.item.name,
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            '${widget.item.price.toStringAsFixed(0)} SAR',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (widget.item.description.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: Text(
+                          widget.item.description,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: scheme.outline,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    ...widget.item.optionGroups.map((group) {
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               child: Padding(
@@ -174,6 +252,7 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
                               if (value != null) {
                                 _singleSelections[group.id] = value;
                               }
+                              _errorMessage = null;
                             });
                           },
                         );
@@ -200,6 +279,7 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
                               }
 
                               _multiSelections[group.id] = set;
+                              _errorMessage = null;
                             });
                           },
                         );
@@ -208,8 +288,25 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
                 ),
               ),
             );
-          }),
-        ],
+                    }),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: _confirm,
+                    child: Text('Add • ${finalPrice.toStringAsFixed(2)} SAR'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

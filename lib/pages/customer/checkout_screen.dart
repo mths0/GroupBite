@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/cart_models.dart';
+import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/family_wallet.dart';
 import 'package:food_delivery_platform/models/family_wallet_member.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
+import 'package:food_delivery_platform/pages/customer/order_detail_screen.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 
 //! This class needs to be refactored and cleaned up
@@ -265,7 +267,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           )
           .toList();
 
-      await _db.addOrder(
+      final placedOrder = await _db.addOrder(
         customerId: widget.customerId,
         restaurantId: widget.restaurantId,
         totalPrice: widget.total,
@@ -273,7 +275,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         scheduledFor: _deliveryTimeOption == _DeliveryTimeOption.schedule
             ? _scheduledDateTime
             : null,
+        familyWalletId: _selectedPaymentId == _kPaymentFamilyWallet
+            ? _familyWallet?.id
+            : null,
       );
+
+      final user = await _db.getUserById(widget.customerId);
+      final customer = user is Customer ? user : null;
 
       if (!mounted) return;
 
@@ -281,28 +289,76 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       setState(() => _isPlacingOrder = false);
 
-      showDialog(
+      final theme = Theme.of(context);
+      await showModalBottomSheet<void>(
         context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text('Order Placed! 🎉'),
-          content: Text(
-            'Your order of ${widget.total.toStringAsFixed(2)} SAR has been placed.\n\n'
-            '${_deliveryTimeOption == _DeliveryTimeOption.asap ? 'Estimated arrival: 25–35 min' : 'Scheduled for: ${_formatScheduled()}'}',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context)
-                  ..pop()
-                  ..pop()
-                  ..pop();
-              },
-              child: const Text('Done'),
+        isScrollControlled: true,
+        isDismissible: false,
+        enableDrag: false,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (sheetCtx) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Order Placed!',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Your order of ${widget.total.toStringAsFixed(2)} SAR has been placed.\n'
+                  '${_deliveryTimeOption == _DeliveryTimeOption.asap ? 'Estimated arrival: 25–35 min' : 'Scheduled for: ${_formatScheduled()}'}',
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(sheetCtx),
+                    child: const Text('View order'),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       );
+
+      if (!mounted) return;
+
+      if (customer != null) {
+        Navigator.popUntil(context, (route) => route.isFirst);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OrderDetailScreen(
+              order: placedOrder,
+              customer: customer,
+            ),
+          ),
+        );
+      } else {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     } catch (e) {
       if (!mounted) return;
 

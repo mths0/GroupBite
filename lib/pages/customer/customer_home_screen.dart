@@ -6,13 +6,28 @@ import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/pages/customer/address_widgets.dart';
 import 'package:food_delivery_platform/pages/customer/join_group_order_screen.dart';
 import 'package:food_delivery_platform/pages/customer/restaurant_menu_page.dart';
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
-  const CustomerHomeScreen({super.key, required this.customer});
+  const CustomerHomeScreen({
+    super.key,
+    required this.customer,
+    required this.deliveryLocation,
+    required this.addressLabel,
+    required this.addressFullText,
+    required this.isLoadingAddress,
+    required this.onPickAddress,
+  });
+
   final Customer customer;
+  final GeoPoint? deliveryLocation;
+  final String? addressLabel;
+  final String? addressFullText;
+  final bool isLoadingAddress;
+  final VoidCallback onPickAddress;
 
   @override
   State<CustomerHomeScreen> createState() => _CustomerHomeScreenState();
@@ -20,10 +35,11 @@ class CustomerHomeScreen extends StatefulWidget {
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  late final Stream<List<Restaurant>> _restaurantsStream =
+      DatabaseService().getRestaurants();
 
-  GeoPoint? _deliveryLocation;
-  bool _isLoadingAddress = true;
-  String? _addressLabel;
+  GeoPoint? get _deliveryLocation => widget.deliveryLocation;
+  String? get _addressLabel => widget.addressLabel;
 
   RestaurantTag? _selectedTag;
   String _selectedSort = "Nearest";
@@ -67,49 +83,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     return '${distanceKm.toStringAsFixed(1)} km';
   }
 
-  Future<void> _loadDeliveryLocation() async {
-    setState(() {
-      _isLoadingAddress = true;
-      _addressLabel = null;
-    });
-
-    try {
-      final defaultAddress = await DatabaseService().getDefaultCustomerAddress(
-        widget.customer.id,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _deliveryLocation =
-            defaultAddress?.location ?? widget.customer.location;
-        _isLoadingAddress = false;
-
-        if (defaultAddress != null) {
-          _addressLabel = defaultAddress.label;
-        } else if (widget.customer.location != null) {
-          _addressLabel = 'your saved location';
-        } else {
-          _addressLabel = null;
-        }
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _deliveryLocation = widget.customer.location;
-        _isLoadingAddress = false;
-        _addressLabel = null;
-      });
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDeliveryLocation();
-  }
-
   @override
   void dispose() {
     _searchController.dispose();
@@ -124,6 +97,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          AddressChip(
+            label: widget.addressLabel,
+            fullAddress: widget.addressFullText,
+            isLoading: widget.isLoadingAddress,
+            onTap: widget.onPickAddress,
+          ),
+          const SizedBox(height: 12),
           buildSearchBar(),
           const SizedBox(height: 12),
           Row(
@@ -206,35 +186,18 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             label: const Text('Join Group Order'),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _addressLabel == null
-                      ? 'Restaurants Near You'
-                      : 'Restaurants Near $_addressLabel',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: _isLoadingAddress ? null : _loadDeliveryLocation,
-                icon: _isLoadingAddress
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.location_on_outlined),
-                tooltip: 'Refresh delivery address',
-              ),
-            ],
+          Text(
+            _addressLabel == null
+                ? 'Restaurants Near You'
+                : 'Restaurants Near $_addressLabel',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
 
           const SizedBox(height: 12),
           StreamBuilder<List<Restaurant>>(
-            stream: DatabaseService().getRestaurants(),
+            stream: _restaurantsStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());

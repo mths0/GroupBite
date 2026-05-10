@@ -27,7 +27,7 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _tick = Timer.periodic(const Duration(seconds: 30), (_) {
+    _tick = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) setState(() {});
     });
   }
@@ -152,14 +152,25 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
 
                 final orders = snapshot.data ?? [];
                 final now = DateTime.now();
-                final scheduled = orders
+
+                // Hide pending orders whose customer cancel window is still
+                // open — they reveal to the restaurant only once the
+                // customer can no longer cancel.
+                final visibleOrders = orders.where((o) {
+                  if (o.status != OrderStatus.pending) return true;
+                  final until = o.canCancelUntil;
+                  if (until == null) return true;
+                  return !until.isAfter(now);
+                }).toList();
+
+                final scheduled = visibleOrders
                     .where(
                       (o) =>
                           o.scheduledFor != null &&
                           o.scheduledFor!.isAfter(now),
                     )
                     .toList();
-                final active = orders
+                final active = visibleOrders
                     .where(
                       (o) =>
                           o.scheduledFor == null ||

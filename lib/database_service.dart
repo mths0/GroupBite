@@ -220,6 +220,7 @@ class DatabaseService {
     required double totalPrice,
     required List<OrderItem> items,
     DateTime? scheduledFor,
+    String? familyWalletId,
   }) async {
     final orderId = IdGenerator.generateOrderId();
     final docRef = _db.collection('orders').doc(orderId);
@@ -251,6 +252,7 @@ class DatabaseService {
       'isRated': false,
       'restaurantRating': null,
       'driverRating': null,
+      'familyWalletId': familyWalletId,
     });
 
     final snapshot = await docRef.get();
@@ -464,6 +466,20 @@ class DatabaseService {
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) => Order.fromFirestore(doc)).toList();
+        });
+  }
+
+  Stream<List<Order>> streamOrdersForFamilyWallet(String walletId) {
+    return _db
+        .collection('orders')
+        .where('familyWalletId', isEqualTo: walletId)
+        .snapshots()
+        .map((snapshot) {
+          final orders = snapshot.docs
+              .map((doc) => Order.fromFirestore(doc))
+              .toList();
+          orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return orders;
         });
   }
 

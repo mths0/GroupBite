@@ -22,6 +22,7 @@ class Order {
   final DateTime createdAt;
   final double totalPrice;
   final String? paymentId;
+  final String? familyWalletId;
   final bool isRated;
   final int? restaurantRating;
   final int? driverRating;
@@ -43,6 +44,7 @@ class Order {
     this.driverRating,
     this.driverId,
     this.paymentId,
+    this.familyWalletId,
     required this.canCancelUntil,
     this.scheduledFor,
   });
@@ -69,6 +71,7 @@ class Order {
       totalPrice: (data['totalPrice'] as num?)?.toDouble() ?? 0.0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       paymentId: data['paymentId']?.toString(),
+      familyWalletId: data['familyWalletId']?.toString(),
       items: (data['items'] as List<dynamic>? ?? [])
           .map((item) => OrderItem.fromMap(item as Map<String, dynamic>))
           .toList(),
@@ -95,6 +98,7 @@ class Order {
     'createdAt': Timestamp.fromDate(createdAt),
     'totalPrice': totalPrice,
     'paymentId': paymentId,
+    'familyWalletId': familyWalletId,
     'scheduledFor': scheduledFor != null
         ? Timestamp.fromDate(scheduledFor!)
         : null,

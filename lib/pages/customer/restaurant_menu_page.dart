@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
+import 'package:food_delivery_platform/models/cart_item.dart' as cart_lines;
 import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/group_order.dart';
@@ -30,16 +32,31 @@ class RestaurantMenuPage extends StatefulWidget {
   State<RestaurantMenuPage> createState() => _RestaurantMenuPageState();
 }
 
-class _RestaurantMenuPageState extends State<RestaurantMenuPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-
-  final List<String> _tabs = const [
-    'Appetizers',
+class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
+  static const List<String> _defaultTabs = [
     'Mains',
+    'Appetizers',
     'Desserts',
     'Drinks',
   ];
+
+  late final Stream<firestore.DocumentSnapshot<Map<String, dynamic>>>
+      _restaurantStream = firestore.FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.restaurant.id)
+          .snapshots();
+
+  List<String> _extractCategories(Map<String, dynamic>? data) {
+    final raw = data?['categories'];
+    if (raw is List) {
+      final cats = raw
+          .map((e) => e.toString())
+          .where((e) => e.trim().isNotEmpty)
+          .toList();
+      if (cats.isNotEmpty) return cats;
+    }
+    return List<String>.from(_defaultTabs);
+  }
   void _openGroupOrderSummary({
     required String groupOrderId,
     required String restaurantId,
@@ -515,19 +532,12 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
     _menuFuture = DatabaseService().getMenuForRestaurant(
       restaurantId: widget.restaurant.id,
     );
   }
 
   late final Future<List<MenuItem>> _menuFuture;
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -580,54 +590,72 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                 ),
               const SizedBox(height: 8),
 
-              TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                labelColor: scheme.primary,
-                unselectedLabelColor: scheme.outline,
-                indicatorColor: scheme.primary,
-                tabs: _tabs.map((t) => Tab(text: t)).toList(),
-              ),
-
               Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: _tabs.map((cat) {
-                    final filtered = items
-                        .where((e) => e.category == cat)
-                        .toList();
+                child: StreamBuilder<
+                  firestore.DocumentSnapshot<Map<String, dynamic>>
+                >(
+                  stream: _restaurantStream,
+                  builder: (context, restaurantSnap) {
+                    final tabs = _extractCategories(
+                      restaurantSnap.data?.data(),
+                    );
 
-                    if (filtered.isEmpty) {
-                      return const Center(child: Text('No items'));
-                    }
+                    return DefaultTabController(
+                      key: ValueKey(tabs.join('|')),
+                      length: tabs.length,
+                      child: Column(
+                        children: [
+                          TabBar(
+                            isScrollable: true,
+                            labelColor: scheme.primary,
+                            unselectedLabelColor: scheme.outline,
+                            indicatorColor: scheme.primary,
+                            tabs: tabs.map((t) => Tab(text: t)).toList(),
+                          ),
+                          Expanded(
+                            child: TabBarView(
+                              children: tabs.map((cat) {
+                                final filtered = items
+                                    .where((e) => e.category == cat)
+                                    .toList();
 
-                    return ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final item = filtered[index];
-                        return _MenuItemTile(
-                          item: item,
-                          onAdd: () async {
-                            ItemCustomizationResult? customization;
+                                if (filtered.isEmpty) {
+                                  return const Center(child: Text('No items'));
+                                }
 
-                            if (item.optionGroups.isNotEmpty) {
-                              customization =
-                                  await Navigator.push<ItemCustomizationResult>(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          ItemCustomizationScreen(item: item),
-                                    ),
-                                  );
+                                return ListView.separated(
+                                  padding: const EdgeInsets.all(16),
+                                  itemCount: filtered.length,
+                                  separatorBuilder: (_, _) =>
+                                      const SizedBox(height: 12),
+                                  itemBuilder: (context, index) {
+                                    final item = filtered[index];
+                                    Future<void> handleTap() async {
+                                        final customization =
+                                            await showModalBottomSheet<
+                                              ItemCustomizationResult
+                                            >(
+                                              context: context,
+                                              isScrollControlled: true,
+                                              showDragHandle: true,
+                                              clipBehavior: Clip.antiAlias,
+                                              shape: const RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.vertical(
+                                                      top: Radius.circular(20),
+                                                    ),
+                                              ),
+                                              builder: (_) =>
+                                                  ItemCustomizationScreen(
+                                                    item: item,
+                                                  ),
+                                            );
 
-                              if (customization == null) {
-                                return;
-                              }
-                            }
+                                        if (customization == null) {
+                                          return;
+                                        }
 
-                            if (widget.groupOrderId == null) {
+                                        if (widget.groupOrderId == null) {
                               cart!.addItem(
                                 restaurantId: restaurantId,
                                 item: item,
@@ -689,18 +717,87 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
 
                             if (!context.mounted) return;
 
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '${item.name} added to group order',
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              '${item.name} added to group order',
+                                            ),
+                                          ),
+                                        );
+                                      }
+
+                                    if (cart == null) {
+                                      return _MenuItemTile(
+                                        item: item,
+                                        onAdd: handleTap,
+                                      );
+                                    }
+                                    Future<void> handleIncrement() async {
+                                      final lines = cart
+                                          .itemsForRestaurant(restaurantId)
+                                          .where(
+                                            (e) => e.menuItem.id == item.id,
+                                          )
+                                          .toList();
+                                      if (lines.isEmpty) return;
+                                      cart_lines.CartItem? chosen;
+                                      if (lines.length == 1) {
+                                        chosen = lines.first;
+                                      } else {
+                                        chosen =
+                                            await showModalBottomSheet<
+                                              cart_lines.CartItem
+                                            >(
+                                              context: context,
+                                              showDragHandle: true,
+                                              shape:
+                                                  const RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.vertical(
+                                                          top: Radius.circular(
+                                                            20,
+                                                          ),
+                                                        ),
+                                                  ),
+                                              builder: (_) =>
+                                                  _ConfigPickerSheet(
+                                                    item: item,
+                                                    lines: lines,
+                                                  ),
+                                            );
+                                      }
+                                      if (chosen == null) return;
+                                      cart.addItem(
+                                        restaurantId: restaurantId,
+                                        item: item,
+                                        selectedOptions: chosen.selectedOptions,
+                                        customUnitPrice: chosen.customUnitPrice,
+                                      );
+                                    }
+
+                                    return AnimatedBuilder(
+                                      animation: cart,
+                                      builder: (_, _) => _MenuItemTile(
+                                        item: item,
+                                        count: cart.quantityForMenuItem(
+                                          restaurantId: restaurantId,
+                                          menuItemId: item.id,
+                                        ),
+                                        onAdd: handleTap,
+                                        onIncrement: handleIncrement,
+                                      ),
+                                    );
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ],
+                      ),
                     );
-                  }).toList(),
+                  },
                 ),
               ),
             ],
@@ -956,30 +1053,45 @@ class _MenuItemTile extends StatelessWidget {
   const _MenuItemTile({
     required this.item,
     required this.onAdd,
+    this.onIncrement,
+    this.count = 0,
   });
 
   final MenuItem item;
   final Future<void> Function() onAdd;
+  final Future<void> Function()? onIncrement;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 10,
-            offset: Offset(0, 4),
-            color: Colors.black12,
-          ),
-        ],
-      ),
-      child: Row(
+    return Material(
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              blurRadius: 10,
+              offset: Offset(0, 4),
+              color: Colors.black12,
+            ),
+          ],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            await onAdd();
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(14),
@@ -1025,22 +1137,104 @@ class _MenuItemTile extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          Container(
-            width: 42,
-            height: 80,
-            decoration: BoxDecoration(
+          if (count > 0) ...[
+            const SizedBox(width: 10),
+            Material(
               color: scheme.primary,
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: onIncrement == null
+                    ? null
+                    : () async {
+                        await onIncrement!();
+                      },
+                child: Container(
+                  width: 42,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, color: scheme.onPrimary, size: 22),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$count',
+                        style: TextStyle(
+                          color: scheme.onPrimary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            child: IconButton(
-              icon: Icon(Icons.add, color: scheme.onPrimary),
-              onPressed: () async {
-                await onAdd();
-              },
+          ],
+        ],
             ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConfigPickerSheet extends StatelessWidget {
+  const _ConfigPickerSheet({
+    required this.item,
+    required this.lines,
+  });
+
+  final MenuItem item;
+  final List<cart_lines.CartItem> lines;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Add another ${item.name}',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Pick which one to add',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.outline,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...lines.map((line) {
+              final summary = line.customizationSummary.isEmpty
+                  ? 'No customizations'
+                  : line.customizationSummary;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  onTap: () => Navigator.pop(context, line),
+                  title: Text(summary),
+                  subtitle: Text(
+                    'In cart: ${line.quantity} • '
+                    '${line.unitPrice.toStringAsFixed(0)} SAR each',
+                  ),
+                  trailing: const Icon(Icons.add_circle_outline),
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }

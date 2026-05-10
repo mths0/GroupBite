@@ -120,6 +120,17 @@ class CartController extends ValueNotifier<CartState> {
     return items.fold(0, (sum, e) => sum + e.quantity);
   }
 
+  int quantityForMenuItem({
+    required String restaurantId,
+    required String menuItemId,
+  }) {
+    final cart = value.cartsByRestaurant[restaurantId];
+    if (cart == null) return 0;
+    return cart.values
+        .where((e) => e.menuItem.id == menuItemId)
+        .fold<int>(0, (sum, e) => sum + e.quantity);
+  }
+
   double subtotal(String restaurantId) {
     final items = itemsForRestaurant(restaurantId);
     return items.fold(0.0, (sum, e) => sum + e.lineTotal);
