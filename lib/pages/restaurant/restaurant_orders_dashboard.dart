@@ -269,15 +269,17 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
 
             const SizedBox(height: 12),
 
-            if (isScheduledTab)
+            if (isScheduledTab) ...[
               Text(
-                'Will be activated at the scheduled time.',
+                'Scheduled — will activate at the scheduled time.',
                 style: TextStyle(
                   color: Colors.grey[700],
                   fontStyle: FontStyle.italic,
                 ),
-              )
-            else if (order.status == OrderStatus.pending)
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (order.status == OrderStatus.pending)
               Row(
                 children: [
                   Expanded(
