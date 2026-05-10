@@ -104,6 +104,9 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
     final isGoingToRestaurant = widget.order.status == OrderStatus.assigned;
     final isGoingToCustomer = widget.order.status == OrderStatus.pickedUp;
 
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Card(
@@ -112,17 +115,95 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: (_restaurant?.imageUrl ?? '').isNotEmpty
+                        ? Image.network(
+                            _restaurant!.imageUrl,
+                            width: 64,
+                            height: 64,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(
+                              width: 64,
+                              height: 64,
+                              color: scheme.surfaceContainerHighest,
+                              alignment: Alignment.center,
+                              child: Icon(
+                                Icons.restaurant,
+                                color: scheme.outline,
+                              ),
+                            ),
+                          )
+                        : Container(
+                            width: 64,
+                            height: 64,
+                            color: scheme.surfaceContainerHighest,
+                            alignment: Alignment.center,
+                            child: Icon(
+                              Icons.restaurant,
+                              color: scheme.outline,
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _restaurant?.name ?? 'Restaurant',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Order #${widget.order.id}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
               Text(
-                "Order #${widget.order.id}",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
+                'Items',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                "Total: ${widget.order.totalPrice.toStringAsFixed(2)} SAR",
-              ),
+              const SizedBox(height: 6),
+              for (final item in widget.order.items)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      Text(
+                        'x${item.quantity}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: scheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 16),
 
               if (isGoingToRestaurant) ...[
@@ -159,6 +240,27 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
                   "Go to Customer",
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
+                if (_customer != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.person_outline,
+                        size: 18,
+                        color: scheme.outline,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _customer!.name,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
                   onPressed: () => _openDirections(
