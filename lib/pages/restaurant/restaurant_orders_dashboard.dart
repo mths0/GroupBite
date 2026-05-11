@@ -19,6 +19,24 @@ class RestaurantOrdersDashboard extends StatefulWidget {
       _RestaurantOrdersDashboardState();
 }
 
+const List<OrderStatus> _statusSortOrder = [
+  OrderStatus.pending,
+  OrderStatus.accepted,
+  OrderStatus.assigned,
+  OrderStatus.pickedUp,
+  OrderStatus.delivered,
+  OrderStatus.cancelled,
+  OrderStatus.rejected,
+];
+
+int _compareOrders(Order a, Order b) {
+  final byStatus = _statusSortOrder
+      .indexOf(a.status)
+      .compareTo(_statusSortOrder.indexOf(b.status));
+  if (byStatus != 0) return byStatus;
+  return b.createdAt.compareTo(a.createdAt);
+}
+
 class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
     with SingleTickerProviderStateMixin {
   final DatabaseService _db = DatabaseService();
@@ -113,14 +131,16 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
                           o.scheduledFor != null &&
                           o.scheduledFor!.isAfter(now),
                     )
-                    .toList();
+                    .toList()
+                  ..sort(_compareOrders);
                 final active = visibleOrders
                     .where(
                       (o) =>
                           o.scheduledFor == null ||
                           !o.scheduledFor!.isAfter(now),
                     )
-                    .toList();
+                    .toList()
+                  ..sort(_compareOrders);
 
                 return TabBarView(
                   controller: _tabController,
