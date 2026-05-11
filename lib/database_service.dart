@@ -909,6 +909,7 @@ class DatabaseService {
         name: item.name,
         quantity: item.quantity,
         priceAtPurchase: item.unitPrice,
+        selectedOptions: item.selectedOptions,
       );
     }).toList();
 

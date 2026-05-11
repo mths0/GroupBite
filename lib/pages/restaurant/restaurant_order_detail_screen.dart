@@ -308,6 +308,16 @@ class _ItemRow extends StatelessWidget {
                   color: scheme.outline,
                 ),
               ),
+              if (item.customizationSummary.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  item.customizationSummary,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.outline,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

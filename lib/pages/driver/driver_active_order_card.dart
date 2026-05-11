@@ -186,6 +186,7 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'x${item.quantity}',
@@ -196,9 +197,22 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          item.name,
-                          style: theme.textTheme.bodyMedium,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.name,
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                            if (item.customizationSummary.isNotEmpty)
+                              Text(
+                                item.customizationSummary,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.outline,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ],

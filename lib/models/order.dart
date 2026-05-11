@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:food_delivery_platform/models/selected_option_choice.dart';
 
 enum OrderStatus {
   pending,
@@ -110,19 +111,33 @@ class OrderItem {
   final String name;
   final int quantity;
   final double priceAtPurchase;
+  final List<SelectedOptionChoice> selectedOptions;
 
   OrderItem({
     required this.menuId,
     required this.name,
     required this.quantity,
     required this.priceAtPurchase,
+    this.selectedOptions = const [],
   });
+
+  String get customizationSummary {
+    if (selectedOptions.isEmpty) return '';
+    final groups = <String, List<String>>{};
+    for (final o in selectedOptions) {
+      groups.putIfAbsent(o.groupTitle, () => []).add(o.choiceName);
+    }
+    return groups.entries
+        .map((e) => '${e.key}: ${e.value.join(', ')}')
+        .join('\n');
+  }
 
   Map<String, dynamic> toJson() => {
     'menuId': menuId,
     'name': name,
     'quantity': quantity,
     'priceAtPurchase': priceAtPurchase,
+    'selectedOptions': selectedOptions.map((e) => e.toJson()).toList(),
   };
 
   factory OrderItem.fromMap(Map<String, dynamic> map) {
@@ -131,6 +146,9 @@ class OrderItem {
       name: (map['name'] ?? '').toString(),
       quantity: (map['quantity'] as num?)?.toInt() ?? 0,
       priceAtPurchase: (map['priceAtPurchase'] as num?)?.toDouble() ?? 0.0,
+      selectedOptions: (map['selectedOptions'] as List<dynamic>? ?? [])
+          .map((e) => SelectedOptionChoice.fromMap(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 }

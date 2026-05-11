@@ -289,6 +289,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               name: item.name,
               quantity: item.quantity,
               priceAtPurchase: item.unitPrice,
+              selectedOptions: item.selectedOptions,
             ),
           )
           .toList();
