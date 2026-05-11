@@ -196,6 +196,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _isPlacingOrder = true);
 
     try {
+      final restaurant = await _db.getRestaurantById(widget.restaurantId);
+      if (!mounted) return;
+      if (restaurant == null || !restaurant.isOpen) {
+        setState(() => _isPlacingOrder = false);
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            title: const Text('Restaurant is closed'),
+            content: const Text(
+              'This restaurant is no longer accepting orders. '
+              'You will be returned to the home page.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+
       if (_selectedPaymentId == _kPaymentWallet) {
         await _db.deductFromWallet(
           customerId: widget.customerId,

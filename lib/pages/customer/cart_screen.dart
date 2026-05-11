@@ -181,7 +181,7 @@ class _CartScreenState extends State<CartScreen> {
   // Navigation
   // ---------------------------------------------------------------------------
 
-  void _proceedToCheckout() {
+  Future<void> _proceedToCheckout() async {
     final cartItems = _cart.itemsForRestaurant(widget.restaurantId);
 
     if (cartItems.isEmpty) {
@@ -194,6 +194,34 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
+    final restaurant = await DatabaseService().getRestaurantById(
+      widget.restaurantId,
+    );
+    if (!mounted) return;
+    if (restaurant == null || !restaurant.isOpen) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('Restaurant is closed'),
+          content: const Text(
+            'This restaurant is no longer accepting orders. '
+            'You will be returned to the home page.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(

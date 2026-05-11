@@ -244,7 +244,7 @@ class DatabaseService {
 
       // Cancel window: customer can cancel for 2 minutes
       'canCancelUntil': firestore.Timestamp.fromDate(
-        DateTime.now().add(const Duration(minutes: 2)),
+        DateTime.now().add(const Duration(seconds: 20)),
       ),
       'cancelledAt': null,
       'cancelledBy': null,
@@ -939,7 +939,7 @@ class DatabaseService {
       'completedAt': firestore.FieldValue.serverTimestamp(),
       'updatedAt': firestore.FieldValue.serverTimestamp(),
       'canCancelUntil': firestore.Timestamp.fromDate(
-        DateTime.now().add(const Duration(minutes: 2)),
+        DateTime.now().add(const Duration(seconds: 20)),
       ),
       'cancelledAt': null,
       'cancelledBy': null,
