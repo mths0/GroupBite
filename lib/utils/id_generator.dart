@@ -1,4 +1,5 @@
 import 'dart:math';
+
 import 'package:food_delivery_platform/models/abstract_user.dart';
 
 class IdGenerator {
@@ -50,5 +51,15 @@ class IdGenerator {
     final time = DateTime.now().millisecondsSinceEpoch % 1000000;
 
     return 'invite_$time$random';
+  }
+
+  static String generateJoinCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final random = Random();
+
+    return List.generate(
+      6,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
   }
 }
