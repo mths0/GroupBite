@@ -30,16 +30,7 @@ class RestaurantMenuPage extends StatefulWidget {
   State<RestaurantMenuPage> createState() => _RestaurantMenuPageState();
 }
 
-class _RestaurantMenuPageState extends State<RestaurantMenuPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-
-  final List<String> _tabs = const [
-    'Appetizers',
-    'Mains',
-    'Desserts',
-    'Drinks',
-  ];
+class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
   void _openGroupOrderSummary({
     required String groupOrderId,
     required String restaurantId,
@@ -515,18 +506,21 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
-    _menuFuture = DatabaseService().getMenuForRestaurant(
-      restaurantId: widget.restaurant.id,
-    );
+    _menuFuture = _loadMenu();
   }
 
-  late final Future<List<MenuItem>> _menuFuture;
+  late final Future<_MenuData> _menuFuture;
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  Future<_MenuData> _loadMenu() async {
+    final db = DatabaseService();
+    final results = await Future.wait([
+      db.getRestaurantCategories(restaurantId: widget.restaurant.id),
+      db.getMenuForRestaurant(restaurantId: widget.restaurant.id),
+    ]);
+    return _MenuData(
+      categories: results[0] as List<String>,
+      items: results[1] as List<MenuItem>,
+    );
   }
 
   @override
@@ -544,7 +538,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
         ),
       ),
 
-      body: FutureBuilder<List<MenuItem>>(
+      body: FutureBuilder<_MenuData>(
         future: _menuFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -552,50 +546,64 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
           }
 
           if (snapshot.hasError) {
-            return const Center(
-              child: Text('Failed to load menu items'),
+            return Center(
+              child: Text('Failed to load menu items: ${snapshot.error}'),
             );
           }
 
-          final items = snapshot.data ?? [];
+          final data = snapshot.data;
+          final items = data?.items ?? const <MenuItem>[];
+          final tabs = data?.categories ?? const <String>[];
 
-          return Column(
-            children: [
-              HeaderCard(restaurant: widget.restaurant),
-              const SizedBox(height: 8),
-              if (widget.groupOrderId == null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _startGroupOrder,
-                    icon: const Icon(Icons.group_add),
-                    label: const Text('Start Group Order'),
-                  ),
-                )
-              else
-                _GroupOrderStatusBar(
-                  groupOrderId: widget.groupOrderId!,
-                  customerId: widget.customer.id,
+          if (tabs.isEmpty) {
+            return Column(
+              children: [
+                HeaderCard(restaurant: widget.restaurant),
+                const Expanded(
+                  child: Center(child: Text('No menu categories yet')),
                 ),
-              const SizedBox(height: 8),
+              ],
+            );
+          }
 
-              TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                labelColor: scheme.primary,
-                unselectedLabelColor: scheme.outline,
-                indicatorColor: scheme.primary,
-                tabs: _tabs.map((t) => Tab(text: t)).toList(),
-              ),
+          return DefaultTabController(
+            key: ValueKey(tabs.join('|')),
+            length: tabs.length,
+            child: Column(
+              children: [
+                HeaderCard(restaurant: widget.restaurant),
+                const SizedBox(height: 8),
+                if (widget.groupOrderId == null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _startGroupOrder,
+                      icon: const Icon(Icons.group_add),
+                      label: const Text('Start Group Order'),
+                    ),
+                  )
+                else
+                  _GroupOrderStatusBar(
+                    groupOrderId: widget.groupOrderId!,
+                    customerId: widget.customer.id,
+                  ),
+                const SizedBox(height: 8),
 
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: _tabs.map((cat) {
-                    final filtered = items
-                        .where((e) => e.category == cat)
-                        .toList();
+                TabBar(
+                  isScrollable: true,
+                  labelColor: scheme.primary,
+                  unselectedLabelColor: scheme.outline,
+                  indicatorColor: scheme.primary,
+                  tabs: tabs.map((t) => Tab(text: t)).toList(),
+                ),
+
+                Expanded(
+                  child: TabBarView(
+                    children: tabs.map((cat) {
+                      final filtered = items
+                          .where((e) => e.category == cat)
+                          .toList();
 
                     if (filtered.isEmpty) {
                       return const Center(child: Text('No items'));
@@ -703,7 +711,8 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage>
                   }).toList(),
                 ),
               ),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -1273,4 +1282,10 @@ class _MemberStatusChip extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MenuData {
+  _MenuData({required this.categories, required this.items});
+  final List<String> categories;
+  final List<MenuItem> items;
 }

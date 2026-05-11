@@ -174,6 +174,21 @@ class DatabaseService {
     }).toList();
   }
 
+  Future<List<String>> getRestaurantCategories({
+    required String restaurantId,
+  }) async {
+    final doc = await _db.collection('users').doc(restaurantId).get();
+    final raw = doc.data()?['categories'];
+    if (raw is List) {
+      final list = raw
+          .map((e) => e.toString())
+          .where((e) => e.trim().isNotEmpty)
+          .toList();
+      if (list.isNotEmpty) return list;
+    }
+    return const ['Mains', 'Appetizers', 'Desserts', 'Drinks'];
+  }
+
   // ===========================================================================
   // ORDERS
   // ===========================================================================
