@@ -80,67 +80,68 @@ class _RateOrderSheetState extends State<RateOrderSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final mq = MediaQuery.of(context);
+    final bottomInset = mq.viewInsets.bottom;
+    final bottomSafe = mq.padding.bottom;
+    final scheme = Theme.of(context).colorScheme;
 
-    return SafeArea(
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.black87,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Center(
-                child: Text(
-                  'Rate Your Order',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset + bottomSafe),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Center(
+              child: Text(
+                'Rate Your Order',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 20),
-              const Text(
-                'Restaurant Rating',
-                style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Restaurant Rating',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            _buildStars(
+              currentValue: _restaurantRating,
+              onChanged: (value) {
+                setState(() => _restaurantRating = value);
+              },
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Driver Rating',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            _buildStars(
+              currentValue: _driverRating,
+              onChanged: (value) {
+                setState(() => _driverRating = value);
+              },
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _submit,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Submit Rating'),
               ),
-              _buildStars(
-                currentValue: _restaurantRating,
-                onChanged: (value) {
-                  setState(() => _restaurantRating = value);
-                },
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Driver Rating',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              _buildStars(
-                currentValue: _driverRating,
-                onChanged: (value) {
-                  setState(() => _driverRating = value);
-                },
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submit,
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Submit Rating'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
