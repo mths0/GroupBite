@@ -407,12 +407,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                           const SizedBox(width: 12),
                         ],
 
-                        const Icon(Icons.access_time, size: 16),
-                        const SizedBox(width: 4),
-                        Text(_estimateDeliveryTime(restaurant)),
-
-                        const SizedBox(width: 12),
-
                         const Icon(Icons.attach_money, size: 16),
                         const SizedBox(width: 4),
                         Text(
@@ -452,20 +446,4 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  String _estimateDeliveryTime(Restaurant restaurant) {
-    //Todo : add min and max delivery time in restaurant model and calculate based on that and distance from customer
-    if (!restaurant.isOpen) {
-      return 'Unavailable';
-    }
-
-    if (restaurant.deliveryFee == 0) {
-      return '20-25 min';
-    }
-
-    if (restaurant.deliveryFee <= 10) {
-      return '25-30 min';
-    }
-
-    return '30-40 min';
-  }
 }

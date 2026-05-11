@@ -41,7 +41,7 @@ class _DriverDashboardState extends State<DriverDashboard>
     final lngDiff = driverLocation.longitude - restaurantLocation.longitude;
     final distanceKm =
         sqrt((latDiff * latDiff) + (lngDiff * lngDiff)) * kmPerLatDegree;
-    return '${distanceKm.toStringAsFixed(1)} km away · ETA —';
+    return '${distanceKm.toStringAsFixed(1)} km away';
   }
 
   @override

@@ -996,14 +996,6 @@ class HeaderCard extends StatelessWidget {
                           style: theme.textTheme.bodyMedium,
                         ),
                         const SizedBox(width: 14),
-                        const Icon(Icons.access_time, size: 18),
-                        const SizedBox(width: 6),
-                        //Todo make delivery time dynamic (wait for backend)
-                        Text(
-                          "Delivery Time (Soon)",
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(width: 14),
                         const Icon(Icons.attach_money, size: 18),
                         Text(
                           restaurant.deliveryFee == 0
