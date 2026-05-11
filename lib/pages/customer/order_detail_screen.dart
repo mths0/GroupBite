@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/customer_orders_screen.dart';
 import 'package:food_delivery_platform/pages/customer/map_track_screen.dart';
 import 'package:food_delivery_platform/pages/customer/rate_order_screen.dart';
-import 'package:food_delivery_platform/utils/reorder_helper.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   const OrderDetailScreen({
@@ -107,8 +108,43 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
-  Future<void> _orderSameOrderAgain(Order order) =>
-      reorderPastOrder(context: context, order: order);
+  Future<void> _orderSameOrderAgain(Order order) async {
+    final cart = CartScope.of(context);
+    cart.clearRestaurantCart(order.restaurantId);
+
+    final menu = await DatabaseService().getMenuForRestaurant(
+      restaurantId: order.restaurantId,
+    );
+
+    for (var item in order.items) {
+      if (menu.any((menu) => menu.id == item.menuId)) {
+        final menuitem = menu.firstWhere((menu) => menu.id == item.menuId);
+        for (int i = 0; i < item.quantity; i++) {
+          cart.addItem(
+            restaurantId: order.restaurantId,
+            item: menuitem,
+            selectedOptions: const [],
+            customUnitPrice: menuitem.price,
+          );
+        }
+      }
+    }
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CartScope(
+          notifier: cart,
+          child: CartScreen(
+            restaurantId: order.restaurantId,
+            customerId: order.customerId,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

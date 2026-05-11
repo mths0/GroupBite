@@ -8,13 +8,11 @@ import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/group_order.dart';
 import 'package:food_delivery_platform/models/item_customization_result.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
-import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/restaurant.dart' as app_models;
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
 import 'package:food_delivery_platform/pages/customer/item_customization_screen.dart';
-import 'package:food_delivery_platform/utils/reorder_helper.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class RestaurantMenuPage extends StatefulWidget {
@@ -34,10 +32,6 @@ class RestaurantMenuPage extends StatefulWidget {
   State<RestaurantMenuPage> createState() => _RestaurantMenuPageState();
 }
 
-/// Maximum age of a past order to be eligible for one-click reorder.
-/// Change this single value to adjust the reorder eligibility window.
-const Duration _kReorderMaxAge = Duration(days: 7);
-
 class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
   static const List<String> _defaultTabs = [
     'Mains',
@@ -51,22 +45,6 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
           .collection('users')
           .doc(widget.restaurant.id)
           .snapshots();
-
-  late final Future<Order?> _lastReorderableOrder = _loadLastReorderable();
-
-  Future<Order?> _loadLastReorderable() async {
-    final orders = await DatabaseService()
-        .getOrdersForCustomer(widget.customer.id)
-        .first;
-    final cutoff = DateTime.now().subtract(_kReorderMaxAge);
-    for (final o in orders) {
-      if (o.restaurantId != widget.restaurant.id) continue;
-      if (o.status != OrderStatus.delivered) continue;
-      if (o.createdAt.isBefore(cutoff)) return null;
-      return o;
-    }
-    return null;
-  }
 
   List<String> _extractCategories(Map<String, dynamic>? data) {
     final raw = data?['categories'];
@@ -595,7 +573,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
             children: [
               HeaderCard(restaurant: widget.restaurant),
               const SizedBox(height: 8),
-              if (widget.groupOrderId == null) ...[
+              if (widget.groupOrderId == null)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   width: double.infinity,
@@ -604,29 +582,8 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                     icon: const Icon(Icons.group_add),
                     label: const Text('Start Group Order'),
                   ),
-                ),
-                FutureBuilder<Order?>(
-                  future: _lastReorderableOrder,
-                  builder: (context, snap) {
-                    final order = snap.data;
-                    if (order == null) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => reorderPastOrder(
-                            context: context,
-                            order: order,
-                          ),
-                          icon: const Icon(Icons.replay),
-                          label: const Text('Reorder last order'),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ] else
+                )
+              else
                 _GroupOrderStatusBar(
                   groupOrderId: widget.groupOrderId!,
                   customerId: widget.customer.id,
