@@ -929,9 +929,10 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
       padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
       child: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             Text(
               widget.existing == null ? "Add Item" : "Edit Item",
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -1093,6 +1094,7 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

@@ -46,7 +46,6 @@ class _RestaurantDashboardState extends State<RestaurantDashboard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -65,17 +64,6 @@ class _RestaurantDashboardState extends State<RestaurantDashboard> {
             onPressed: () {},
           ),
           const SizedBox(width: 6),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              child: Text(
-                widget.restaurant.name.isNotEmpty
-                    ? widget.restaurant.name[0].toUpperCase()
-                    : 'R',
-                style: TextStyle(color: scheme.onPrimary),
-              ),
-            ),
-          ),
         ],
       ),
       body: PageView(

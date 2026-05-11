@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/order.dart';
+import 'package:food_delivery_platform/pages/restaurant/restaurant_order_detail_screen.dart';
+import 'package:food_delivery_platform/pages/restaurant/restaurant_order_status.dart';
 
 class RestaurantOrdersDashboard extends StatefulWidget {
   const RestaurantOrdersDashboard({
@@ -23,6 +25,8 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
   late final TabController _tabController;
   Timer? _tick;
 
+  final Map<String, Future<String>> _customerNameFutures = {};
+
   @override
   void initState() {
     super.initState();
@@ -39,86 +43,26 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
     super.dispose();
   }
 
-  Future<void> _updateStatus(String orderId, OrderStatus status) async {
-    try {
-      await _db.updateOrderStatus(
-        orderId: orderId,
-        status: status,
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Order updated to ${_statusLabel(status)}')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update order: $e')),
-      );
-    }
-  }
-
-  Color _statusColor(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.pending:
-        return Colors.orange;
-      case OrderStatus.accepted:
-        return Colors.blue;
-      case OrderStatus.rejected:
-        return Colors.red;
-      case OrderStatus.pickedUp:
-        return Colors.deepPurple;
-      case OrderStatus.delivered:
-        return Colors.green;
-      case OrderStatus.assigned:
-        return Colors.cyan;
-      case OrderStatus.cancelled:
-        return Colors.grey;
-    }
-  }
-
-  String _statusLabel(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.pending:
-        return 'Pending';
-      case OrderStatus.rejected:
-        return 'Rejected';
-      case OrderStatus.accepted:
-        return 'Accepted';
-      case OrderStatus.assigned:
-        return 'Assigned';
-      case OrderStatus.pickedUp:
-        return 'Picked Up';
-      case OrderStatus.delivered:
-        return 'Delivered';
-      case OrderStatus.cancelled:
-        return 'Cancelled';
-    }
-  }
-
-  String _restaurantStatusMessage(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.pending:
-        return 'Waiting for restaurant decision';
-      case OrderStatus.rejected:
-        return 'This order was rejected';
-      case OrderStatus.accepted:
-        return 'Order accepted. Waiting for driver';
-      case OrderStatus.assigned:
-        return 'Driver assigned to this order';
-      case OrderStatus.pickedUp:
-        return 'Order picked up by driver';
-      case OrderStatus.delivered:
-        return 'Order delivered successfully';
-      case OrderStatus.cancelled:
-        return 'Order was cancelled';
-    }
+  Future<String> _customerNameFuture(String customerId) {
+    return _customerNameFutures.putIfAbsent(customerId, () async {
+      final user = await _db.getUserById(customerId);
+      return user?.name ?? 'Customer';
+    });
   }
 
   String _formatScheduledFor(DateTime dt) {
     final hour = dt.hour.toString().padLeft(2, '0');
     final min = dt.minute.toString().padLeft(2, '0');
     return '${dt.day}/${dt.month}/${dt.year} at $hour:$min';
+  }
+
+  void _openDetail(Order order) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RestaurantOrderDetailScreen(order: order),
+      ),
+    );
   }
 
   @override
@@ -212,119 +156,161 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: orders.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 18),
       itemBuilder: (context, index) {
-        return _buildOrderCard(orders[index], isScheduledTab: isScheduledTab);
+        final order = orders[index];
+        return _OrderCard(
+          order: order,
+          customerNameFuture: _customerNameFuture(order.customerId),
+          scheduledLine: isScheduledTab && order.scheduledFor != null
+              ? 'Scheduled: ${_formatScheduledFor(order.scheduledFor!)}'
+              : null,
+          onTap: () => _openDetail(order),
+        );
       },
     );
   }
+}
 
-  Widget _buildOrderCard(Order order, {required bool isScheduledTab}) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Order #${order.id}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
+class _OrderCard extends StatelessWidget {
+  const _OrderCard({
+    required this.order,
+    required this.customerNameFuture,
+    required this.scheduledLine,
+    required this.onTap,
+  });
+
+  final Order order;
+  final Future<String> customerNameFuture;
+  final String? scheduledLine;
+  final VoidCallback onTap;
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year}  $hour:$min';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final statusColor = restaurantStatusColor(order.status);
+
+    return FutureBuilder<String>(
+      future: customerNameFuture,
+      builder: (context, snap) {
+        final customerName = snap.data ?? '…';
+
+        return Material(
+          color: scheme.surface,
+          elevation: 0,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: onTap,
+            child: Ink(
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: scheme.outlineVariant,
+                  width: 1,
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _statusColor(order.status).withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _statusLabel(order.status),
-                    style: TextStyle(
-                      color: _statusColor(order.status),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text('Customer ID: ${order.customerId}'),
-            const SizedBox(height: 4),
-            Text('Items: ${order.items.length}'),
-            const SizedBox(height: 4),
-            Text('Total: ${order.totalPrice.toStringAsFixed(2)} SAR'),
-            if (order.scheduledFor != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Scheduled for: ${_formatScheduledFor(order.scheduledFor!)}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ],
-            const SizedBox(height: 12),
-
-            ...order.items.map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text('- ${item.name} x${item.quantity}'),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            if (isScheduledTab) ...[
-              Text(
-                'Scheduled — will activate at the scheduled time.',
-                style: TextStyle(
-                  color: Colors.grey[700],
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (order.status == OrderStatus.pending)
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => _updateStatus(
-                        order.id,
-                        OrderStatus.accepted,
-                      ),
-                      child: const Text('Accept'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _updateStatus(
-                        order.id,
-                        OrderStatus.rejected,
-                      ),
-                      child: const Text('Reject'),
-                    ),
+                boxShadow: [
+                  BoxShadow(
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                    color: Colors.black.withOpacity(0.06),
                   ),
                 ],
-              )
-            else
-              Text(
-                _restaurantStatusMessage(order.status),
-                style: TextStyle(
-                  color: Colors.grey[700],
-                  fontStyle: FontStyle.italic,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Order #${order.id}',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            customerName,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.outline,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              restaurantStatusLabel(order.status),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: statusColor,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          if (scheduledLine != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              scheduledLine!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.outline,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          _formatTime(order.createdAt),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.outline,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${order.totalPrice.toStringAsFixed(2)} SAR',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: scheme.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-          ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

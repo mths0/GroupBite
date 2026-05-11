@@ -1,8 +1,8 @@
 const { setGlobalOptions } = require("firebase-functions/v2");
 const {
-  onDocumentCreated,
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
@@ -43,28 +43,49 @@ async function sendToUserToken(userId, title, body, data = {}) {
   console.log(`Notification sent to user: ${userId}`);
 }
 
-exports.notifyRestaurantOnNewOrder = onDocumentCreated(
-  "orders/{orderId}",
-  async (event) => {
-    const snap = event.data;
-    if (!snap) return;
+// Notifies the restaurant once the customer's cancel window has closed.
+// Runs every minute and is idempotent via the `restaurantNotified` flag.
+exports.notifyRestaurantOnCancelWindowEnd = onSchedule(
+  "every 1 minutes",
+  async () => {
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
 
-    const order = snap.data();
-    if (!order) return;
+    const snap = await db
+      .collection("orders")
+      .where("status", "==", "pending")
+      .where("canCancelUntil", "<=", now)
+      .get();
 
-    const restaurantId = order.restaurantId;
-    if (!restaurantId) return;
+    if (snap.empty) {
+      return;
+    }
 
-    await sendToUserToken(
-      restaurantId,
-      "New Order",
-      `You have a new order #${event.params.orderId}`,
-      {
-        type: "new_order",
-        orderId: event.params.orderId,
-        status: order.status || "pending",
-      },
-    );
+    for (const doc of snap.docs) {
+      const order = doc.data() || {};
+
+      if (order.restaurantNotified === true) continue;
+
+      const restaurantId = order.restaurantId;
+      if (!restaurantId) continue;
+
+      try {
+        await sendToUserToken(
+          restaurantId,
+          "New Order",
+          `You have a new order #${doc.id}`,
+          {
+            type: "new_order",
+            orderId: doc.id,
+            status: order.status || "pending",
+          },
+        );
+
+        await doc.ref.update({ restaurantNotified: true });
+      } catch (err) {
+        console.error(`Failed to notify restaurant for order ${doc.id}:`, err);
+      }
+    }
   },
 );
 
