@@ -965,11 +965,11 @@ class _CheckoutSummary extends StatelessWidget {
 
     return Column(
       children: [
-        _SummaryRow(label: 'Subtotal', value: subtotal),
+        _SummaryRow(label: 'Subtotal (incl. tax)', value: subtotal),
+        const SizedBox(height: 8),
+        _SummaryRow(label: 'Tax (15%) included', value: tax),
         const SizedBox(height: 8),
         _SummaryRow(label: 'Delivery Fee', value: deliveryFee),
-        const SizedBox(height: 8),
-        _SummaryRow(label: 'Tax (15%)', value: tax),
         if (appliedCoupon != null) ...[
           const SizedBox(height: 8),
           _SummaryRow(

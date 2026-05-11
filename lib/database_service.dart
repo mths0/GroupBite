@@ -16,6 +16,7 @@ import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/models/selected_option_choice.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
+import 'package:food_delivery_platform/utils/tax.dart';
 
 import 'models/driver.dart';
 import 'models/order.dart';
@@ -169,9 +170,10 @@ class DatabaseService {
         .collection('menu_items')
         .get();
 
-    return snapshot.docs.map((doc) {
-      return MenuItem.fromMap(doc.data());
-    }).toList();
+    return snapshot.docs
+        .map((doc) => MenuItem.fromMap(doc.data()))
+        .where((item) => item.isAvailable)
+        .toList();
   }
 
   // ===========================================================================
@@ -918,7 +920,7 @@ class DatabaseService {
     final restaurant = await getRestaurantById(restaurantId);
     final deliveryFee = restaurant?.deliveryFee ?? 0.0;
 
-    final tax = subtotal * 0.15;
+    final tax = subtotal * kTaxRate;
     final total = subtotal + deliveryFee + tax;
 
     await addOrder(

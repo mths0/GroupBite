@@ -3,6 +3,7 @@ import 'package:food_delivery_platform/models/item_customization_result.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/menu_item_option.dart';
 import 'package:food_delivery_platform/models/selected_option_choice.dart';
+import 'package:food_delivery_platform/utils/tax.dart';
 
 class ItemCustomizationScreen extends StatefulWidget {
   const ItemCustomizationScreen({
@@ -91,7 +92,7 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
 
   String _choiceLabel(MenuItemOptionChoice choice) {
     if (choice.extraPrice <= 0) return choice.name;
-    return '${choice.name} (+${choice.extraPrice.toStringAsFixed(2)} SAR)';
+    return '${choice.name} (+${priceWithTax(choice.extraPrice).toStringAsFixed(2)} SAR)';
   }
 
   void _confirm() {
@@ -196,12 +197,23 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Text(
-                            '${widget.item.price.toStringAsFixed(0)} SAR',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: scheme.primary,
-                              fontWeight: FontWeight.w800,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${priceWithTax(widget.item.price).toStringAsFixed(2)} SAR',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: scheme.primary,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              Text(
+                                'Incl. 15% tax',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.outline,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -300,7 +312,9 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
                   height: 52,
                   child: FilledButton(
                     onPressed: _confirm,
-                    child: Text('Add • ${finalPrice.toStringAsFixed(2)} SAR'),
+                    child: Text(
+                      'Add • ${priceWithTax(finalPrice).toStringAsFixed(2)} SAR',
+                    ),
                   ),
                 ),
               ),

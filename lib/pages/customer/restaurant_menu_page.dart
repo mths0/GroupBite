@@ -13,6 +13,7 @@ import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
 import 'package:food_delivery_platform/pages/customer/item_customization_screen.dart';
+import 'package:food_delivery_platform/utils/tax.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class RestaurantMenuPage extends StatefulWidget {
@@ -104,8 +105,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                     final hasMinimumMembers = members.length >= 2;
                     final deliveryFee = widget.restaurant.deliveryFee;
                     final deliveryShare = deliveryFee / memberCount;
-                    final tax = mySubtotal * 0.15;
-                    final total = mySubtotal + deliveryShare + tax;
+                    final tax = mySubtotal * kTaxRate;
+                    final subtotalInclTax = mySubtotal + tax;
+                    final total = subtotalInclTax + deliveryShare;
 
                     GroupOrderMember? myMember;
 
@@ -373,17 +375,17 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                               const Divider(),
 
                               _GroupSummaryRow(
-                                label: 'Your Items Subtotal',
-                                value: mySubtotal,
+                                label: 'Your Items Subtotal (incl. tax)',
+                                value: subtotalInclTax,
+                              ),
+                              _GroupSummaryRow(
+                                label: 'Tax (15%) included',
+                                value: tax,
                               ),
                               _GroupSummaryRow(
                                 label:
                                     'Delivery Share (${deliveryFee.toStringAsFixed(2)} ÷ $memberCount)',
                                 value: deliveryShare,
-                              ),
-                              _GroupSummaryRow(
-                                label: 'Tax (15%)',
-                                value: tax,
                               ),
                               _GroupSummaryRow(
                                 label: 'Your Total',
@@ -454,10 +456,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                                     cart_models.CheckoutData(
                                                       deliveryFee:
                                                           deliveryShare,
-                                                      taxRate: 0.15,
+                                                      taxRate: kTaxRate,
                                                       walletBalance: 100.0,
                                                     ),
-                                                subtotal: mySubtotal,
+                                                subtotal: subtotalInclTax,
                                                 deliveryFee: deliveryShare,
                                                 tax: tax,
                                                 discount: 0.0,
@@ -1128,10 +1130,16 @@ class _MenuItemTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${item.price.toStringAsFixed(0)} SAR',
+                  '${priceWithTax(item.price).toStringAsFixed(2)} SAR',
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: scheme.primary,
                     fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  'Incl. 15% tax',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.outline,
                   ),
                 ),
               ],
@@ -1227,7 +1235,7 @@ class _ConfigPickerSheet extends StatelessWidget {
                   title: Text(summary),
                   subtitle: Text(
                     'In cart: ${line.quantity} • '
-                    '${line.unitPrice.toStringAsFixed(0)} SAR each',
+                    '${priceWithTax(line.unitPrice).toStringAsFixed(2)} SAR each (incl. tax)',
                   ),
                   trailing: const Icon(Icons.add_circle_outline),
                 ),
