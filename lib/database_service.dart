@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -242,7 +241,7 @@ class DatabaseService {
 
       // Cancel window: customer can cancel for 2 minutes
       'canCancelUntil': firestore.Timestamp.fromDate(
-        DateTime.now().add(const Duration(minutes: 2)),
+        DateTime.now().add(const Duration(seconds: 10)),
       ),
       'cancelledAt': null,
       'cancelledBy': null,
@@ -528,23 +527,13 @@ class DatabaseService {
   // GROUP ORDERS
   // ===========================================================================
 
-  String _generateJoinCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final random = Random();
-
-    return List.generate(
-      6,
-      (_) => chars[random.nextInt(chars.length)],
-    ).join();
-  }
-
   Future<String> createGroupOrder({
     required String hostCustomerId,
     required String hostName,
     required String restaurantId,
   }) async {
     final groupRef = _db.collection('groupOrders').doc();
-    final joinCode = _generateJoinCode();
+    final joinCode = IdGenerator.generateJoinCode();
 
     await groupRef.set({
       'hostCustomerId': hostCustomerId,
