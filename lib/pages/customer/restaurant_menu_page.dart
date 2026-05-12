@@ -1099,51 +1099,7 @@ class _MenuItemTile extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                Text(
-                  item.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  item.description,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: scheme.outline,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${priceWithTax(item.price).toStringAsFixed(2)} SAR',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: scheme.primary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  'Incl. 15% tax',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.outline,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (count > 0) ...[
-            const SizedBox(width: 10),
-            Material(
-              color: scheme.primary,
-              borderRadius: BorderRadius.circular(8),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: onIncrement == null
-                    ? null
-                    : () async {
-                        await onIncrement!();
-                      },
-                child: Container(
-                  width: 42,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1162,10 +1118,16 @@ class _MenuItemTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${item.price.toStringAsFixed(0)} SAR',
+                        '${priceWithTax(item.price).toStringAsFixed(2)} SAR',
                         style: theme.textTheme.titleSmall?.copyWith(
                           color: scheme.primary,
                           fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'Incl. 15% tax',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.outline,
                         ),
                       ),
                     ],
