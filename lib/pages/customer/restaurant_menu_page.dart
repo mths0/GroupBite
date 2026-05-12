@@ -1099,6 +1099,32 @@ class _MenuItemTile extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: item.imageUrl.isNotEmpty
+                      ? Image.network(
+                          item.imageUrl,
+                          width: 84,
+                          height: 84,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                            width: 84,
+                            height: 84,
+                            color: scheme.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.image_not_supported,
+                              color: scheme.outline,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          width: 84,
+                          height: 84,
+                          color: scheme.surfaceContainerHighest,
+                          child: Icon(Icons.fastfood, color: scheme.outline),
+                        ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
