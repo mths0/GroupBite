@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/order.dart';
+import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/restaurant/restaurant_order_detail_screen.dart';
 import 'package:food_delivery_platform/pages/restaurant/restaurant_order_status.dart';
 
@@ -19,6 +20,24 @@ class RestaurantOrdersDashboard extends StatefulWidget {
       _RestaurantOrdersDashboardState();
 }
 
+const List<OrderStatus> _statusSortOrder = [
+  OrderStatus.pending,
+  OrderStatus.accepted,
+  OrderStatus.assigned,
+  OrderStatus.pickedUp,
+  OrderStatus.delivered,
+  OrderStatus.cancelled,
+  OrderStatus.rejected,
+];
+
+int _compareOrders(Order a, Order b) {
+  final byStatus = _statusSortOrder
+      .indexOf(a.status)
+      .compareTo(_statusSortOrder.indexOf(b.status));
+  if (byStatus != 0) return byStatus;
+  return b.createdAt.compareTo(a.createdAt);
+}
+
 class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
     with SingleTickerProviderStateMixin {
   final DatabaseService _db = DatabaseService();
@@ -26,14 +45,40 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
   Timer? _tick;
 
   final Map<String, Future<String>> _customerNameFutures = {};
+  final Set<String> _autoRejectInFlight = {};
+  Restaurant? _restaurant;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _refreshRestaurant();
     _tick = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        _refreshRestaurant();
+        setState(() {});
+      }
     });
+  }
+
+  Future<void> _refreshRestaurant() async {
+    final r = await _db.getRestaurantById(widget.restaurantId);
+    if (mounted) setState(() => _restaurant = r);
+  }
+
+  void _autoRejectIfClosed(List<Order> orders) {
+    final restaurant = _restaurant;
+    if (restaurant == null || restaurant.isOpen) return;
+    final now = DateTime.now();
+    for (final order in orders) {
+      if (order.status != OrderStatus.pending) continue;
+      final scheduled = order.scheduledFor;
+      if (scheduled != null && scheduled.isAfter(now)) continue;
+      if (!_autoRejectInFlight.add(order.id)) continue;
+      _db.restaurantRejectOrder(order.id).whenComplete(() {
+        _autoRejectInFlight.remove(order.id);
+      });
+    }
   }
 
   @override
@@ -97,6 +142,10 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
                 final orders = snapshot.data ?? [];
                 final now = DateTime.now();
 
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _autoRejectIfClosed(orders);
+                });
+
                 // Hide pending orders whose customer cancel window is still
                 // open — they reveal to the restaurant only once the
                 // customer can no longer cancel.
@@ -113,14 +162,16 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
                           o.scheduledFor != null &&
                           o.scheduledFor!.isAfter(now),
                     )
-                    .toList();
+                    .toList()
+                  ..sort(_compareOrders);
                 final active = visibleOrders
                     .where(
                       (o) =>
                           o.scheduledFor == null ||
                           !o.scheduledFor!.isAfter(now),
                     )
-                    .toList();
+                    .toList()
+                  ..sort(_compareOrders);
 
                 return TabBarView(
                   controller: _tabController,

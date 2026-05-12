@@ -196,6 +196,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _isPlacingOrder = true);
 
     try {
+      final restaurant = await _db.getRestaurantById(widget.restaurantId);
+      if (!mounted) return;
+      if (restaurant == null || !restaurant.isOpen) {
+        setState(() => _isPlacingOrder = false);
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            title: const Text('Restaurant is closed'),
+            content: const Text(
+              'This restaurant is no longer accepting orders. '
+              'You will be returned to the home page.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+
       if (_selectedPaymentId == _kPaymentWallet) {
         await _db.deductFromWallet(
           customerId: widget.customerId,
@@ -263,6 +289,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               name: item.name,
               quantity: item.quantity,
               priceAtPurchase: item.unitPrice,
+              selectedOptions: item.selectedOptions,
             ),
           )
           .toList();
@@ -325,8 +352,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Your order of ${widget.total.toStringAsFixed(2)} SAR has been placed.\n'
-                  '${_deliveryTimeOption == _DeliveryTimeOption.asap ? 'Estimated arrival: 25–35 min' : 'Scheduled for: ${_formatScheduled()}'}',
+                  _deliveryTimeOption == _DeliveryTimeOption.asap
+                      ? 'Your order of ${widget.total.toStringAsFixed(2)} SAR has been placed.'
+                      : 'Your order of ${widget.total.toStringAsFixed(2)} SAR has been placed.\n'
+                            'Scheduled for: ${_formatScheduled()}',
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -666,7 +695,6 @@ class _DeliveryTimeSelector extends StatelessWidget {
             Expanded(
               child: _DeliveryOptionTile(
                 label: 'ASAP',
-                subtitle: '25–35 min',
                 isSelected: selected == _DeliveryTimeOption.asap,
                 onTap: () => onTap(_DeliveryTimeOption.asap),
               ),
@@ -702,13 +730,13 @@ class _DeliveryTimeSelector extends StatelessWidget {
 class _DeliveryOptionTile extends StatelessWidget {
   const _DeliveryOptionTile({
     required this.label,
-    required this.subtitle,
+    this.subtitle,
     required this.isSelected,
     required this.onTap,
   });
 
   final String label;
-  final String subtitle;
+  final String? subtitle;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -742,14 +770,16 @@ class _DeliveryOptionTile extends StatelessWidget {
                 color: isSelected ? colorScheme.primary : colorScheme.onSurface,
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+            if (subtitle != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                subtitle!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
+            ],
           ],
         ),
       ),
@@ -965,11 +995,11 @@ class _CheckoutSummary extends StatelessWidget {
 
     return Column(
       children: [
-        _SummaryRow(label: 'Subtotal', value: subtotal),
+        _SummaryRow(label: 'Subtotal (incl. tax)', value: subtotal),
+        const SizedBox(height: 8),
+        _SummaryRow(label: 'Tax (15%) included', value: tax),
         const SizedBox(height: 8),
         _SummaryRow(label: 'Delivery Fee', value: deliveryFee),
-        const SizedBox(height: 8),
-        _SummaryRow(label: 'Tax (15%)', value: tax),
         if (appliedCoupon != null) ...[
           const SizedBox(height: 8),
           _SummaryRow(

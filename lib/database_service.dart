@@ -15,6 +15,7 @@ import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/models/selected_option_choice.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
+import 'package:food_delivery_platform/utils/tax.dart';
 
 import 'models/driver.dart';
 import 'models/order.dart';
@@ -168,9 +169,10 @@ class DatabaseService {
         .collection('menu_items')
         .get();
 
-    return snapshot.docs.map((doc) {
-      return MenuItem.fromMap(doc.data());
-    }).toList();
+    return snapshot.docs
+        .map((doc) => MenuItem.fromMap(doc.data()))
+        .where((item) => item.isAvailable)
+        .toList();
   }
 
   // ===========================================================================
@@ -241,7 +243,7 @@ class DatabaseService {
 
       // Cancel window: customer can cancel for 2 minutes
       'canCancelUntil': firestore.Timestamp.fromDate(
-        DateTime.now().add(const Duration(seconds: 10)),
+        DateTime.now().add(const Duration(seconds: 20)),
       ),
       'cancelledAt': null,
       'cancelledBy': null,
@@ -896,6 +898,7 @@ class DatabaseService {
         name: item.name,
         quantity: item.quantity,
         priceAtPurchase: item.unitPrice,
+        selectedOptions: item.selectedOptions,
       );
     }).toList();
 
@@ -907,7 +910,7 @@ class DatabaseService {
     final restaurant = await getRestaurantById(restaurantId);
     final deliveryFee = restaurant?.deliveryFee ?? 0.0;
 
-    final tax = subtotal * 0.15;
+    final tax = subtotal * kTaxRate;
     final total = subtotal + deliveryFee + tax;
 
     await addOrder(
@@ -926,7 +929,7 @@ class DatabaseService {
       'completedAt': firestore.FieldValue.serverTimestamp(),
       'updatedAt': firestore.FieldValue.serverTimestamp(),
       'canCancelUntil': firestore.Timestamp.fromDate(
-        DateTime.now().add(const Duration(minutes: 2)),
+        DateTime.now().add(const Duration(seconds: 20)),
       ),
       'cancelledAt': null,
       'cancelledBy': null,

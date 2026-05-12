@@ -13,6 +13,7 @@ import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
 import 'package:food_delivery_platform/pages/customer/item_customization_screen.dart';
+import 'package:food_delivery_platform/utils/tax.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class RestaurantMenuPage extends StatefulWidget {
@@ -105,8 +106,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                     final hasMinimumMembers = members.length >= 2;
                     final deliveryFee = widget.restaurant.deliveryFee;
                     final deliveryShare = deliveryFee / memberCount;
-                    final tax = mySubtotal * 0.15;
-                    final total = mySubtotal + deliveryShare + tax;
+                    final tax = mySubtotal * kTaxRate;
+                    final subtotalInclTax = mySubtotal + tax;
+                    final total = subtotalInclTax + deliveryShare;
 
                     GroupOrderMember? myMember;
 
@@ -374,17 +376,17 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                               const Divider(),
 
                               _GroupSummaryRow(
-                                label: 'Your Items Subtotal',
-                                value: mySubtotal,
+                                label: 'Your Items Subtotal (incl. tax)',
+                                value: subtotalInclTax,
+                              ),
+                              _GroupSummaryRow(
+                                label: 'Tax (15%) included',
+                                value: tax,
                               ),
                               _GroupSummaryRow(
                                 label:
                                     'Delivery Share (${deliveryFee.toStringAsFixed(2)} ÷ $memberCount)',
                                 value: deliveryShare,
-                              ),
-                              _GroupSummaryRow(
-                                label: 'Tax (15%)',
-                                value: tax,
                               ),
                               _GroupSummaryRow(
                                 label: 'Your Total',
@@ -455,10 +457,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                                     cart_models.CheckoutData(
                                                       deliveryFee:
                                                           deliveryShare,
-                                                      taxRate: 0.15,
+                                                      taxRate: kTaxRate,
                                                       walletBalance: 100.0,
                                                     ),
-                                                subtotal: mySubtotal,
+                                                subtotal: subtotalInclTax,
                                                 deliveryFee: deliveryShare,
                                                 tax: tax,
                                                 discount: 0.0,
@@ -1006,14 +1008,6 @@ class HeaderCard extends StatelessWidget {
                           style: theme.textTheme.bodyMedium,
                         ),
                         const SizedBox(width: 14),
-                        const Icon(Icons.access_time, size: 18),
-                        const SizedBox(width: 6),
-                        //Todo make delivery time dynamic (wait for backend)
-                        Text(
-                          "Delivery Time (Soon)",
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(width: 14),
                         const Icon(Icons.attach_money, size: 18),
                         Text(
                           restaurant.deliveryFee == 0
@@ -1105,23 +1099,51 @@ class _MenuItemTile extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Image.network(
-                    item.imageUrl,
-                    width: 70,
-                    height: 70,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      width: 70,
-                      height: 70,
-                      color: scheme.surfaceContainerHighest,
-                      child: const Icon(Icons.image_not_supported),
-                    ),
+                Text(
+                  item.name,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+                const SizedBox(height: 4),
+                Text(
+                  item.description,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.outline,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${priceWithTax(item.price).toStringAsFixed(2)} SAR',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  'Incl. 15% tax',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.outline,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (count > 0) ...[
+            const SizedBox(width: 10),
+            Material(
+              color: scheme.primary,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: onIncrement == null
+                    ? null
+                    : () async {
+                        await onIncrement!();
+                      },
+                child: Container(
+                  width: 42,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1239,7 +1261,7 @@ class _ConfigPickerSheet extends StatelessWidget {
                   title: Text(summary),
                   subtitle: Text(
                     'In cart: ${line.quantity} • '
-                    '${line.unitPrice.toStringAsFixed(0)} SAR each',
+                    '${priceWithTax(line.unitPrice).toStringAsFixed(2)} SAR each (incl. tax)',
                   ),
                   trailing: const Icon(Icons.add_circle_outline),
                 ),

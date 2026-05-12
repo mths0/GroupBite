@@ -6,6 +6,7 @@
 // so the UI code requires zero changes.
 
 import 'package:food_delivery_platform/models/cart_models.dart';
+import 'package:food_delivery_platform/utils/tax.dart';
 
 class MockCartRepository {
   // ---------------------------------------------------------------------------
@@ -60,7 +61,7 @@ class MockCartRepository {
     return const CheckoutData(
       deliveryFee: 15,
       walletBalance: 150,
-      taxRate: 0.15, // 15%
+      taxRate: kTaxRate,
     );
   }
 

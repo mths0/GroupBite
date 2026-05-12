@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/menu_item_option.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/utils/tax.dart';
 import 'package:image_picker/image_picker.dart';
 
 class MenuManagementScreen extends StatefulWidget {
@@ -53,6 +54,12 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
     final result = await showModalBottomSheet<MenuItem>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => _AddEditItemSheet(
         restaurantId: widget.restaurant.id,
         category: existing?.category ?? category,
@@ -107,7 +114,7 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
   Future<void> _toggleAvailable(MenuItem item, bool available) async {
     await _itemsCol.doc(item.id).update({
       "updatedAt": firestore.FieldValue.serverTimestamp(),
-      "available": available,
+      "isAvailable": available,
     });
   }
 
@@ -541,6 +548,8 @@ class _MenuItemCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final priceText = "${item.price.toStringAsFixed(0)} SAR";
+    final withTaxText =
+        "${priceWithTax(item.price).toStringAsFixed(2)} with tax";
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -611,22 +620,34 @@ class _MenuItemCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 10),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: scheme.primary.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                priceText,
-                                style: TextStyle(
-                                  color: scheme.primary,
-                                  fontWeight: FontWeight.w900,
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: scheme.primary.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    priceText,
+                                    style: TextStyle(
+                                      color: scheme.primary,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  withTaxText,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.outline,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -814,6 +835,9 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
     _optionGroups = List<MenuItemOptionGroup>.from(
       widget.existing?.optionGroups ?? const [],
     );
+    _priceCtrl.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -922,21 +946,93 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    final maxHeight = MediaQuery.of(context).size.height * 0.92;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
-      child: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                widget.existing == null ? "Add Item" : "Edit Item",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+    return SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Padding(
+          padding: EdgeInsets.only(bottom: viewInsets),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    widget.existing == null ? "Add Item" : "Edit Item",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    children: [
+            // Item NAME
+            TextFormField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(labelText: "Item name"),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? "Required" : null,
+            ),
+            const SizedBox(height: 10),
+            // Item DESCRIPTION
+            TextFormField(
+              controller: _descriptionCtrl,
+              decoration: const InputDecoration(labelText: "Description"),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? "Required" : null,
+            ),
+            const SizedBox(height: 10),
+            // Item PRICE
+            TextFormField(
+              controller: _priceCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Price (SAR, before tax)",
+              ),
+              validator: (v) {
+                final t = (v ?? "").trim();
+                if (t.isEmpty) return "Required";
+                final d = double.tryParse(t);
+                if (d == null || d <= 0) return "Enter a valid price";
+                return null;
+              },
+            ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Builder(
+                builder: (context) {
+                  final parsed =
+                      double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+                  final hint = parsed <= 0
+                      ? "Customers will see this price + 15% tax."
+                      : "With 15% tax, customers see "
+                            "${priceWithTax(parsed).toStringAsFixed(2)} SAR.";
+                  return Text(
+                    hint,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Item IMAGE
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Item Image",
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
               const SizedBox(height: 12),
@@ -1093,9 +1189,25 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
                     onPressed: _save,
                     child: const Text("Save"),
                   ),
+                );
+              }),
+
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _save,
+                      child: const Text("Save"),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
