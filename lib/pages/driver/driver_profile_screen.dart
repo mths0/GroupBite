@@ -60,12 +60,11 @@ class DriverProfileTab extends StatelessWidget {
     required String label,
     required String value,
   }) {
-    return Card(
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(label),
-        subtitle: Text(value),
-      ),
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon),
+      title: Text(label),
+      subtitle: Text(value),
     );
   }
 
@@ -78,23 +77,16 @@ class DriverProfileTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        const SizedBox(height: 12),
-        Center(
-          child: Text(
-            driver.name,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+        const SizedBox(height: 16),
+
+        Text(
+          '${driver.name} Profile',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 4),
-        Center(
-          child: Text(
-            'Driver Account',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
 
         _infoTile(
           icon: Icons.email_outlined,
@@ -102,12 +94,17 @@ class DriverProfileTab extends StatelessWidget {
           value: driver.email,
         ),
         _infoTile(
+          icon: Icons.badge_outlined,
+          label: 'Driver ID',
+          value: driver.id,
+        ),
+        _infoTile(
           icon: Icons.phone_outlined,
           label: 'Phone',
           value: driver.phone,
         ),
         _infoTile(
-          icon: Icons.badge_outlined,
+          icon: Icons.fingerprint,
           label: 'National ID',
           value: driver.nationalId,
         ),
@@ -122,11 +119,11 @@ class DriverProfileTab extends StatelessWidget {
           value: _statusLabel(driver.status),
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
 
         SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
+          height: 50,
+          child: OutlinedButton.icon(
             onPressed: () => _signOut(context),
             icon: const Icon(Icons.logout),
             label: const Text('Sign Out'),

@@ -275,34 +275,34 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Set<Polyline> _buildPolylines({
-    required Order liveOrder,
-    required LatLng? liveDriverLocation,
-  }) {
-    if (liveDriverLocation == null) return {};
+  // Set<Polyline> _buildPolylines({
+  //   required Order liveOrder,
+  //   required LatLng? liveDriverLocation,
+  // }) {
+  //   if (liveDriverLocation == null) return {};
 
-    LatLng destination;
+  //   LatLng destination;
 
-    if (liveOrder.status == OrderStatus.assigned) {
-      destination = _restaurantLocationFromOrder(liveOrder);
-    } else if (liveOrder.status == OrderStatus.pickedUp) {
-      destination = _customerLocationFromOrder(liveOrder);
-    } else {
-      return {};
-    }
+  //   if (liveOrder.status == OrderStatus.assigned) {
+  //     destination = _restaurantLocationFromOrder(liveOrder);
+  //   } else if (liveOrder.status == OrderStatus.pickedUp) {
+  //     destination = _customerLocationFromOrder(liveOrder);
+  //   } else {
+  //     return {};
+  //   }
 
-    return {
-      Polyline(
-        polylineId: const PolylineId("driver_route"),
-        points: [
-          liveDriverLocation,
-          destination,
-        ],
-        width: 5,
-        color: Colors.blue,
-      ),
-    };
-  }
+  //   return {
+  //     Polyline(
+  //       polylineId: const PolylineId("driver_route"),
+  //       points: [
+  //         liveDriverLocation,
+  //         destination,
+  //       ],
+  //       width: 5,
+  //       color: Colors.blue,
+  //     ),
+  //   };
+  // }
 
   Set<Marker> _buildMarkers({
     required Order liveOrder,

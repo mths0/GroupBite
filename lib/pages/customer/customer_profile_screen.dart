@@ -5,8 +5,8 @@ import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
-import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 import 'package:food_delivery_platform/pages/customer/add_funds_sheet.dart';
+import 'package:food_delivery_platform/pages/customer/address_widgets.dart';
 import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
 import 'package:food_delivery_platform/pages/customer/family_wallet_tab.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
@@ -16,9 +16,11 @@ class CustomerProfileScreen extends StatefulWidget {
   const CustomerProfileScreen({
     super.key,
     required this.customer,
+    this.onDefaultAddressChanged,
   });
 
   final Customer customer;
+  final VoidCallback? onDefaultAddressChanged;
 
   @override
   State<CustomerProfileScreen> createState() => _CustomerProfileScreenState();
@@ -46,36 +48,6 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     super.dispose();
-  }
-
-  Future<void> _openAddressScreen({CustomerAddress? existing}) async {
-    final result = await Navigator.push<CustomerAddress>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddAddressScreen(existing: existing),
-      ),
-    );
-
-    if (result == null) return;
-
-    if (existing == null) {
-      await _db.addCustomerAddress(
-        customerId: widget.customer.id,
-        address: result,
-      );
-    } else {
-      await _db.updateCustomerAddress(
-        customerId: widget.customer.id,
-        address: result,
-      );
-    }
-
-    if (result.isDefault) {
-      await _db.setDefaultCustomerAddress(
-        customerId: widget.customer.id,
-        addressId: result.id,
-      );
-    }
   }
 
   Future<void> _saveProfile() async {
@@ -185,7 +157,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                     db: _db,
                     onSave: _saveProfile,
                     onSignOut: _signOut,
-                    onOpenAddress: _openAddressScreen,
+                    onDefaultAddressChanged: widget.onDefaultAddressChanged,
                   ),
                   _PaymentTab(
                     customerId: widget.customer.id,
@@ -214,7 +186,7 @@ class _AccountTab extends StatefulWidget {
     required this.db,
     required this.onSave,
     required this.onSignOut,
-    required this.onOpenAddress,
+    this.onDefaultAddressChanged,
   });
 
   final Customer customer;
@@ -224,7 +196,7 @@ class _AccountTab extends StatefulWidget {
   final DatabaseService db;
   final VoidCallback onSave;
   final VoidCallback onSignOut;
-  final Future<void> Function({CustomerAddress? existing}) onOpenAddress;
+  final VoidCallback? onDefaultAddressChanged;
 
   @override
   State<_AccountTab> createState() => _AccountTabState();
@@ -235,10 +207,37 @@ class _AccountTabState extends State<_AccountTab>
   @override
   bool get wantKeepAlive => true;
 
+  late final Stream<List<CustomerAddress>> _addressesStream =
+      widget.db.streamCustomerAddresses(widget.customer.id);
+
+  Future<void> _pickDefaultAddress() async {
+    final picked = await showModalBottomSheet<CustomerAddress>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => AddressPickerSheet(
+        customerId: widget.customer.id,
+        title: 'Set default delivery address',
+        subtitle: 'This is the address used when you sign in.',
+      ),
+    );
+
+    if (picked == null || !mounted) return;
+
+    await widget.db.setDefaultCustomerAddress(
+      customerId: widget.customer.id,
+      addressId: picked.id,
+    );
+
+    widget.onDefaultAddressChanged?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final scheme = Theme.of(context).colorScheme;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -252,13 +251,6 @@ class _AccountTabState extends State<_AccountTab>
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 6),
-
-        Text(
-          'ID: ${widget.customer.id}',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: scheme.outline),
-        ),
         const SizedBox(height: 24),
 
         ListTile(
@@ -266,6 +258,12 @@ class _AccountTabState extends State<_AccountTab>
           leading: const Icon(Icons.email_outlined),
           title: const Text('Email'),
           subtitle: Text(widget.customer.email),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.badge_outlined),
+          title: const Text('Customer ID'),
+          subtitle: Text(widget.customer.id),
         ),
         const SizedBox(height: 12),
 
@@ -285,90 +283,34 @@ class _AccountTabState extends State<_AccountTab>
         const SizedBox(height: 24),
 
         Text(
-          'Addresses',
+          'Default delivery address',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
 
         StreamBuilder<List<CustomerAddress>>(
-          stream: widget.db.streamCustomerAddresses(widget.customer.id),
+          stream: _addressesStream,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+            CustomerAddress? defaultAddress;
+            for (final a in snapshot.data ?? const <CustomerAddress>[]) {
+              if (a.isDefault) {
+                defaultAddress = a;
+                break;
+              }
             }
-
-            final addresses = snapshot.data ?? [];
-
-            return Column(
-              children: [
-                if (addresses.isEmpty)
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text('No addresses added yet'),
-                  ),
-
-                ...addresses.map((address) {
-                  return Card(
-                    child: ListTile(
-                      leading: Icon(
-                        address.isDefault
-                            ? Icons.location_on
-                            : Icons.location_on_outlined,
-                      ),
-                      title: Text(address.label),
-                      subtitle: Text(address.fullAddress),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) async {
-                          if (value == 'default') {
-                            await widget.db.setDefaultCustomerAddress(
-                              customerId: widget.customer.id,
-                              addressId: address.id,
-                            );
-                          } else if (value == 'edit') {
-                            widget.onOpenAddress(existing: address);
-                          } else if (value == 'delete') {
-                            await widget.db.deleteCustomerAddress(
-                              customerId: widget.customer.id,
-                              addressId: address.id,
-                            );
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'default',
-                            child: Text('Set as default'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Text('Edit'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Delete'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-
-                const SizedBox(height: 12),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => widget.onOpenAddress(),
-                    icon: const Icon(Icons.add_location_alt_outlined),
-                    label: const Text('Add Address'),
-                  ),
-                ),
-              ],
+            return AddressChip(
+              label: defaultAddress?.label,
+              fullAddress: defaultAddress?.fullAddress,
+              isLoading:
+                  snapshot.connectionState == ConnectionState.waiting,
+              onTap: () => _pickDefaultAddress(),
             );
           },
         ),
-        const SizedBox(height: 12),
+
+        const SizedBox(height: 24),
 
         SizedBox(
           height: 50,

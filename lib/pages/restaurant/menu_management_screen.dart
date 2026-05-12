@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/menu_item_option.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/utils/tax.dart';
 import 'package:image_picker/image_picker.dart';
 
 class MenuManagementScreen extends StatefulWidget {
@@ -16,40 +17,52 @@ class MenuManagementScreen extends StatefulWidget {
   State<MenuManagementScreen> createState() => _MenuManagementScreenState();
 }
 
-class _MenuManagementScreenState extends State<MenuManagementScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _MenuManagementScreenState extends State<MenuManagementScreen> {
+  static const List<String> _defaultTabs = [
+    "Mains",
+    "Appetizers",
+    "Desserts",
+    "Drinks",
+  ];
 
-  static const _tabs = ["Mains", "Appetizers", "Desserts", "Drinks"];
+  int _selectedTabIndex = 0;
 
-  firestore.CollectionReference<Map<String, dynamic>> get _itemsCol => firestore
-      .FirebaseFirestore
-      .instance
-      .collection("users")
-      .doc(widget.restaurant.id)
-      .collection("menu_items");
+  final Map<String, Stream<firestore.QuerySnapshot<Map<String, dynamic>>>>
+  _streamCache = {};
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: _tabs.length, vsync: this);
+  firestore.DocumentReference<Map<String, dynamic>> get _restaurantDoc =>
+      firestore.FirebaseFirestore.instance
+          .collection("users")
+          .doc(widget.restaurant.id);
+
+  firestore.CollectionReference<Map<String, dynamic>> get _itemsCol =>
+      _restaurantDoc.collection("menu_items");
+
+  Stream<firestore.QuerySnapshot<Map<String, dynamic>>> _streamFor(
+    String category,
+  ) {
+    return _streamCache.putIfAbsent(
+      category,
+      () => _itemsCol.where("category", isEqualTo: category).snapshots(),
+    );
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  String _activeCategory() => _tabs[_tabController.index];
-
-  Future<void> _addOrEditItem({MenuItem? existing}) async {
+  Future<void> _addOrEditItem({
+    required String category,
+    MenuItem? existing,
+  }) async {
     final result = await showModalBottomSheet<MenuItem>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => _AddEditItemSheet(
         restaurantId: widget.restaurant.id,
-        category: _activeCategory(),
+        category: category,
         existing: existing,
       ),
     );
@@ -100,78 +113,414 @@ class _MenuManagementScreenState extends State<MenuManagementScreen>
   Future<void> _toggleAvailable(MenuItem item, bool available) async {
     await _itemsCol.doc(item.id).update({
       "updatedAt": firestore.FieldValue.serverTimestamp(),
-      "available": available,
+      "isAvailable": available,
     });
+  }
+
+  List<String> _extractCategories(Map<String, dynamic>? data) {
+    final raw = data?["categories"];
+
+    if (raw is List) {
+      final categories = raw
+          .map((e) => e.toString())
+          .where((e) => e.trim().isNotEmpty)
+          .toList();
+      if (categories.isNotEmpty) return categories;
+    }
+
+    return List<String>.from(_defaultTabs);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Menu Management"),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: _tabs.map((t) => Tab(text: t)).toList(),
-          onTap: (_) => setState(() {}),
-        ),
-      ),
+    return StreamBuilder<firestore.DocumentSnapshot<Map<String, dynamic>>>(
+      stream: _restaurantDoc.snapshots(),
+      builder: (context, restaurantSnapshot) {
+        if (restaurantSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-      // قائمة العناصر حسب التب
-      body: TabBarView(
-        controller: _tabController,
-        children: _tabs.map((category) {
-          final query = _itemsCol.where("category", isEqualTo: category);
+        if (restaurantSnapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(title: const Text("Menu Management")),
+            body: Center(child: Text("Error: ${restaurantSnapshot.error}")),
+          );
+        }
 
-          return StreamBuilder<firestore.QuerySnapshot<Map<String, dynamic>>>(
-            stream: query.snapshots(),
-            builder: (context, snap) {
-              // Loading state
-              if (snap.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+        final restaurantData = restaurantSnapshot.data?.data();
+        final tabs = _extractCategories(restaurantData);
+        _streamCache.removeWhere((key, _) => !tabs.contains(key));
 
-              if (snap.hasError) {
-                return Center(child: Text("Error ${snap.error}"));
-              }
+        final currentIndex = _selectedTabIndex >= tabs.length
+            ? 0
+            : _selectedTabIndex;
 
-              final data = snap.data?.docs ?? [];
-              if (data.isEmpty) {
-                return const Center(child: Text("No items yet"));
-              }
+        return DefaultTabController(
+          length: tabs.length,
+          initialIndex: currentIndex,
+          child: Builder(
+            builder: (context) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: const Text("Menu Management"),
+                  bottom: TabBar(
+                    isScrollable: true,
+                    tabs: tabs.map((t) => Tab(text: t)).toList(),
+                    onTap: (index) {
+                      _selectedTabIndex = index;
+                    },
+                  ),
+                  actions: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: OutlinedButton.icon(
+                        onPressed: () => showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (_) => _ManageCategoriesSheet(
+                            initialTabs: tabs,
+                            restaurantId: widget.restaurant.id,
+                          ),
+                        ),
+                        icon: const Icon(Icons.line_weight_rounded),
+                        label: const Text("Manage Categories"),
+                      ),
+                    ),
+                  ],
+                ),
 
-              final items = data
-                  .map((doc) => MenuItem.fromFirestore(doc))
-                  .toList();
+                body: TabBarView(
+                  children: tabs.map((category) {
+                    return StreamBuilder<
+                      firestore.QuerySnapshot<Map<String, dynamic>>
+                    >(
+                      stream: _streamFor(category),
+                      builder: (context, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
 
-              return ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (context, i) {
-                  final item = items[i];
-                  return _MenuItemCard(
-                    item: item,
-                    onEdit: () => _addOrEditItem(existing: item),
-                    onDelete: () => _deleteItem(item),
-                    onToggleAvailable: (v) => _toggleAvailable(item, v),
-                  );
-                },
+                        if (snap.hasError) {
+                          return Center(child: Text("Error ${snap.error}"));
+                        }
+
+                        final data = snap.data?.docs ?? [];
+                        if (data.isEmpty) {
+                          return const Center(child: Text("No items yet"));
+                        }
+
+                        final items = data
+                            .map((doc) => MenuItem.fromFirestore(doc))
+                            .toList();
+
+                        return ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: items.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, i) {
+                            final item = items[i];
+                            return _MenuItemCard(
+                              item: item,
+                              onEdit: () => _addOrEditItem(
+                                category: category,
+                                existing: item,
+                              ),
+                              onDelete: () => _deleteItem(item),
+                              onToggleAvailable: (v) =>
+                                  _toggleAvailable(item, v),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  }).toList(),
+                ),
+
+                bottomNavigationBar: Builder(
+                  builder: (context) {
+                    final tabController = DefaultTabController.of(context);
+                    return AnimatedBuilder(
+                      animation: tabController,
+                      builder: (context, _) {
+                        final activeIndex = tabController.index >= tabs.length
+                            ? 0
+                            : tabController.index;
+                        final activeCategory = tabs[activeIndex];
+
+                        return SafeArea(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                            child: SizedBox(
+                              height: 52,
+                              child: ElevatedButton.icon(
+                                onPressed: () =>
+                                    _addOrEditItem(category: activeCategory),
+                                icon: const Icon(Icons.add),
+                                label: Text(
+                                  "Add New Item to $activeCategory",
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               );
             },
-          );
-        }).toList(),
-      ),
+          ),
+        );
+      },
+    );
+  }
+}
 
-      // زر إضافة
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: SizedBox(
-            height: 52,
-            child: ElevatedButton.icon(
-              onPressed: () => _addOrEditItem(),
-              icon: const Icon(Icons.add),
-              label: const Text("Add New Item"),
+class _ManageCategoriesSheet extends StatefulWidget {
+  const _ManageCategoriesSheet({
+    required this.initialTabs,
+    required this.restaurantId,
+  });
+
+  final List<String> initialTabs;
+  final String restaurantId;
+
+  @override
+  State<_ManageCategoriesSheet> createState() => _ManageCategoriesSheetState();
+}
+
+class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
+  late final TextEditingController controller;
+  late List<String> _tabs;
+  final Set<String> _removedCategories = {};
+
+  firestore.DocumentReference<Map<String, dynamic>> get _restaurantDoc =>
+      firestore.FirebaseFirestore.instance
+          .collection("users")
+          .doc(widget.restaurantId);
+
+  firestore.CollectionReference<Map<String, dynamic>> get _itemsCol =>
+      _restaurantDoc.collection("menu_items");
+
+  @override
+  void initState() {
+    super.initState();
+    controller = TextEditingController();
+    _tabs = List<String>.from(widget.initialTabs);
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  void _addNewCategory() {
+    final text = controller.text.trim();
+
+    if (text.isEmpty) return;
+
+    if (_tabs.any((tab) => tab.toLowerCase() == text.toLowerCase())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("This category already exists.")),
+      );
+      return;
+    }
+
+    setState(() {
+      _tabs.add(text);
+    });
+
+    controller.clear();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Category “$text” added.")),
+    );
+  }
+
+  Future<void> _promptDeleteCategory(int index) async {
+    if (_tabs.length <= 1) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Cannot delete category'),
+          content: const Text(
+            'You must have at least one category. Add another category before removing this one.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    final category = _tabs[index];
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete category?'),
+        content: Text(
+          'This will delete the category “$category” and all menu items inside it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Keep it"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true || !mounted) return;
+
+    setState(() {
+      _removedCategories.add(category);
+      _tabs.removeAt(index);
+    });
+  }
+
+  Future<void> _saveCategories() async {
+    if (_tabs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You need at least one category.")),
+      );
+      return;
+    }
+
+    for (final removedCategory in _removedCategories) {
+      final snapshot = await _itemsCol
+          .where("category", isEqualTo: removedCategory)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        await doc.reference.delete();
+      }
+    }
+
+    await _restaurantDoc.set(
+      {
+        "categories": _tabs,
+        "updatedAt": firestore.FieldValue.serverTimestamp(),
+      },
+      firestore.SetOptions(merge: true),
+    );
+
+    if (!mounted) return;
+
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Categories updated successfully.")),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Manage Categories",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  height: 250,
+                  child: _tabs.isEmpty
+                      ? const Center(child: Text("No categories yet"))
+                      : ReorderableListView(
+                          buildDefaultDragHandles: false,
+                          children: [
+                            for (int index = 0; index < _tabs.length; index++)
+                              ListTile(
+                                key: ValueKey(_tabs[index]),
+                                title: Text("${index + 1} - ${_tabs[index]}"),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.red,
+                                      ),
+                                      tooltip: 'Delete category',
+                                      onPressed: () =>
+                                          _promptDeleteCategory(index),
+                                    ),
+                                    ReorderableDragStartListener(
+                                      index: index,
+                                      child: const Icon(
+                                        Icons.format_line_spacing_sharp,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                          onReorder: (oldIndex, newIndex) {
+                            setState(() {
+                              if (newIndex > oldIndex) {
+                                newIndex -= 1;
+                              }
+                              final tab = _tabs.removeAt(oldIndex);
+                              _tabs.insert(newIndex, tab);
+                            });
+                          },
+                        ),
+                ),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        keyboardType: TextInputType.text,
+                        textCapitalization: TextCapitalization.words,
+                        controller: controller,
+                        decoration: const InputDecoration(
+                          labelText: "Category",
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _addNewCategory,
+                      label: const Text("Add Category"),
+                      icon: const Icon(Icons.add),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _saveCategories,
+                    icon: const Icon(Icons.download_done_outlined),
+                    label: const Text("Save"),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -198,6 +547,8 @@ class _MenuItemCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final priceText = "${item.price.toStringAsFixed(0)} SAR";
+    final withTaxText =
+        "${priceWithTax(item.price).toStringAsFixed(2)} with tax";
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -268,22 +619,34 @@ class _MenuItemCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 10),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: scheme.primary.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                priceText,
-                                style: TextStyle(
-                                  color: scheme.primary,
-                                  fontWeight: FontWeight.w900,
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: scheme.primary.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    priceText,
+                                    style: TextStyle(
+                                      color: scheme.primary,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  withTaxText,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.outline,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -471,6 +834,9 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
     _optionGroups = List<MenuItemOptionGroup>.from(
       widget.existing?.optionGroups ?? const [],
     );
+    _priceCtrl.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -579,176 +945,229 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    final maxHeight = MediaQuery.of(context).size.height * 0.92;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              widget.existing == null ? "Add Item" : "Edit Item",
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            // Item NAME
-            TextFormField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(labelText: "Item name"),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? "Required" : null,
-            ),
-            const SizedBox(height: 10),
-            // Item DESCRIPTION
-            TextFormField(
-              controller: _descriptionCtrl,
-              decoration: const InputDecoration(labelText: "Description"),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? "Required" : null,
-            ),
-            const SizedBox(height: 10),
-            // Item PRICE
-            TextFormField(
-              controller: _priceCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Price (SAR)"),
-              validator: (v) {
-                final t = (v ?? "").trim();
-                if (t.isEmpty) return "Required";
-                final d = double.tryParse(t);
-                if (d == null || d <= 0) return "Enter a valid price";
-                return null;
-              },
-            ),
-            const SizedBox(height: 10),
-            // Item IMAGE
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Padding(
+          padding: EdgeInsets.only(bottom: viewInsets),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  "Item Image",
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    widget.existing == null ? "Add Item" : "Edit Item",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 10),
-                Center(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: _selectedImageFile != null
-                        ? Image.file(
-                            _selectedImageFile!,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                          )
-                        : (_existingImageUrl != null &&
-                              _existingImageUrl!.isNotEmpty)
-                        ? Image.network(
-                            _existingImageUrl!,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
-                              width: 120,
-                              height: 120,
-                              color: Colors.grey.shade200,
-                              child: const Icon(Icons.image_not_supported),
-                            ),
-                          )
-                        : Container(
-                            width: 120,
-                            height: 120,
-                            color: Colors.grey.shade200,
-                            child: const Icon(Icons.fastfood),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    children: [
+                      // Item NAME
+                      TextFormField(
+                        controller: _nameCtrl,
+                        decoration: const InputDecoration(
+                          labelText: "Item name",
+                        ),
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? "Required" : null,
+                      ),
+                      const SizedBox(height: 10),
+                      // Item DESCRIPTION
+                      TextFormField(
+                        controller: _descriptionCtrl,
+                        decoration: const InputDecoration(
+                          labelText: "Description",
+                        ),
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? "Required" : null,
+                      ),
+                      const SizedBox(height: 10),
+                      // Item PRICE
+                      TextFormField(
+                        controller: _priceCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: "Price (SAR, before tax)",
+                        ),
+                        validator: (v) {
+                          final t = (v ?? "").trim();
+                          if (t.isEmpty) return "Required";
+                          final d = double.tryParse(t);
+                          if (d == null || d <= 0) return "Enter a valid price";
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Builder(
+                          builder: (context) {
+                            final parsed =
+                                double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+                            final hint = parsed <= 0
+                                ? "Customers will see this price + 15% tax."
+                                : "With 15% tax, customers see "
+                                      "${priceWithTax(parsed).toStringAsFixed(2)} SAR.";
+                            return Text(
+                              hint,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.outline,
+                                  ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      // Item IMAGE
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Item Image",
+                            style: TextStyle(fontWeight: FontWeight.w600),
                           ),
+                          const SizedBox(height: 10),
+                          Center(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: _selectedImageFile != null
+                                  ? Image.file(
+                                      _selectedImageFile!,
+                                      width: 120,
+                                      height: 120,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : (_existingImageUrl != null &&
+                                        _existingImageUrl!.isNotEmpty)
+                                  ? Image.network(
+                                      _existingImageUrl!,
+                                      width: 120,
+                                      height: 120,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => Container(
+                                        width: 120,
+                                        height: 120,
+                                        color: Colors.grey.shade200,
+                                        child: const Icon(
+                                          Icons.image_not_supported,
+                                        ),
+                                      ),
+                                    )
+                                  : Container(
+                                      width: 120,
+                                      height: 120,
+                                      color: Colors.grey.shade200,
+                                      child: const Icon(Icons.fastfood),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _isUploadingImage ? null : _pickImage,
+                              icon: const Icon(Icons.upload),
+                              label: Text(
+                                _isUploadingImage
+                                    ? "Uploading..."
+                                    : "Upload Image",
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      SwitchListTile(
+                        value: _available,
+                        onChanged: (v) => setState(() => _available = v),
+                        title: const Text("Available"),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Text(
+                            'Customization Options',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: _addOptionGroup,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add Group'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      if (_optionGroups.isEmpty)
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('No customization groups yet.'),
+                        )
+                      else
+                        ..._optionGroups.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final group = entry.value;
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            child: ListTile(
+                              title: Text(group.title),
+                              subtitle: Text(
+                                '${group.isRequired ? "Required" : "Optional"} • '
+                                '${group.multiSelect ? "Multi select" : "Single select"} • '
+                                '${group.choices.length} choices',
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: () => _editOptionGroup(index),
+                                    icon: const Icon(Icons.edit),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => _removeOptionGroup(index),
+                                    icon: const Icon(Icons.delete_outline),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+
+                      const SizedBox(height: 10),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _isUploadingImage ? null : _pickImage,
-                    icon: const Icon(Icons.upload),
-                    label: Text(
-                      _isUploadingImage ? "Uploading..." : "Upload Image",
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _save,
+                      child: const Text("Save"),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-
-            SwitchListTile(
-              value: _available,
-              onChanged: (v) => setState(() => _available = v),
-              title: const Text("Available"),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Text(
-                  'Customization Options',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: _addOptionGroup,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Group'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            if (_optionGroups.isEmpty)
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('No customization groups yet.'),
-              )
-            else
-              ..._optionGroups.asMap().entries.map((entry) {
-                final index = entry.key;
-                final group = entry.value;
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    title: Text(group.title),
-                    subtitle: Text(
-                      '${group.isRequired ? "Required" : "Optional"} • '
-                      '${group.multiSelect ? "Multi select" : "Single select"} • '
-                      '${group.choices.length} choices',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          onPressed: () => _editOptionGroup(index),
-                          icon: const Icon(Icons.edit),
-                        ),
-                        IconButton(
-                          onPressed: () => _removeOptionGroup(index),
-                          icon: const Icon(Icons.delete_outline),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-
-            const SizedBox(height: 10),
-            SafeArea(
-              child: SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _save,
-                  child: const Text("Save"),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

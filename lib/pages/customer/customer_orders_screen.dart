@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
+import 'package:food_delivery_platform/models/family_wallet.dart';
 import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
-import 'package:food_delivery_platform/pages/customer/map_track_screen.dart';
-import 'package:food_delivery_platform/pages/customer/rate_order_screen.dart';
+import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/pages/customer/order_detail_screen.dart';
 
 class CustomerOrdersScreen extends StatefulWidget {
   const CustomerOrdersScreen({
@@ -21,274 +20,156 @@ class CustomerOrdersScreen extends StatefulWidget {
 
 class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   final DatabaseService _db = DatabaseService();
+  late final Stream<List<Order>> _ordersStream =
+      _db.getOrdersForCustomer(widget.customer.id);
+  late final Stream<FamilyWallet?> _walletStream =
+      _db.streamFamilyWalletForUser(widget.customer.id);
 
-  bool _canTrack(OrderStatus status) {
-    return status == OrderStatus.assigned || status == OrderStatus.pickedUp;
-  }
+  final Map<String, Future<Restaurant?>> _restaurantFutures = {};
+  final Map<String, Future<String>> _memberNameFutures = {};
 
-  String _formatScheduledFor(DateTime dt) {
-    final hour = dt.hour.toString().padLeft(2, '0');
-    final min = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day}/${dt.month}/${dt.year} at $hour:$min';
-  }
-
-  Color _statusColor(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.pending:
-        return Colors.orange;
-      case OrderStatus.accepted:
-        return Colors.blue;
-      case OrderStatus.rejected:
-        return Colors.red;
-      case OrderStatus.pickedUp:
-        return Colors.deepPurple;
-      case OrderStatus.delivered:
-        return Colors.green;
-      case OrderStatus.assigned:
-        return Colors.cyan;
-      case OrderStatus.cancelled:
-        return Colors.grey;
-    }
-  }
-
-  String _statusLabel(OrderStatus status) {
-    switch (status) {
-      case OrderStatus.pending:
-        return 'Pending';
-      case OrderStatus.accepted:
-        return 'Accepted';
-      case OrderStatus.rejected:
-        return 'Rejected';
-      case OrderStatus.pickedUp:
-        return 'Picked Up';
-      case OrderStatus.delivered:
-        return 'Delivered';
-      case OrderStatus.assigned:
-        return 'Assigned';
-      case OrderStatus.cancelled:
-        return 'Cancelled';
-    }
-  }
-
-  void _openRatingSheet(Order order) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => RateOrderSheet(
-        order: order,
-        onSubmit:
-            ({
-              required int restaurantRating,
-              required int driverRating,
-            }) async {
-              if (order.driverId == null || order.driverId!.isEmpty) {
-                throw Exception('Driver not found for this order');
-              }
-
-              await _db.submitOrderRating(
-                orderId: order.id,
-                restaurantId: order.restaurantId,
-                driverId: order.driverId!,
-                restaurantRating: restaurantRating,
-                driverRating: driverRating,
-              );
-            },
-      ),
+  Future<Restaurant?> _restaurantFuture(String restaurantId) {
+    return _restaurantFutures.putIfAbsent(
+      restaurantId,
+      () => _db.getRestaurantById(restaurantId),
     );
   }
 
-  Future<void> _orderSameOrderAgain(Order order) async {
-    final cart = CartScope.of(context);
-    cart.clearRestaurantCart(order.restaurantId);
-    // get restaurant menu
-    final menu = await DatabaseService().getMenuForRestaurant(
-      restaurantId: order.restaurantId,
-    );
-
-    for (var item in order.items) {
-      if (menu.any((menu) => menu.id == item.menuId)) {
-        final menuitem = menu.firstWhere((menu) => menu.id == item.menuId);
-        for (int i = 0; i < item.quantity; i++) {
-          cart.addItem(
-            restaurantId: order.restaurantId,
-            item: menuitem,
-            selectedOptions: const [],
-            customUnitPrice: menuitem.price,
-          );
-        }
-      }
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CartScope(
-          notifier: cart,
-          child: CartScreen(
-            restaurantId: order.restaurantId,
-            customerId: order.customerId,
-          ),
-        ),
-      ),
-    );
+  Future<String> _memberNameFuture(String userId) {
+    return _memberNameFutures.putIfAbsent(userId, () async {
+      final user = await _db.getUserById(userId);
+      return user?.name ?? 'Member';
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<FamilyWallet?>(
+      stream: _walletStream,
+      builder: (context, walletSnap) {
+        if (walletSnap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final wallet = walletSnap.data;
+        final isOwner = wallet != null && wallet.isOwner(widget.customer.id);
+
+        if (!isOwner) {
+          return _myOrdersList();
+        }
+
+        return DefaultTabController(
+          length: 2,
+          child: Column(
+            children: [
+              Material(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                child: TabBar(
+                  labelColor: Theme.of(context).colorScheme.primary,
+                  indicatorColor: Theme.of(context).colorScheme.primary,
+                  tabs: const [
+                    Tab(text: 'My Orders'),
+                    Tab(text: 'Family'),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _myOrdersList(),
+                    _familyOrdersList(wallet.id),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _myOrdersList() {
     return StreamBuilder<List<Order>>(
-      stream: _db.getOrdersForCustomer(widget.customer.id),
+      stream: _ordersStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-
         if (snapshot.hasError) {
-          return Center(
-            child: Text('Error: ${snapshot.error}'),
-          );
+          return Center(child: Text('Error: ${snapshot.error}'));
         }
-
         final orders = snapshot.data ?? [];
-
         if (orders.isEmpty) {
-          return const Center(
-            child: Text('No orders yet'),
-          );
+          return const Center(child: Text('No orders yet'));
         }
-
         return ListView.separated(
           padding: const EdgeInsets.all(16),
           itemCount: orders.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          separatorBuilder: (_, _) => const SizedBox(height: 18),
           itemBuilder: (context, index) {
             final order = orders[index];
-
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Order #${order.id}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _statusColor(order.status).withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _statusLabel(order.status),
-                            style: TextStyle(
-                              color: _statusColor(order.status),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text('Total: ${order.totalPrice.toStringAsFixed(2)} SAR'),
-                    const SizedBox(height: 6),
-                    Text('Items: ${order.items.length}'),
-                    if (order.scheduledFor != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'Scheduled for: ${_formatScheduledFor(order.scheduledFor!)}',
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-
-                    ...order.items.map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text('- ${item.name} x${item.quantity}'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    CancelOrderTimer(
-                      orderId: order.id,
-
-                      customerId: widget.customer.id,
-
-                      canCancelUntil: order.canCancelUntil,
-
-                      status: order.status,
-
-                      onCancelled: () {},
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    if (_canTrack(order.status))
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => MapScreen(order: order),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.location_on_outlined),
-                          label: Text(
-                            order.status == OrderStatus.assigned
-                                ? 'Track Driver'
-                                : 'Track Order',
-                          ),
-                        ),
-                      ),
-
-                    if (order.status == OrderStatus.delivered &&
-                        !order.isRated) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _openRatingSheet(order),
-                          icon: const Icon(Icons.star_outline),
-                          label: const Text('Rate Order'),
-                        ),
-                      ),
-                    ],
-
-                    if (order.status == OrderStatus.delivered &&
-                        order.isRated) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: ElevatedButton(
-                          onPressed: () => _orderSameOrderAgain(order),
-                          style: TextButton.styleFrom(
-                            backgroundColor: Colors.orangeAccent.withOpacity(
-                              0.8,
-                            ),
-                          ),
-                          child: const Text('Order again'),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+            return _OrderCard(
+              order: order,
+              customerName: widget.customer.name,
+              restaurantFuture: _restaurantFuture(order.restaurantId),
+              onTap: () => _openDetail(order, widget.customer.name),
             );
           },
         );
       },
+    );
+  }
+
+  Widget _familyOrdersList(String walletId) {
+    return StreamBuilder<List<Order>>(
+      stream: _db.streamOrdersForFamilyWallet(walletId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        final orders = snapshot.data ?? [];
+        if (orders.isEmpty) {
+          return const Center(
+            child: Text('No family wallet orders yet'),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: orders.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 18),
+          itemBuilder: (context, index) {
+            final order = orders[index];
+            return FutureBuilder<String>(
+              future: _memberNameFuture(order.customerId),
+              builder: (context, nameSnap) {
+                final name = nameSnap.data ?? '…';
+                return _OrderCard(
+                  order: order,
+                  customerName: name,
+                  restaurantFuture: _restaurantFuture(order.restaurantId),
+                  onTap: () => _openDetail(order, name),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _openDetail(Order order, String displayName) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrderDetailScreen(
+          order: order,
+          customer: widget.customer,
+          displayCustomerName: displayName,
+        ),
+      ),
     );
   }
 }
@@ -520,6 +401,152 @@ class _CancelOrderTimerState extends State<CancelOrderTimer> {
           ),
         );
       },
+    );
+  }
+}
+
+class _OrderCard extends StatelessWidget {
+  const _OrderCard({
+    required this.order,
+    required this.customerName,
+    required this.restaurantFuture,
+    required this.onTap,
+  });
+
+  final Order order;
+  final String customerName;
+  final Future<Restaurant?> restaurantFuture;
+  final VoidCallback onTap;
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year}  $hour:$min';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return FutureBuilder<Restaurant?>(
+      future: restaurantFuture,
+      builder: (context, snap) {
+        final restaurant = snap.data;
+        final restaurantName = restaurant?.name ?? 'Restaurant';
+        final imageUrl = restaurant?.imageUrl ?? '';
+
+        return Material(
+          color: scheme.surface,
+          elevation: 0,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: onTap,
+            child: Ink(
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: scheme.outlineVariant,
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                    color: Colors.black.withOpacity(0.06),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: imageUrl.isNotEmpty
+                          ? Image.network(
+                              imageUrl,
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => _ImageFallback(
+                                scheme: scheme,
+                              ),
+                            )
+                          : _ImageFallback(scheme: scheme),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            restaurantName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            customerName,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.outline,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          _formatTime(order.createdAt),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.outline,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${order.totalPrice.toStringAsFixed(2)} SAR',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: scheme.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ImageFallback extends StatelessWidget {
+  const _ImageFallback({required this.scheme});
+
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 64,
+      height: 64,
+      color: scheme.surfaceContainerHighest,
+      alignment: Alignment.center,
+      child: Icon(Icons.restaurant, color: scheme.outline),
     );
   }
 }

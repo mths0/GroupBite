@@ -9,6 +9,7 @@ import '../../cart/cart_scope.dart';
 import '../../mock/mock_cart_repository.dart';
 import '../../models/cart_item.dart' as app_models;
 import '../../models/cart_models.dart' as cart_models;
+import '../../utils/tax.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({
@@ -116,7 +117,9 @@ class _CartScreenState extends State<CartScreen> {
 
   double get _subtotal => _cart.subtotal(widget.restaurantId);
 
-  double get _tax => _subtotal * (_checkoutData?.taxRate ?? 0.15);
+  double get _tax => _subtotal * (_checkoutData?.taxRate ?? kTaxRate);
+
+  double get _subtotalInclTax => _subtotal + _tax;
 
   double get _discount {
     if (_appliedCoupon == null) return 0.0;
@@ -178,7 +181,7 @@ class _CartScreenState extends State<CartScreen> {
   // Navigation
   // ---------------------------------------------------------------------------
 
-  void _proceedToCheckout() {
+  Future<void> _proceedToCheckout() async {
     final cartItems = _cart.itemsForRestaurant(widget.restaurantId);
 
     if (cartItems.isEmpty) {
@@ -191,6 +194,34 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
+    final restaurant = await DatabaseService().getRestaurantById(
+      widget.restaurantId,
+    );
+    if (!mounted) return;
+    if (restaurant == null || !restaurant.isOpen) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('Restaurant is closed'),
+          content: const Text(
+            'This restaurant is no longer accepting orders. '
+            'You will be returned to the home page.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -209,7 +240,7 @@ class _CartScreenState extends State<CartScreen> {
               )
               .toList(),
           checkoutData: _checkoutData!,
-          subtotal: _subtotal,
+          subtotal: _subtotalInclTax,
           deliveryFee: _deliveryFee,
           tax: _tax,
           discount: _discount,
@@ -306,7 +337,7 @@ class _CartScreenState extends State<CartScreen> {
         ),
         const SizedBox(height: 12),
         _BillSummaryCard(
-          subtotal: _subtotal,
+          subtotal: _subtotalInclTax,
           deliveryFee: _deliveryFee,
           tax: _tax,
           discount: _discount,
@@ -453,7 +484,7 @@ class _CartItemCard extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        '${item.lineTotal.toStringAsFixed(2)} SAR',
+                        '${priceWithTax(item.lineTotal).toStringAsFixed(2)} SAR',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: colorScheme.primary,
                           fontWeight: FontWeight.w700,
@@ -768,11 +799,11 @@ class _BillSummaryCard extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            _BillRow(label: 'Subtotal', value: subtotal),
+            _BillRow(label: 'Subtotal (incl. tax)', value: subtotal),
+            const SizedBox(height: 10),
+            _BillRow(label: 'Tax (15%) included', value: tax),
             const SizedBox(height: 10),
             _BillRow(label: 'Delivery Fee', value: deliveryFee),
-            const SizedBox(height: 10),
-            _BillRow(label: 'Tax (15%)', value: tax),
 
             if (discount > 0) ...[
               const SizedBox(height: 10),

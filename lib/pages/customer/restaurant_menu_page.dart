@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
+import 'package:food_delivery_platform/models/cart_item.dart' as cart_lines;
 import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/group_order.dart';
@@ -11,6 +13,7 @@ import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
 import 'package:food_delivery_platform/pages/customer/item_customization_screen.dart';
+import 'package:food_delivery_platform/utils/tax.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class RestaurantMenuPage extends StatefulWidget {
@@ -31,6 +34,31 @@ class RestaurantMenuPage extends StatefulWidget {
 }
 
 class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
+  static const List<String> _defaultTabs = [
+    'Mains',
+    'Appetizers',
+    'Desserts',
+    'Drinks',
+  ];
+
+  late final Stream<firestore.DocumentSnapshot<Map<String, dynamic>>>
+  _restaurantStream = firestore.FirebaseFirestore.instance
+      .collection('users')
+      .doc(widget.restaurant.id)
+      .snapshots();
+
+  List<String> _extractCategories(Map<String, dynamic>? data) {
+    final raw = data?['categories'];
+    if (raw is List) {
+      final cats = raw
+          .map((e) => e.toString())
+          .where((e) => e.trim().isNotEmpty)
+          .toList();
+      if (cats.isNotEmpty) return cats;
+    }
+    return List<String>.from(_defaultTabs);
+  }
+
   void _openGroupOrderSummary({
     required String groupOrderId,
     required String restaurantId,
@@ -78,8 +106,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                     final hasMinimumMembers = members.length >= 2;
                     final deliveryFee = widget.restaurant.deliveryFee;
                     final deliveryShare = deliveryFee / memberCount;
-                    final tax = mySubtotal * 0.15;
-                    final total = mySubtotal + deliveryShare + tax;
+                    final tax = mySubtotal * kTaxRate;
+                    final subtotalInclTax = mySubtotal + tax;
+                    final total = subtotalInclTax + deliveryShare;
 
                     GroupOrderMember? myMember;
 
@@ -347,17 +376,17 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                               const Divider(),
 
                               _GroupSummaryRow(
-                                label: 'Your Items Subtotal',
-                                value: mySubtotal,
+                                label: 'Your Items Subtotal (incl. tax)',
+                                value: subtotalInclTax,
+                              ),
+                              _GroupSummaryRow(
+                                label: 'Tax (15%) included',
+                                value: tax,
                               ),
                               _GroupSummaryRow(
                                 label:
                                     'Delivery Share (${deliveryFee.toStringAsFixed(2)} ÷ $memberCount)',
                                 value: deliveryShare,
-                              ),
-                              _GroupSummaryRow(
-                                label: 'Tax (15%)',
-                                value: tax,
                               ),
                               _GroupSummaryRow(
                                 label: 'Your Total',
@@ -428,10 +457,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                                     cart_models.CheckoutData(
                                                       deliveryFee:
                                                           deliveryShare,
-                                                      taxRate: 0.15,
+                                                      taxRate: kTaxRate,
                                                       walletBalance: 100.0,
                                                     ),
-                                                subtotal: mySubtotal,
+                                                subtotal: subtotalInclTax,
                                                 deliveryFee: deliveryShare,
                                                 tax: tax,
                                                 discount: 0.0,
@@ -506,22 +535,12 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
   @override
   void initState() {
     super.initState();
-    _menuFuture = _loadMenu();
-  }
-
-  late final Future<_MenuData> _menuFuture;
-
-  Future<_MenuData> _loadMenu() async {
-    final db = DatabaseService();
-    final results = await Future.wait([
-      db.getRestaurantCategories(restaurantId: widget.restaurant.id),
-      db.getMenuForRestaurant(restaurantId: widget.restaurant.id),
-    ]);
-    return _MenuData(
-      categories: results[0] as List<String>,
-      items: results[1] as List<MenuItem>,
+    _menuFuture = DatabaseService().getMenuForRestaurant(
+      restaurantId: widget.restaurant.id,
     );
   }
+
+  late final Future<List<MenuItem>> _menuFuture;
 
   @override
   Widget build(BuildContext context) {
@@ -538,7 +557,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
         ),
       ),
 
-      body: FutureBuilder<_MenuData>(
+      body: FutureBuilder<List<MenuItem>>(
         future: _menuFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -551,168 +570,250 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
             );
           }
 
-          final data = snapshot.data;
-          final items = data?.items ?? const <MenuItem>[];
-          final tabs = data?.categories ?? const <String>[];
+          final items = snapshot.data ?? const <MenuItem>[];
 
-          if (tabs.isEmpty) {
-            return Column(
-              children: [
-                HeaderCard(restaurant: widget.restaurant),
-                const Expanded(
-                  child: Center(child: Text('No menu categories yet')),
-                ),
-              ],
-            );
-          }
+          return StreamBuilder<
+            firestore.DocumentSnapshot<Map<String, dynamic>>
+          >(
+            stream: _restaurantStream,
+            builder: (context, restaurantSnap) {
+              final tabs = _extractCategories(
+                restaurantSnap.data?.data(),
+              );
 
-          return DefaultTabController(
-            key: ValueKey(tabs.join('|')),
-            length: tabs.length,
-            child: Column(
-              children: [
-                HeaderCard(restaurant: widget.restaurant),
-                const SizedBox(height: 8),
-                if (widget.groupOrderId == null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _startGroupOrder,
-                      icon: const Icon(Icons.group_add),
-                      label: const Text('Start Group Order'),
+              if (tabs.isEmpty) {
+                return Column(
+                  children: [
+                    HeaderCard(restaurant: widget.restaurant),
+                    const Expanded(
+                      child: Center(child: Text('No menu categories yet')),
                     ),
-                  )
-                else
-                  _GroupOrderStatusBar(
-                    groupOrderId: widget.groupOrderId!,
-                    customerId: widget.customer.id,
-                  ),
-                const SizedBox(height: 8),
+                  ],
+                );
+              }
 
-                TabBar(
-                  isScrollable: true,
-                  labelColor: scheme.primary,
-                  unselectedLabelColor: scheme.outline,
-                  indicatorColor: scheme.primary,
-                  tabs: tabs.map((t) => Tab(text: t)).toList(),
-                ),
+              return DefaultTabController(
+                key: ValueKey(tabs.join('|')),
+                length: tabs.length,
+                child: Column(
+                  children: [
+                    HeaderCard(restaurant: widget.restaurant),
 
-                Expanded(
-                  child: TabBarView(
-                    children: tabs.map((cat) {
-                      final filtered = items
-                          .where((e) => e.category == cat)
-                          .toList();
+                    const SizedBox(height: 8),
 
-                    if (filtered.isEmpty) {
-                      return const Center(child: Text('No items'));
-                    }
+                    if (widget.groupOrderId == null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _startGroupOrder,
+                          icon: const Icon(Icons.group_add),
+                          label: const Text('Start Group Order'),
+                        ),
+                      )
+                    else
+                      _GroupOrderStatusBar(
+                        groupOrderId: widget.groupOrderId!,
+                        customerId: widget.customer.id,
+                      ),
 
-                    return ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final item = filtered[index];
-                        return _MenuItemTile(
-                          item: item,
-                          onAdd: () async {
-                            ItemCustomizationResult? customization;
+                    const SizedBox(height: 8),
 
-                            if (item.optionGroups.isNotEmpty) {
-                              customization =
-                                  await Navigator.push<ItemCustomizationResult>(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          ItemCustomizationScreen(item: item),
+                    TabBar(
+                      isScrollable: true,
+                      labelColor: scheme.primary,
+                      unselectedLabelColor: scheme.outline,
+                      indicatorColor: scheme.primary,
+                      tabs: tabs.map((t) => Tab(text: t)).toList(),
+                    ),
+
+                    Expanded(
+                      child: TabBarView(
+                        children: tabs.map((cat) {
+                          final filtered = items
+                              .where((e) => e.category == cat)
+                              .toList();
+
+                          if (filtered.isEmpty) {
+                            return const Center(child: Text('No items'));
+                          }
+
+                          return ListView.separated(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final item = filtered[index];
+
+                              Future<void> handleTap() async {
+                                ItemCustomizationResult? customization;
+
+                                if (item.optionGroups.isNotEmpty) {
+                                  customization =
+                                      await Navigator.push<
+                                        ItemCustomizationResult
+                                      >(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              ItemCustomizationScreen(
+                                                item: item,
+                                              ),
+                                        ),
+                                      );
+
+                                  if (customization == null) {
+                                    return;
+                                  }
+                                }
+
+                                if (widget.groupOrderId == null) {
+                                  cart!.addItem(
+                                    restaurantId: restaurantId,
+                                    item: item,
+                                    selectedOptions:
+                                        customization?.selectedOptions ??
+                                        const [],
+                                    customUnitPrice:
+                                        customization?.finalUnitPrice,
+                                  );
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '${item.name} added to cart',
+                                      ),
                                     ),
                                   );
 
-                              if (customization == null) {
-                                return;
-                              }
-                            }
+                                  return;
+                                }
 
-                            if (widget.groupOrderId == null) {
-                              cart!.addItem(
-                                restaurantId: restaurantId,
-                                item: item,
-                                selectedOptions:
-                                    customization?.selectedOptions ?? const [],
-                                customUnitPrice: customization?.finalUnitPrice,
-                              );
+                                final member = await DatabaseService()
+                                    .getGroupMember(
+                                      groupOrderId: widget.groupOrderId!,
+                                      customerId: widget.customer.id,
+                                    );
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('${item.name} added to cart'),
-                                ),
-                              );
+                                if (member == null) {
+                                  if (!context.mounted) return;
 
-                              return;
-                            }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'You are not a member of this group order.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
 
-                            final member = await DatabaseService()
-                                .getGroupMember(
+                                if (member.status == GroupMemberStatus.ready ||
+                                    member.status == GroupMemberStatus.paid) {
+                                  if (!context.mounted) return;
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'You already marked yourself ready. You cannot add more items.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                await DatabaseService().addItemToGroupOrder(
                                   groupOrderId: widget.groupOrderId!,
-                                  customerId: widget.customer.id,
+                                  memberId: widget.customer.id,
+                                  menuItem: item,
+                                  selectedOptions:
+                                      customization?.selectedOptions ??
+                                      const [],
+                                  customUnitPrice:
+                                      customization?.finalUnitPrice,
                                 );
 
-                            if (member == null) {
-                              if (!context.mounted) return;
+                                if (!context.mounted) return;
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'You are not a member of this group order.',
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      '${item.name} added to group order',
+                                    ),
                                   ),
+                                );
+                              }
+
+                              if (cart == null) {
+                                return _MenuItemTile(
+                                  item: item,
+                                  onAdd: handleTap,
+                                );
+                              }
+
+                              Future<void> handleIncrement() async {
+                                final lines = cart
+                                    .itemsForRestaurant(restaurantId)
+                                    .where((e) => e.menuItem.id == item.id)
+                                    .toList();
+
+                                if (lines.isEmpty) return;
+
+                                cart_lines.CartItem? chosen;
+
+                                if (lines.length == 1) {
+                                  chosen = lines.first;
+                                } else {
+                                  chosen =
+                                      await showModalBottomSheet<
+                                        cart_lines.CartItem
+                                      >(
+                                        context: context,
+                                        showDragHandle: true,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(
+                                            top: Radius.circular(20),
+                                          ),
+                                        ),
+                                        builder: (_) => _ConfigPickerSheet(
+                                          item: item,
+                                          lines: lines,
+                                        ),
+                                      );
+                                }
+
+                                if (chosen == null) return;
+
+                                cart.addItem(
+                                  restaurantId: restaurantId,
+                                  item: item,
+                                  selectedOptions: chosen.selectedOptions,
+                                  customUnitPrice: chosen.customUnitPrice,
+                                );
+                              }
+
+                              return AnimatedBuilder(
+                                animation: cart,
+                                builder: (_, _) => _MenuItemTile(
+                                  item: item,
+                                  count: cart.quantityForMenuItem(
+                                    restaurantId: restaurantId,
+                                    menuItemId: item.id,
+                                  ),
+                                  onAdd: handleTap,
+                                  onIncrement: handleIncrement,
                                 ),
                               );
-                              return;
-                            }
-
-                            if (member.status == GroupMemberStatus.ready ||
-                                member.status == GroupMemberStatus.paid) {
-                              if (!context.mounted) return;
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'You already marked yourself ready. You cannot add more items.',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-
-                            await DatabaseService().addItemToGroupOrder(
-                              groupOrderId: widget.groupOrderId!,
-                              memberId: widget.customer.id,
-                              menuItem: item,
-                              selectedOptions:
-                                  customization?.selectedOptions ?? const [],
-                              customUnitPrice: customization?.finalUnitPrice,
-                            );
-
-                            if (!context.mounted) return;
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '${item.name} added to group order',
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  }).toList(),
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              ],
-            ),
+              );
+            },
           );
         },
       ),
@@ -906,14 +1007,6 @@ class HeaderCard extends StatelessWidget {
                           style: theme.textTheme.bodyMedium,
                         ),
                         const SizedBox(width: 14),
-                        const Icon(Icons.access_time, size: 18),
-                        const SizedBox(width: 6),
-                        //Todo make delivery time dynamic (wait for backend)
-                        Text(
-                          "Delivery Time (Soon)",
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(width: 14),
                         const Icon(Icons.attach_money, size: 18),
                         Text(
                           restaurant.deliveryFee == 0
@@ -965,91 +1058,204 @@ class _MenuItemTile extends StatelessWidget {
   const _MenuItemTile({
     required this.item,
     required this.onAdd,
+    this.onIncrement,
+    this.count = 0,
   });
 
   final MenuItem item;
   final Future<void> Function() onAdd;
+  final Future<void> Function()? onIncrement;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 10,
-            offset: Offset(0, 4),
-            color: Colors.black12,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: Image.network(
-              item.imageUrl,
-              width: 70,
-              height: 70,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                width: 70,
-                height: 70,
-                color: scheme.surfaceContainerHighest,
-                child: const Icon(Icons.image_not_supported),
-              ),
+    return Material(
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(
+              blurRadius: 10,
+              offset: Offset(0, 4),
+              color: Colors.black12,
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () async {
+            await onAdd();
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
               children: [
-                Text(
-                  item.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: item.imageUrl.isNotEmpty
+                      ? Image.network(
+                          item.imageUrl,
+                          width: 84,
+                          height: 84,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                            width: 84,
+                            height: 84,
+                            color: scheme.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.image_not_supported,
+                              color: scheme.outline,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          width: 84,
+                          height: 84,
+                          color: scheme.surfaceContainerHighest,
+                          child: Icon(Icons.fastfood, color: scheme.outline),
+                        ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.description,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: scheme.outline,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${priceWithTax(item.price).toStringAsFixed(2)} SAR',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: scheme.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'Incl. 15% tax',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.outline,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  item.description,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: scheme.outline,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${item.price.toStringAsFixed(0)} SAR',
-                  style: theme.textTheme.titleSmall?.copyWith(
+                if (count > 0) ...[
+                  const SizedBox(width: 10),
+                  Material(
                     color: scheme.primary,
-                    fontWeight: FontWeight.w800,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: onIncrement == null
+                          ? null
+                          : () async {
+                              await onIncrement!();
+                            },
+                      child: Container(
+                        width: 42,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add, color: scheme.onPrimary, size: 22),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$count',
+                              style: TextStyle(
+                                color: scheme.onPrimary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          Container(
-            width: 42,
-            height: 80,
-            decoration: BoxDecoration(
-              color: scheme.primary,
-              borderRadius: BorderRadius.circular(3),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConfigPickerSheet extends StatelessWidget {
+  const _ConfigPickerSheet({
+    required this.item,
+    required this.lines,
+  });
+
+  final MenuItem item;
+  final List<cart_lines.CartItem> lines;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Add another ${item.name}',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
-            child: IconButton(
-              icon: Icon(Icons.add, color: scheme.onPrimary),
-              onPressed: () async {
-                await onAdd();
-              },
+            const SizedBox(height: 4),
+            Text(
+              'Pick which one to add',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.outline,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            ...lines.map((line) {
+              final summary = line.customizationSummary.isEmpty
+                  ? 'No customizations'
+                  : line.customizationSummary;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  onTap: () => Navigator.pop(context, line),
+                  title: Text(summary),
+                  subtitle: Text(
+                    'In cart: ${line.quantity} • '
+                    '${priceWithTax(line.unitPrice).toStringAsFixed(2)} SAR each (incl. tax)',
+                  ),
+                  trailing: const Icon(Icons.add_circle_outline),
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }

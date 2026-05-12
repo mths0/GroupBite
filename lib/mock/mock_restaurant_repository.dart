@@ -10,15 +10,6 @@ class MockRestaurantRepository {
     yield _dummyData;
   }
 
-  String calculateDeliveryTime(
-    String restaurantLocation,
-    String customerLocation,
-  ) {
-    //Todo i will handle this in the backend, after user adds item in the cart
-
-    return "25 min";
-  }
-
   final List<Restaurant> _dummyData = [
     Restaurant(
       id: 'r1',
@@ -27,7 +18,6 @@ class MockRestaurantRepository {
           'https://images.unsplash.com/photo-1527025047-354c31c26312?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8cmVzdGF1cmFudCUyMGxvZ298ZW58MHx8MHx8fDA%3D',
       rating: 4.5,
 
-      //deliveryTime: '30 min',
       deliveryFee: 0,
       tags: [RestaurantTag.burger, RestaurantTag.fastFood],
       isOpen: true,
@@ -44,7 +34,6 @@ class MockRestaurantRepository {
       imageUrl:
           'https://plus.unsplash.com/premium_photo-1668902224065-2fa295ec3a21?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OXx8cmVzdGF1cmFudCUyMGxvZ298ZW58MHx8MHx8fDA%3D',
       rating: 3.5,
-      //deliveryTime: '25 min',
       deliveryFee: 10,
       tags: [RestaurantTag.breakfast, RestaurantTag.healthy],
       isOpen: true,
@@ -62,7 +51,6 @@ class MockRestaurantRepository {
       imageUrl: 'https://via.placeholder.com/300x200?text=Sushi+Zen',
       rating: 3.5,
       ratingCount: 3,
-      //deliveryTime: '25 min',
       deliveryFee: 10,
       tags: [RestaurantTag.sushi, RestaurantTag.japanese],
       isOpen: false,
@@ -77,7 +65,6 @@ class MockRestaurantRepository {
       name: 'Sushi Zen',
       imageUrl: 'https://via.placeholder.com/300x200?text=Sushi+Zen',
       rating: 3.5,
-      //deliveryTime: '25 min',
       deliveryFee: 10,
       tags: [RestaurantTag.sushi, RestaurantTag.japanese, RestaurantTag.other],
       isOpen: true,
@@ -94,7 +81,6 @@ class MockRestaurantRepository {
       imageUrl: 'https://via.placeholder.com/300x200?text=Sushi+Zen',
       rating: 3.5,
       ratingCount: 3,
-      //deliveryTime: '25 min',
       deliveryFee: 10,
       tags: [RestaurantTag.sushi, RestaurantTag.japanese],
       isOpen: true,

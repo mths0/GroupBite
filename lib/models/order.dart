@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:food_delivery_platform/models/selected_option_choice.dart';
 
 enum OrderStatus {
   pending,
@@ -22,6 +23,7 @@ class Order {
   final DateTime createdAt;
   final double totalPrice;
   final String? paymentId;
+  final String? familyWalletId;
   final bool isRated;
   final int? restaurantRating;
   final int? driverRating;
@@ -43,6 +45,7 @@ class Order {
     this.driverRating,
     this.driverId,
     this.paymentId,
+    this.familyWalletId,
     required this.canCancelUntil,
     this.scheduledFor,
   });
@@ -69,6 +72,7 @@ class Order {
       totalPrice: (data['totalPrice'] as num?)?.toDouble() ?? 0.0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       paymentId: data['paymentId']?.toString(),
+      familyWalletId: data['familyWalletId']?.toString(),
       items: (data['items'] as List<dynamic>? ?? [])
           .map((item) => OrderItem.fromMap(item as Map<String, dynamic>))
           .toList(),
@@ -95,6 +99,7 @@ class Order {
     'createdAt': Timestamp.fromDate(createdAt),
     'totalPrice': totalPrice,
     'paymentId': paymentId,
+    'familyWalletId': familyWalletId,
     'scheduledFor': scheduledFor != null
         ? Timestamp.fromDate(scheduledFor!)
         : null,
@@ -106,19 +111,33 @@ class OrderItem {
   final String name;
   final int quantity;
   final double priceAtPurchase;
+  final List<SelectedOptionChoice> selectedOptions;
 
   OrderItem({
     required this.menuId,
     required this.name,
     required this.quantity,
     required this.priceAtPurchase,
+    this.selectedOptions = const [],
   });
+
+  String get customizationSummary {
+    if (selectedOptions.isEmpty) return '';
+    final groups = <String, List<String>>{};
+    for (final o in selectedOptions) {
+      groups.putIfAbsent(o.groupTitle, () => []).add(o.choiceName);
+    }
+    return groups.entries
+        .map((e) => '${e.key}: ${e.value.join(', ')}')
+        .join('\n');
+  }
 
   Map<String, dynamic> toJson() => {
     'menuId': menuId,
     'name': name,
     'quantity': quantity,
     'priceAtPurchase': priceAtPurchase,
+    'selectedOptions': selectedOptions.map((e) => e.toJson()).toList(),
   };
 
   factory OrderItem.fromMap(Map<String, dynamic> map) {
@@ -127,6 +146,9 @@ class OrderItem {
       name: (map['name'] ?? '').toString(),
       quantity: (map['quantity'] as num?)?.toInt() ?? 0,
       priceAtPurchase: (map['priceAtPurchase'] as num?)?.toDouble() ?? 0.0,
+      selectedOptions: (map['selectedOptions'] as List<dynamic>? ?? [])
+          .map((e) => SelectedOptionChoice.fromMap(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 }

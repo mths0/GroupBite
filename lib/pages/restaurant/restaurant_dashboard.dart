@@ -46,27 +46,17 @@ class _RestaurantDashboardState extends State<RestaurantDashboard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.restaurant.name,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              "ID: ${widget.restaurant.id}",
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.outline,
-              ),
-            ),
-          ],
+        centerTitle: false,
+        titleSpacing: 16,
+        title: Text(
+          widget.restaurant.name,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+          overflow: TextOverflow.ellipsis,
         ),
         actions: [
           IconButton(
@@ -74,17 +64,6 @@ class _RestaurantDashboardState extends State<RestaurantDashboard> {
             onPressed: () {},
           ),
           const SizedBox(width: 6),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              child: Text(
-                widget.restaurant.name.isNotEmpty
-                    ? widget.restaurant.name[0].toUpperCase()
-                    : 'R',
-                style: TextStyle(color: scheme.onPrimary),
-              ),
-            ),
-          ),
         ],
       ),
       body: PageView(
