@@ -42,10 +42,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
   ];
 
   late final Stream<firestore.DocumentSnapshot<Map<String, dynamic>>>
-      _restaurantStream = firestore.FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.restaurant.id)
-          .snapshots();
+  _restaurantStream = firestore.FirebaseFirestore.instance
+      .collection('users')
+      .doc(widget.restaurant.id)
+      .snapshots();
 
   List<String> _extractCategories(Map<String, dynamic>? data) {
     final raw = data?['categories'];
@@ -58,6 +58,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
     }
     return List<String>.from(_defaultTabs);
   }
+
   void _openGroupOrderSummary({
     required String groupOrderId,
     required String restaurantId,
@@ -593,9 +594,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
               const SizedBox(height: 8),
 
               Expanded(
-                child: StreamBuilder<
-                  firestore.DocumentSnapshot<Map<String, dynamic>>
-                >(
+                child: StreamBuilder<firestore.DocumentSnapshot<Map<String, dynamic>>>(
                   stream: _restaurantStream,
                   builder: (context, restaurantSnap) {
                     final tabs = _extractCategories(
@@ -633,102 +632,115 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                   itemBuilder: (context, index) {
                                     final item = filtered[index];
                                     Future<void> handleTap() async {
-                                        final customization =
-                                            await showModalBottomSheet<
-                                              ItemCustomizationResult
-                                            >(
-                                              context: context,
-                                              isScrollControlled: true,
-                                              showDragHandle: true,
-                                              clipBehavior: Clip.antiAlias,
-                                              shape: const RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.vertical(
-                                                      top: Radius.circular(20),
-                                                    ),
-                                              ),
-                                              builder: (_) =>
-                                                  ItemCustomizationScreen(
-                                                    item: item,
+                                      final customization =
+                                          await showModalBottomSheet<
+                                            ItemCustomizationResult
+                                          >(
+                                            context: context,
+                                            isScrollControlled: true,
+                                            showDragHandle: true,
+                                            clipBehavior: Clip.antiAlias,
+                                            shape: const RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.vertical(
+                                                    top: Radius.circular(20),
                                                   ),
-                                            );
+                                            ),
+                                            builder: (_) =>
+                                                ItemCustomizationScreen(
+                                                  item: item,
+                                                ),
+                                          );
 
-                                        if (customization == null) {
-                                          return;
-                                        }
+                                      if (customization == null) {
+                                        return;
+                                      }
 
-                                        if (widget.groupOrderId == null) {
-                              cart!.addItem(
-                                restaurantId: restaurantId,
-                                item: item,
-                                selectedOptions:
-                                    customization?.selectedOptions ?? const [],
-                                customUnitPrice: customization?.finalUnitPrice,
-                              );
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('${item.name} added to cart'),
-                                ),
-                              );
-
-                              return;
-                            }
-
-                            final member = await DatabaseService()
-                                .getGroupMember(
-                                  groupOrderId: widget.groupOrderId!,
-                                  customerId: widget.customer.id,
-                                );
-
-                            if (member == null) {
-                              if (!context.mounted) return;
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'You are not a member of this group order.',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-
-                            if (member.status == GroupMemberStatus.ready ||
-                                member.status == GroupMemberStatus.paid) {
-                              if (!context.mounted) return;
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'You already marked yourself ready. You cannot add more items.',
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-
-                            await DatabaseService().addItemToGroupOrder(
-                              groupOrderId: widget.groupOrderId!,
-                              memberId: widget.customer.id,
-                              menuItem: item,
-                              selectedOptions:
-                                  customization?.selectedOptions ?? const [],
-                              customUnitPrice: customization?.finalUnitPrice,
-                            );
-
-                            if (!context.mounted) return;
+                                      if (widget.groupOrderId == null) {
+                                        cart!.addItem(
+                                          restaurantId: restaurantId,
+                                          item: item,
+                                          selectedOptions:
+                                              customization.selectedOptions,
+                                          customUnitPrice:
+                                              customization.finalUnitPrice,
+                                        );
 
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
                                           SnackBar(
                                             content: Text(
-                                              '${item.name} added to group order',
+                                              '${item.name} added to cart',
                                             ),
                                           ),
                                         );
+
+                                        return;
                                       }
+
+                                      final member = await DatabaseService()
+                                          .getGroupMember(
+                                            groupOrderId: widget.groupOrderId!,
+                                            customerId: widget.customer.id,
+                                          );
+
+                                      if (member == null) {
+                                        if (!context.mounted) return;
+
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'You are not a member of this group order.',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      if (member.status ==
+                                              GroupMemberStatus.ready ||
+                                          member.status ==
+                                              GroupMemberStatus.paid) {
+                                        if (!context.mounted) return;
+
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'You already marked yourself ready. You cannot add more items.',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      await DatabaseService()
+                                          .addItemToGroupOrder(
+                                            groupOrderId: widget.groupOrderId!,
+                                            memberId: widget.customer.id,
+                                            menuItem: item,
+                                            selectedOptions:
+                                                customization.selectedOptions,
+                                            customUnitPrice:
+                                                customization.finalUnitPrice,
+                                          );
+
+                                      if (!context.mounted) return;
+
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '${item.name} added to group order',
+                                          ),
+                                        ),
+                                      );
+                                    }
 
                                     if (cart == null) {
                                       return _MenuItemTile(
@@ -1086,26 +1098,6 @@ class _MenuItemTile extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: Image.network(
-              item.imageUrl,
-              width: 70,
-              height: 70,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                width: 70,
-                height: 70,
-                color: scheme.surfaceContainerHighest,
-                child: const Icon(Icons.image_not_supported),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   item.name,
@@ -1153,25 +1145,67 @@ class _MenuItemTile extends StatelessWidget {
                   width: 42,
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.add, color: scheme.onPrimary, size: 22),
-                      const SizedBox(height: 2),
                       Text(
-                        '$count',
-                        style: TextStyle(
-                          color: scheme.onPrimary,
+                        item.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
-                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.description,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: scheme.outline,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${item.price.toStringAsFixed(0)} SAR',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: scheme.primary,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ),
-          ],
-        ],
+                if (count > 0) ...[
+                  const SizedBox(width: 10),
+                  Material(
+                    color: scheme.primary,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: onIncrement == null
+                          ? null
+                          : () async {
+                              await onIncrement!();
+                            },
+                      child: Container(
+                        width: 42,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add, color: scheme.onPrimary, size: 22),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$count',
+                              style: TextStyle(
+                                color: scheme.onPrimary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),

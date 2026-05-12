@@ -28,7 +28,7 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
   int _selectedTabIndex = 0;
 
   final Map<String, Stream<firestore.QuerySnapshot<Map<String, dynamic>>>>
-      _streamCache = {};
+  _streamCache = {};
 
   firestore.DocumentReference<Map<String, dynamic>> get _restaurantDoc =>
       firestore.FirebaseFirestore.instance
@@ -157,7 +157,6 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
         final currentIndex = _selectedTabIndex >= tabs.length
             ? 0
             : _selectedTabIndex;
-        final currentCategory = tabs[currentIndex];
 
         return DefaultTabController(
           length: tabs.length,
@@ -1035,108 +1034,160 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
                   "Item Image",
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 10),
-                Center(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: _selectedImageFile != null
-                        ? Image.file(
-                            _selectedImageFile!,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                          )
-                        : (_existingImageUrl != null &&
-                              _existingImageUrl!.isNotEmpty)
-                        ? Image.network(
-                            _existingImageUrl!,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
+              ),
+              const SizedBox(height: 12),
+              // Item NAME
+              TextFormField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(labelText: "Item name"),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? "Required" : null,
+              ),
+              const SizedBox(height: 10),
+              // Item DESCRIPTION
+              TextFormField(
+                controller: _descriptionCtrl,
+                decoration: const InputDecoration(labelText: "Description"),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? "Required" : null,
+              ),
+              const SizedBox(height: 10),
+              // Item PRICE
+              TextFormField(
+                controller: _priceCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Price (SAR)"),
+                validator: (v) {
+                  final t = (v ?? "").trim();
+                  if (t.isEmpty) return "Required";
+                  final d = double.tryParse(t);
+                  if (d == null || d <= 0) return "Enter a valid price";
+                  return null;
+                },
+              ),
+              const SizedBox(height: 10),
+              // Item IMAGE
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Item Image",
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 10),
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _selectedImageFile != null
+                          ? Image.file(
+                              _selectedImageFile!,
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.cover,
+                            )
+                          : (_existingImageUrl != null &&
+                                _existingImageUrl!.isNotEmpty)
+                          ? Image.network(
+                              _existingImageUrl!,
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Container(
+                                width: 120,
+                                height: 120,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.image_not_supported),
+                              ),
+                            )
+                          : Container(
                               width: 120,
                               height: 120,
                               color: Colors.grey.shade200,
-                              child: const Icon(Icons.image_not_supported),
+                              child: const Icon(Icons.fastfood),
                             ),
-                          )
-                        : Container(
-                            width: 120,
-                            height: 120,
-                            color: Colors.grey.shade200,
-                            child: const Icon(Icons.fastfood),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _isUploadingImage ? null : _pickImage,
+                      icon: const Icon(Icons.upload),
+                      label: Text(
+                        _isUploadingImage ? "Uploading..." : "Upload Image",
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              SwitchListTile(
+                value: _available,
+                onChanged: (v) => setState(() => _available = v),
+                title: const Text("Available"),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text(
+                    'Customization Options',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: _addOptionGroup,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Group'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              if (_optionGroups.isEmpty)
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('No customization groups yet.'),
+                )
+              else
+                ..._optionGroups.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final group = entry.value;
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      title: Text(group.title),
+                      subtitle: Text(
+                        '${group.isRequired ? "Required" : "Optional"} • '
+                        '${group.multiSelect ? "Multi select" : "Single select"} • '
+                        '${group.choices.length} choices',
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: () => _editOptionGroup(index),
+                            icon: const Icon(Icons.edit),
                           ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
+                          IconButton(
+                            onPressed: () => _removeOptionGroup(index),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+
+              const SizedBox(height: 10),
+              SafeArea(
+                child: SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _isUploadingImage ? null : _pickImage,
-                    icon: const Icon(Icons.upload),
-                    label: Text(
-                      _isUploadingImage ? "Uploading..." : "Upload Image",
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            SwitchListTile(
-              value: _available,
-              onChanged: (v) => setState(() => _available = v),
-              title: const Text("Available"),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Text(
-                  'Customization Options',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: _addOptionGroup,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Group'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            if (_optionGroups.isEmpty)
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('No customization groups yet.'),
-              )
-            else
-              ..._optionGroups.asMap().entries.map((entry) {
-                final index = entry.key;
-                final group = entry.value;
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: ListTile(
-                    title: Text(group.title),
-                    subtitle: Text(
-                      '${group.isRequired ? "Required" : "Optional"} • '
-                      '${group.multiSelect ? "Multi select" : "Single select"} • '
-                      '${group.choices.length} choices',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          onPressed: () => _editOptionGroup(index),
-                          icon: const Icon(Icons.edit),
-                        ),
-                        IconButton(
-                          onPressed: () => _removeOptionGroup(index),
-                          icon: const Icon(Icons.delete_outline),
-                        ),
-                      ],
-                    ),
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _save,
+                    child: const Text("Save"),
                   ),
                 );
               }),

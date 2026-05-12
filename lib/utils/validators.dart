@@ -1,12 +1,14 @@
 class Validators {
-  //! data must be trimmed before valid
+  static RegExp regExpLettersOnly = RegExp(r'^[A-Za-z\s]+$');
+  static RegExp regExpNumbersOnly = RegExp(r'^\d+$');
+  static RegExp regExpSpecialChars = RegExp(r'[!@#$%^&*(),.?":{}|<>]');
   static String? validateName(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       return 'Name is required';
     }
     // only letters
-    final nameRegex = RegExp(r'^[A-Za-z\s]+$');
+    final nameRegex = regExpLettersOnly;
     if (!nameRegex.hasMatch(trimmed)) {
       return 'Name must contain letters only';
     }
@@ -19,7 +21,8 @@ class Validators {
   }
 
   static String? validatePhone(String value) {
-    if (value.trim().isEmpty) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
       return 'Phone number is required';
     }
     if (!RegExp(r'^5\d{8}$').hasMatch(value)) {
@@ -29,10 +32,15 @@ class Validators {
   }
 
   static String? validateNationalId(String value) {
-    if (value.isEmpty) {
+    String trimmed = value.trim();
+
+    if (trimmed.isEmpty) {
       return "National ID is required";
     }
-    if (value.length != 10) {
+    if (!regExpNumbersOnly.hasMatch(trimmed)) {
+      return 'National ID must contain digits only';
+    }
+    if (trimmed.length != 10) {
       return 'National ID must be 10 digits';
     }
     return null;

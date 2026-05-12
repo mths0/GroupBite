@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/abstract_user.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/family_wallet.dart';
 import 'package:food_delivery_platform/models/order.dart';
