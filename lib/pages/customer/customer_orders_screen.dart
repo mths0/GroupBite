@@ -240,6 +240,7 @@ class CancelOrderTimer extends StatefulWidget {
 class _CancelOrderTimerState extends State<CancelOrderTimer> {
   late final Stream<int> _ticker;
   bool _isCancelling = false;
+  bool _isSkipping = false;
 
   @override
   void initState() {
@@ -315,6 +316,26 @@ class _CancelOrderTimerState extends State<CancelOrderTimer> {
       if (mounted) {
         setState(() => _isCancelling = false);
       }
+    }
+  }
+
+  Future<void> _skipTimer() async {
+    setState(() => _isSkipping = true);
+    try {
+      await DatabaseService().skipCancelTimer(
+        orderId: widget.orderId,
+        customerId: widget.customerId,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSkipping = false);
     }
   }
 
@@ -412,33 +433,67 @@ class _CancelOrderTimerState extends State<CancelOrderTimer> {
 
               const SizedBox(height: 10),
 
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _isCancelling ? null : _confirmCancelOrder,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colorScheme.error,
-                    foregroundColor: colorScheme.onError,
-                    minimumSize: const Size.fromHeight(44),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: (_isCancelling || _isSkipping)
+                          ? null
+                          : _confirmCancelOrder,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colorScheme.error,
+                        foregroundColor: colorScheme.onError,
+                        minimumSize: const Size.fromHeight(44),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: _isCancelling
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.cancel_outlined),
+                      label: Text(
+                        _isCancelling ? 'Cancelling...' : 'Cancel Order',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ),
-                  icon: _isCancelling
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.cancel_outlined),
-                  label: Text(
-                    _isCancelling ? 'Cancelling...' : 'Cancel Order',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: (_isCancelling || _isSkipping)
+                          ? null
+                          : _skipTimer,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colorScheme.onSurface,
+                        minimumSize: const Size.fromHeight(44),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: _isSkipping
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                color: colorScheme.onSurface,
+                              ),
+                            )
+                          : const Icon(Icons.skip_next),
+                      label: Text(
+                        _isSkipping ? 'Skipping...' : 'Skip Timer',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),

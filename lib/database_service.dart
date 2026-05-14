@@ -254,7 +254,7 @@ class DatabaseService {
     final restaurantLocation = await getLocation(restaurantId);
 
     final now = DateTime.now();
-    final canCancelUntil = now.add(const Duration(seconds: 20));
+    final canCancelUntil = now.add(const Duration(minutes: 5));
     final restaurantRespondBy = canCancelUntil.add(kRestaurantResponseTimeout);
 
     await docRef.set({
@@ -413,6 +413,39 @@ class DatabaseService {
         'status': OrderStatus.cancelled.name,
         'cancelledAt': firestore.FieldValue.serverTimestamp(),
         'cancelledBy': customerId,
+      });
+    });
+  }
+
+  /// Ends the customer-cancel window early so the restaurant sees the order
+  /// immediately. Also recomputes `restaurantRespondBy` to give the restaurant
+  /// the full response window starting from now.
+  Future<void> skipCancelTimer({
+    required String orderId,
+    required String customerId,
+  }) async {
+    final orderRef = _db.collection('orders').doc(orderId);
+
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(orderRef);
+      if (!snapshot.exists) {
+        throw Exception('Order not found.');
+      }
+
+      final data = snapshot.data() as Map<String, dynamic>;
+      if (data['customerId'] != customerId) {
+        throw Exception('You cannot modify this order.');
+      }
+      if (data['status'] != OrderStatus.pending.name) {
+        throw Exception('This order is no longer pending.');
+      }
+
+      final now = DateTime.now();
+      transaction.update(orderRef, {
+        'canCancelUntil': firestore.Timestamp.fromDate(now),
+        'restaurantRespondBy': firestore.Timestamp.fromDate(
+          now.add(kRestaurantResponseTimeout),
+        ),
       });
     });
   }

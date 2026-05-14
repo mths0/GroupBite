@@ -175,13 +175,29 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final order = widget.order;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Order details'),
       ),
-      body: ListView(
+      body: StreamBuilder<Order?>(
+        stream: _db.streamOrderById(widget.order.id),
+        initialData: widget.order,
+        builder: (context, snap) {
+          final order = snap.data ?? widget.order;
+          return _buildBody(context, theme, scheme, order);
+        },
+      ),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme scheme,
+    Order order,
+  ) {
+    return ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Row(
@@ -363,8 +379,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ),
         ],
-      ),
-    );
+      );
   }
 }
 
