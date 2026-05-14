@@ -117,7 +117,9 @@ exports.notifyCustomerOnOrderStatusChange = onDocumentUpdated(
   },
 );
 
-// Auto-cancel pending orders whose restaurantRespondBy deadline has passed.
+// Auto-cancel orders whose stage deadline has passed:
+//   * status "pending"  + restaurantRespondBy < now → restaurant didn't reply
+//   * status "accepted" + driverAcceptBy     < now → no driver picked it up
 // Runs every minute. The Dart client also fires this in a transaction as a
 // backup when someone has the app open; both paths converge on the same doc
 // guarded by a status check.
@@ -130,30 +132,38 @@ exports.autoCancelStaleOrders = onSchedule(
     const db = admin.firestore();
     const now = admin.firestore.Timestamp.now();
 
-    const snapshot = await db
-      .collection("orders")
-      .where("status", "==", "pending")
-      .where("restaurantRespondBy", "<", now)
-      .get();
+    const [pendingSnap, acceptedSnap] = await Promise.all([
+      db
+        .collection("orders")
+        .where("status", "==", "pending")
+        .where("restaurantRespondBy", "<", now)
+        .get(),
+      db
+        .collection("orders")
+        .where("status", "==", "accepted")
+        .where("driverAcceptBy", "<", now)
+        .get(),
+    ]);
 
-    if (snapshot.empty) {
-      console.log("autoCancelStaleOrders: no stale pending orders");
+    const stale = [...pendingSnap.docs, ...acceptedSnap.docs];
+    if (stale.length === 0) {
+      console.log("autoCancelStaleOrders: nothing stale");
       return;
     }
 
     const writer = db.bulkWriter();
-    let cancelled = 0;
-
-    for (const doc of snapshot.docs) {
+    for (const doc of stale) {
       writer.update(doc.ref, {
         status: "cancelled",
         cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
         cancelledBy: "system",
       });
-      cancelled += 1;
     }
 
     await writer.close();
-    console.log(`autoCancelStaleOrders: cancelled ${cancelled} order(s)`);
+    console.log(
+      `autoCancelStaleOrders: cancelled ${stale.length} order(s) ` +
+        `(${pendingSnap.size} pending, ${acceptedSnap.size} accepted)`,
+    );
   },
 );

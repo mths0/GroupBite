@@ -25,6 +25,10 @@ import 'models/order.dart';
 /// 5 minutes before shipping.
 const Duration kRestaurantResponseTimeout = Duration(minutes: 1);
 
+/// How long after the restaurant accepts an order a driver has to pick it up
+/// before it auto-cancels. Testing value; raise to 10 minutes before shipping.
+const Duration kDriverAcceptTimeout = Duration(minutes: 1);
+
 class DatabaseService {
   final firestore.FirebaseFirestore _db = firestore.FirebaseFirestore.instance;
 
@@ -294,8 +298,10 @@ class DatabaseService {
   }
 
   Future<void> restaurantAcceptOrder(String orderId) async {
+    final driverAcceptBy = DateTime.now().add(kDriverAcceptTimeout);
     await _db.collection('orders').doc(orderId).update({
       'status': OrderStatus.accepted.name,
+      'driverAcceptBy': firestore.Timestamp.fromDate(driverAcceptBy),
     });
   }
 
@@ -411,9 +417,13 @@ class DatabaseService {
     });
   }
 
-  /// Cancels [orderId] if it is still pending past its `restaurantRespondBy`
-  /// deadline. Idempotent — a transaction guards against double-cancellation
-  /// or races with a restaurant accept/reject.
+  /// Cancels [orderId] if a stage deadline has passed:
+  ///   * status `pending`  + `restaurantRespondBy` in the past → restaurant
+  ///     never responded.
+  ///   * status `accepted` + `driverAcceptBy`     in the past → no driver
+  ///     picked it up.
+  /// Idempotent — a transaction guards against double-cancellation or races
+  /// with a real accept/reject/assign.
   Future<bool> autoCancelExpiredOrder(String orderId) async {
     final orderRef = _db.collection('orders').doc(orderId);
 
@@ -422,11 +432,22 @@ class DatabaseService {
       if (!snapshot.exists) return false;
 
       final data = snapshot.data() as Map<String, dynamic>;
-      if (data['status'] != OrderStatus.pending.name) return false;
+      final status = data['status'];
+      final now = DateTime.now();
 
-      final deadline = data['restaurantRespondBy'];
-      if (deadline is! firestore.Timestamp) return false;
-      if (DateTime.now().isBefore(deadline.toDate())) return false;
+      firestore.Timestamp? deadline;
+      if (status == OrderStatus.pending.name) {
+        final raw = data['restaurantRespondBy'];
+        if (raw is firestore.Timestamp) deadline = raw;
+      } else if (status == OrderStatus.accepted.name) {
+        final raw = data['driverAcceptBy'];
+        if (raw is firestore.Timestamp) deadline = raw;
+      } else {
+        return false;
+      }
+
+      if (deadline == null) return false;
+      if (now.isBefore(deadline.toDate())) return false;
 
       transaction.update(orderRef, {
         'status': OrderStatus.cancelled.name,

@@ -85,8 +85,12 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
   void _autoCancelStale(List<Order> orders) {
     final now = DateTime.now();
     for (final order in orders) {
-      if (order.status != OrderStatus.pending) continue;
-      final deadline = order.restaurantRespondBy;
+      DateTime? deadline;
+      if (order.status == OrderStatus.pending) {
+        deadline = order.restaurantRespondBy;
+      } else if (order.status == OrderStatus.accepted) {
+        deadline = order.driverAcceptBy;
+      }
       if (deadline == null || now.isBefore(deadline)) continue;
       if (!_autoCancelInFlight.add(order.id)) continue;
       _db.autoCancelExpiredOrder(order.id).whenComplete(() {
