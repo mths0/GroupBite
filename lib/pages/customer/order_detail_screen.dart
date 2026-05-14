@@ -109,28 +109,53 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Future<void> _orderSameOrderAgain(Order order) async {
-    final cart = CartScope.of(context);
+    final cart = CartScope.read(context);
     cart.clearRestaurantCart(order.restaurantId);
 
     final menu = await DatabaseService().getMenuForRestaurant(
       restaurantId: order.restaurantId,
     );
 
-    for (var item in order.items) {
-      if (menu.any((menu) => menu.id == item.menuId)) {
-        final menuitem = menu.firstWhere((menu) => menu.id == item.menuId);
-        for (int i = 0; i < item.quantity; i++) {
-          cart.addItem(
-            restaurantId: order.restaurantId,
-            item: menuitem,
-            selectedOptions: const [],
-            customUnitPrice: menuitem.price,
-          );
-        }
+    var addedCount = 0;
+    for (final item in order.items) {
+      final menuitem = menu.where((m) => m.id == item.menuId).firstOrNull;
+      if (menuitem == null) continue;
+
+      final extras = item.selectedOptions.fold<double>(
+        0.0,
+        (sum, o) => sum + o.extraPrice,
+      );
+      final unitPrice = menuitem.price + extras;
+
+      for (var i = 0; i < item.quantity; i++) {
+        cart.addItem(
+          restaurantId: order.restaurantId,
+          item: menuitem,
+          selectedOptions: item.selectedOptions,
+          customUnitPrice: unitPrice,
+        );
       }
+      addedCount++;
     }
 
     if (!mounted) return;
+
+    if (addedCount == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("None of these items are available anymore."),
+        ),
+      );
+      return;
+    }
+
+    if (addedCount < order.items.length) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Some items are no longer available and were skipped."),
+        ),
+      );
+    }
 
     Navigator.push(
       context,

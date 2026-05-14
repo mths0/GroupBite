@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/cart_models.dart';
 import 'package:food_delivery_platform/models/customer.dart';
@@ -439,13 +440,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (!mounted) return;
 
       if (customer != null) {
+        final cart = CartScope.read(context);
         Navigator.popUntil(context, (route) => route.isFirst);
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => OrderDetailScreen(
-              order: placedOrder,
-              customer: customer,
+            builder: (_) => CartScope(
+              notifier: cart,
+              child: OrderDetailScreen(
+                order: placedOrder,
+                customer: customer,
+              ),
             ),
           ),
         );

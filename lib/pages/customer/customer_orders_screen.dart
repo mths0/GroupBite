@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/family_wallet.dart';
@@ -161,13 +162,17 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   }
 
   void _openDetail(Order order, String displayName) {
+    final cart = CartScope.read(context);
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => OrderDetailScreen(
-          order: order,
-          customer: widget.customer,
-          displayCustomerName: displayName,
+        builder: (_) => CartScope(
+          notifier: cart,
+          child: OrderDetailScreen(
+            order: order,
+            customer: widget.customer,
+            displayCustomerName: displayName,
+          ),
         ),
       ),
     );
