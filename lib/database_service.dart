@@ -102,6 +102,15 @@ class DatabaseService {
     return Driver.fromMap(data);
   }
 
+  Future<void> updateDriverLocation({
+    required String driverId,
+    required firestore.GeoPoint location,
+  }) async {
+    await _db.collection('users').doc(driverId).update({
+      'location': location,
+    });
+  }
+
   Future<Restaurant?> getRestaurantById(String restaurantId) async {
     final doc = await _db.collection('users').doc(restaurantId).get();
 
@@ -119,6 +128,7 @@ class DatabaseService {
     });
   }
 
+  //
   Stream<List<Restaurant>> getRestaurants() {
     return _db
         .collection('users')

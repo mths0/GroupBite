@@ -10,17 +10,17 @@ void main() {
       });
 
       test('returns error if name contains numbers', () {
-        final result = Validators.validateName('John123 Doe');
+        final result = Validators.validateName('Khalid123 Faez');
         expect(result, 'Name must contain letters only');
       });
 
       test('returns error if only one name provided', () {
-        final result = Validators.validateName('John');
+        final result = Validators.validateName('Khalid');
         expect(result, 'Enter full name');
       });
 
       test('returns null for valid full name', () {
-        final result = Validators.validateName('  John Doe  ');
+        final result = Validators.validateName('  Khalid Faez  ');
         expect(result, null);
       });
     });

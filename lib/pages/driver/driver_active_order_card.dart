@@ -1,9 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/driver.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/utils/location_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DriverActiveOrderCard extends StatefulWidget {
@@ -11,6 +13,7 @@ class DriverActiveOrderCard extends StatefulWidget {
     super.key,
     required this.order,
     required this.driver,
+    required this.driverLocation,
     required this.onPickedUp,
     required this.onDelivered,
   });
@@ -19,6 +22,7 @@ class DriverActiveOrderCard extends StatefulWidget {
   final Driver driver;
   final Future<void> Function() onPickedUp;
   final Future<void> Function() onDelivered;
+  final firestore.GeoPoint? driverLocation;
 
   @override
   State<DriverActiveOrderCard> createState() => _DriverActiveOrderCardState();
@@ -28,11 +32,33 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
   Restaurant? _restaurant;
   Customer? _customer;
   bool _isLoading = true;
+  static const double _pickupDistanceKm = 0.3;
+  static const double _deliveredDistanceKm = 0.15;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  double _distanceToRestaurant() {
+    final driverLocation = widget.driverLocation;
+    if (driverLocation == null) return double.infinity;
+
+    return LocationService.distanceInKm(
+      from: driverLocation,
+      to: widget.order.restaurantLocation,
+    );
+  }
+
+  double _distanceToCustomer() {
+    final driverLocation = widget.driverLocation;
+    if (driverLocation == null) return double.infinity;
+
+    return LocationService.distanceInKm(
+      from: driverLocation,
+      to: widget.order.customerLocation,
+    );
   }
 
   Future<void> _loadData() async {
@@ -95,6 +121,31 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
     }
   }
 
+  VoidCallback confirmDialog({required Future<void> Function() onPress}) {
+    return () {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Confirm Action'),
+          content: const Text('Are you sure you want to proceed?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Center(child: const Text('Cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await onPress();
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      );
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -103,6 +154,12 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
 
     final isGoingToRestaurant = widget.order.status == OrderStatus.assigned;
     final isGoingToCustomer = widget.order.status == OrderStatus.pickedUp;
+
+    final restaurantDistanceKm = _distanceToRestaurant();
+    final customerDistanceKm = _distanceToCustomer();
+
+    final canMarkPickedUp = restaurantDistanceKm <= _pickupDistanceKm;
+    final canMarkDelivered = customerDistanceKm <= _deliveredDistanceKm;
 
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -244,8 +301,20 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: widget.onPickedUp,
+                  onPressed: canMarkPickedUp
+                      ? confirmDialog(onPress: widget.onPickedUp)
+                      : null,
                   child: const Text("Picked Up"),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  canMarkPickedUp
+                      ? 'You are close enough to the restaurant.'
+                      : 'Move closer to the restaurant (${restaurantDistanceKm.toStringAsFixed(2)} km away).',
+                  style: TextStyle(
+                    color: canMarkPickedUp ? Colors.green : scheme.error,
+                    fontSize: 12,
+                  ),
                 ),
               ],
 
@@ -302,8 +371,20 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: widget.onDelivered,
+                  onPressed: canMarkDelivered
+                      ? confirmDialog(onPress: widget.onDelivered)
+                      : null,
                   child: const Text("Delivered"),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  canMarkDelivered
+                      ? 'You are close enough to the customer.'
+                      : 'Move closer to the customer (${customerDistanceKm.toStringAsFixed(2)} km away).',
+                  style: TextStyle(
+                    color: canMarkDelivered ? Colors.green : scheme.error,
+                    fontSize: 12,
+                  ),
                 ),
               ],
 

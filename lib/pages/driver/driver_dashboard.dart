@@ -1,5 +1,6 @@
-import 'dart:math';
+import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/driver.dart';
@@ -7,6 +8,7 @@ import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/driver/driver_active_order_card.dart';
 import 'package:food_delivery_platform/pages/driver/driver_profile_screen.dart';
+import 'package:food_delivery_platform/utils/location_service.dart';
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({super.key, required this.driver});
@@ -22,6 +24,8 @@ class _DriverDashboardState extends State<DriverDashboard>
   int _selectedIndex = 0;
   late Stream<List<Order>> _availableOrdersStream;
   late Stream<List<Order>> _driverOrdersStream;
+  StreamSubscription? _locationSubscription;
+  firestore.GeoPoint? _driverLocation;
 
   final Map<String, Future<Restaurant?>> _restaurantFutures = {};
 
@@ -33,15 +37,55 @@ class _DriverDashboardState extends State<DriverDashboard>
   }
 
   String _distanceLabel(Order order) {
-    final driverLocation = widget.driver.location;
+    final driverLocation = _driverLocation;
     if (driverLocation == null) return '— km away';
     final restaurantLocation = order.restaurantLocation;
-    const kmPerLatDegree = 111.0;
-    final latDiff = driverLocation.latitude - restaurantLocation.latitude;
-    final lngDiff = driverLocation.longitude - restaurantLocation.longitude;
-    final distanceKm =
-        sqrt((latDiff * latDiff) + (lngDiff * lngDiff)) * kmPerLatDegree;
+
+    final distanceKm = LocationService.distanceInKm(
+      from: driverLocation,
+      to: restaurantLocation,
+    );
     return '${distanceKm.toStringAsFixed(1)} km away';
+  }
+
+  Future<void> _updateDriverLocation() async {
+    final position = await LocationService.getCurrentLocation();
+
+    final geoPoint = firestore.GeoPoint(position.latitude, position.longitude);
+
+    await DatabaseService().updateDriverLocation(
+      driverId: widget.driver.id,
+      location: geoPoint,
+    );
+  }
+
+  Future<void> _startLiveLocationTracking() async {
+    try {
+      await LocationService.getCurrentLocation(); // triggers permission flow first
+
+      _locationSubscription?.cancel();
+      _locationSubscription = LocationService.getLiveLocationStream().listen((
+        position,
+      ) async {
+        final geoPoint = firestore.GeoPoint(
+          position.latitude,
+          position.longitude,
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          _driverLocation = geoPoint;
+        });
+
+        await DatabaseService().updateDriverLocation(
+          driverId: widget.driver.id,
+          location: geoPoint,
+        );
+      });
+    } catch (e) {
+      debugPrint('Live location error: $e');
+    }
   }
 
   @override
@@ -49,30 +93,39 @@ class _DriverDashboardState extends State<DriverDashboard>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    if (widget.driver.status == DriverStatus.offline) {
-      _updateDriverStatus(DriverStatus.available);
-    }
+    _driverLocation = widget.driver.location;
 
     _availableOrdersStream = DatabaseService().getAvailableOrdersForDrivers();
     _driverOrdersStream = DatabaseService().getOrdersForDriver(
       widget.driver.id,
     );
+
+    if (widget.driver.status == DriverStatus.offline) {
+      _updateDriverStatus(DriverStatus.available);
+    }
+
+    _startLiveLocationTracking();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _locationSubscription?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (widget.driver.status == DriverStatus.busy) {
+      if (state == AppLifecycleState.resumed) {
+        _startLiveLocationTracking();
+      }
       return;
     }
 
     if (state == AppLifecycleState.resumed) {
       _updateDriverStatus(DriverStatus.available);
+      _startLiveLocationTracking();
     } else if (state == AppLifecycleState.paused) {
       _updateDriverStatus(DriverStatus.offline);
     }
@@ -104,12 +157,21 @@ class _DriverDashboardState extends State<DriverDashboard>
                 return const Center(child: Text("No available orders"));
               }
 
-              final orders = snapshot.data!
-                ..sort((a, b) {
-                  final aDistance = _distanceToRestaurant(a);
-                  final bDistance = _distanceToRestaurant(b);
-                  return aDistance.compareTo(bDistance);
-                });
+              final orders =
+                  snapshot.data!
+                      .where(
+                        (r) => LocationService.isWithinDistanceKm(
+                          from: r.restaurantLocation,
+                          to: _driverLocation,
+                          maxDistanceKm: 5,
+                        ),
+                      )
+                      .toList()
+                    ..sort((a, b) {
+                      final aDistance = _distanceToRestaurant(a);
+                      final bDistance = _distanceToRestaurant(b);
+                      return aDistance.compareTo(bDistance);
+                    });
 
               return ListView.separated(
                 padding: const EdgeInsets.all(16),
@@ -171,17 +233,19 @@ class _DriverDashboardState extends State<DriverDashboard>
   }
 
   double _distanceToRestaurant(Order order) {
-    final driverLocation = widget.driver.location;
+    final driverLocation = _driverLocation;
     final restaurantLocation = order.restaurantLocation;
 
     if (driverLocation == null) {
       return double.infinity;
     }
 
-    final latDiff = driverLocation.latitude - restaurantLocation.latitude;
-    final lngDiff = driverLocation.longitude - restaurantLocation.longitude;
+    final distanceInKm = LocationService.distanceInKm(
+      from: driverLocation,
+      to: restaurantLocation,
+    );
 
-    return (latDiff * latDiff) + (lngDiff * lngDiff);
+    return distanceInKm;
   }
 
   Widget _buildOrdersBody() {
@@ -208,6 +272,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             return DriverActiveOrderCard(
               order: activeOrders.first,
               driver: widget.driver,
+              driverLocation: _driverLocation,
               onPickedUp: () async {
                 await DatabaseService().markOrderPickedUp(
                   activeOrders.first.id,
@@ -218,6 +283,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                   activeOrders.first.id,
                 );
                 _updateDriverStatus(DriverStatus.available);
+                _updateDriverLocation();
               },
             );
           }

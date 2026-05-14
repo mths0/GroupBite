@@ -1,15 +1,14 @@
-import 'dart:math';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/customer/address_widgets.dart';
 import 'package:food_delivery_platform/pages/customer/join_group_order_screen.dart';
 import 'package:food_delivery_platform/pages/customer/restaurant_menu_page.dart';
-import 'package:food_delivery_platform/models/restaurant_tag.dart';
+import 'package:food_delivery_platform/utils/location_service.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({
@@ -35,8 +34,8 @@ class CustomerHomeScreen extends StatefulWidget {
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  late final Stream<List<Restaurant>> _restaurantsStream =
-      DatabaseService().getRestaurants();
+  late final Stream<List<Restaurant>> _restaurantsStream = DatabaseService()
+      .getRestaurants();
 
   GeoPoint? get _deliveryLocation => widget.deliveryLocation;
   String? get _addressLabel => widget.addressLabel;
@@ -58,27 +57,22 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       return double.infinity;
     }
 
-    final latDiff = customerLocation.latitude - restaurantLocation.latitude;
-    final lngDiff = customerLocation.longitude - restaurantLocation.longitude;
+    final distanceKm = LocationService.distanceInKm(
+      from: restaurantLocation,
+      to: customerLocation,
+    );
 
-    return (latDiff * latDiff) + (lngDiff * lngDiff);
+    return distanceKm;
   }
 
   String _distanceLabel(Restaurant restaurant) {
-    final customerLocation = _deliveryLocation;
-    final restaurantLocation = restaurant.location;
-
-    if (customerLocation == null || restaurantLocation == null) {
+    if (_deliveryLocation == null || restaurant.location == null) {
       return '';
     }
-
-    const kmPerLatDegree = 111.0;
-
-    final latDiff = customerLocation.latitude - restaurantLocation.latitude;
-    final lngDiff = customerLocation.longitude - restaurantLocation.longitude;
-
-    final distanceKm =
-        sqrt((latDiff * latDiff) + (lngDiff * lngDiff)) * kmPerLatDegree;
+    final distanceKm = LocationService.distanceInKm(
+      from: restaurant.location!,
+      to: _deliveryLocation!,
+    );
 
     return '${distanceKm.toStringAsFixed(1)} km';
   }
@@ -209,20 +203,29 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 );
               }
 
-              final filteredRestaurants = snapshot.data!.where((r) {
-                final query = _searchController.text.toLowerCase();
+              final filteredRestaurants = snapshot.data!
+                  .where((r) {
+                    final query = _searchController.text.toLowerCase();
 
-                final nameMatch = r.name.toLowerCase().contains(query);
-                final tagMatch = r.tags.any(
-                  (tag) => tag.label.toLowerCase().contains(query),
-                );
+                    final nameMatch = r.name.toLowerCase().contains(query);
+                    final tagMatch = r.tags.any(
+                      (tag) => tag.label.toLowerCase().contains(query),
+                    );
 
-                final searchMatch = query.isEmpty || nameMatch || tagMatch;
-                final categoryMatch =
-                    _selectedTag == null || r.tags.contains(_selectedTag);
+                    final searchMatch = query.isEmpty || nameMatch || tagMatch;
+                    final categoryMatch =
+                        _selectedTag == null || r.tags.contains(_selectedTag);
 
-                return searchMatch && categoryMatch;
-              }).toList();
+                    return searchMatch && categoryMatch;
+                  })
+                  .where(
+                    (r) => LocationService.isWithinDistanceKm(
+                      from: r.location,
+                      to: _deliveryLocation,
+                      maxDistanceKm: 25,
+                    ),
+                  )
+                  .toList();
               filteredRestaurants.sort((a, b) {
                 // Open restaurants always come first.
                 if (a.isOpen != b.isOpen) {
@@ -445,5 +448,4 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       ),
     );
   }
-
 }
