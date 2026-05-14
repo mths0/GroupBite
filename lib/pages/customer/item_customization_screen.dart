@@ -174,7 +174,7 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
                             Expanded(
                               child: Text(
                                 _errorMessage!,
-                                style: TextStyle(
+                                style: theme.textTheme.bodyMedium?.copyWith(
                                   color: scheme.onErrorContainer,
                                   fontWeight: FontWeight.w600,
                                 ),

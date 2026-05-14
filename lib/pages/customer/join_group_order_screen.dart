@@ -89,7 +89,6 @@ class _JoinGroupOrderScreenState extends State<JoinGroupOrderScreen> {
       await _db.joinGroupOrder(
         groupOrderId: groupOrderId,
         customerId: widget.customer.id,
-        customerName: widget.customer.name,
       );
 
       if (!mounted) return;

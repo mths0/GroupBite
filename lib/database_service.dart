@@ -546,9 +546,13 @@ class DatabaseService {
 
   Future<String> createGroupOrder({
     required String hostCustomerId,
-    required String hostName,
     required String restaurantId,
   }) async {
+    final host = await getUserById(hostCustomerId);
+    if (host == null) {
+      throw Exception('Host user not found.');
+    }
+
     final groupRef = _db.collection('groupOrders').doc();
     final joinCode = IdGenerator.generateJoinCode();
 
@@ -563,7 +567,7 @@ class DatabaseService {
 
     await groupRef.collection('members').doc(hostCustomerId).set({
       'customerId': hostCustomerId,
-      'name': hostName,
+      'name': host.name,
       'status': GroupMemberStatus.ordering.name,
       'joinedAt': firestore.FieldValue.serverTimestamp(),
     });
@@ -594,7 +598,6 @@ class DatabaseService {
   Future<void> joinGroupOrder({
     required String groupOrderId,
     required String customerId,
-    required String customerName,
   }) async {
     final groupRef = _db.collection('groupOrders').doc(groupOrderId);
     final groupSnap = await groupRef.get();
@@ -608,9 +611,14 @@ class DatabaseService {
       throw Exception('This group order is not open anymore.');
     }
 
+    final user = await getUserById(customerId);
+    if (user == null) {
+      throw Exception('User not found.');
+    }
+
     await groupRef.collection('members').doc(customerId).set({
       'customerId': customerId,
-      'name': customerName,
+      'name': user.name,
       'status': GroupMemberStatus.ordering.name,
       'joinedAt': firestore.FieldValue.serverTimestamp(),
     });

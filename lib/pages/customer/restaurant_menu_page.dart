@@ -514,7 +514,6 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
   Future<void> _startGroupOrder() async {
     final groupOrderId = await DatabaseService().createGroupOrder(
       hostCustomerId: widget.customer.id,
-      hostName: widget.customer.name,
       restaurantId: widget.restaurant.id,
     );
 
@@ -651,15 +650,21 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
 
                                 if (item.optionGroups.isNotEmpty) {
                                   customization =
-                                      await Navigator.push<
+                                      await showModalBottomSheet<
                                         ItemCustomizationResult
                                       >(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              ItemCustomizationScreen(
-                                                item: item,
-                                              ),
+                                        context: context,
+                                        isScrollControlled: true,
+                                        useSafeArea: true,
+                                        showDragHandle: true,
+                                        clipBehavior: Clip.antiAlias,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(
+                                            top: Radius.circular(20),
+                                          ),
+                                        ),
+                                        builder: (_) => ItemCustomizationScreen(
+                                          item: item,
                                         ),
                                       );
 
