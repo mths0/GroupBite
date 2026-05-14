@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/cart_models.dart';
@@ -56,14 +58,6 @@ class CheckoutScreen extends StatefulWidget {
 // ---------------------------------------------------------------------------
 enum _DeliveryTimeOption { asap, schedule }
 
-// ---------------------------------------------------------------------------
-// Payment method identifiers — kept as simple strings matching model IDs
-// so the selection state is just a String? field.
-// ---------------------------------------------------------------------------
-const String _kPaymentCreditCard = 'pay_credit';
-const String _kPaymentWallet = 'pay_wallet';
-const String _kPaymentFamilyWallet = 'pay_family_wallet';
-
 class _CheckoutScreenState extends State<CheckoutScreen> {
   // ---------------------------------------------------------------------------
   // Dependencies
@@ -77,8 +71,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   /// Populated when the user picks a scheduled delivery.
   DateTime? _scheduledDateTime;
 
-  /// ID of the currently selected payment method.
-  String _selectedPaymentId = _kPaymentCreditCard;
+  /// Whether the user opted to apply their personal wallet balance.
+  bool _useWallet = false;
+
+  /// Whether the user opted to apply their family wallet balance.
+  bool _useFamilyWallet = false;
 
   /// True while the "Place Order" call is in progress.
   bool _isPlacingOrder = false;
@@ -94,6 +91,73 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   /// Latest family wallet snapshot, kept in sync via a stream subscription so
   /// _placeOrder can read the wallet ID without re-querying.
   FamilyWallet? _familyWallet;
+
+  /// Live wallet balance, kept in sync from the wallet stream.
+  double _walletBalance = 0.0;
+
+  /// Live family-wallet spendable amount (member-limit aware).
+  double _familyAvailable = 0.0;
+
+  /// Whether the customer has a saved card on file.
+  bool _hasCard = false;
+
+  ({double wallet, double family, double card}) get _split {
+    final w = _useWallet ? math.min(_walletBalance, widget.total) : 0.0;
+    final remaining = widget.total - w;
+    final f = _useFamilyWallet ? math.min(_familyAvailable, remaining) : 0.0;
+    final c = remaining - f;
+    return (wallet: w, family: f, card: c);
+  }
+
+  void _syncAfterBuild({
+    bool? hasCard,
+    double? walletBalance,
+    double? familyAvailable,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      var changed = false;
+      if (hasCard != null && _hasCard != hasCard) {
+        _hasCard = hasCard;
+        changed = true;
+      }
+      if (walletBalance != null && _walletBalance != walletBalance) {
+        _walletBalance = walletBalance;
+        if (walletBalance <= 0 && _useWallet) _useWallet = false;
+        changed = true;
+      }
+      if (familyAvailable != null && _familyAvailable != familyAvailable) {
+        _familyAvailable = familyAvailable;
+        if (familyAvailable <= 0 && _useFamilyWallet) _useFamilyWallet = false;
+        changed = true;
+      }
+
+      if (changed) setState(() {});
+    });
+  }
+
+  void _syncFamilyAfterBuild(FamilyWallet? family) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      var changed = false;
+      if (family == null) {
+        if (_familyWallet != null) {
+          _familyWallet = null;
+          _familyAvailable = 0.0;
+          if (_useFamilyWallet) _useFamilyWallet = false;
+          changed = true;
+        }
+      } else if (_familyWallet?.id != family.id ||
+          _familyWallet?.balance != family.balance) {
+        _familyWallet = family;
+        changed = true;
+      }
+
+      if (changed) setState(() {});
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -179,7 +243,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
       );
       if (!mounted) return;
-      setState(() => _selectedPaymentId = _kPaymentCreditCard);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -222,12 +285,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
 
-      if (_selectedPaymentId == _kPaymentWallet) {
+      final split = _split;
+
+      if (split.wallet > 0) {
         await _db.deductFromWallet(
           customerId: widget.customerId,
-          amount: widget.total,
+          amount: split.wallet,
         );
-      } else if (_selectedPaymentId == _kPaymentFamilyWallet) {
+      }
+      if (split.family > 0) {
         final wallet = _familyWallet;
         if (wallet == null) {
           throw Exception('Family wallet not loaded');
@@ -235,7 +301,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         await _db.deductFromFamilyWallet(
           walletId: wallet.id,
           userId: widget.customerId,
-          amount: widget.total,
+          amount: split.family,
         );
       }
 
@@ -302,9 +368,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         scheduledFor: _deliveryTimeOption == _DeliveryTimeOption.schedule
             ? _scheduledDateTime
             : null,
-        familyWalletId: _selectedPaymentId == _kPaymentFamilyWallet
-            ? _familyWallet?.id
-            : null,
+        familyWalletId: split.family > 0 ? _familyWallet?.id : null,
       );
 
       final user = await _db.getUserById(widget.customerId);
@@ -478,31 +542,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             builder: (context, cardsSnap) {
               final cards = cardsSnap.data ?? [];
               final card = cards.isEmpty ? null : cards.first;
+              _syncAfterBuild(hasCard: card != null);
 
               return StreamBuilder<double>(
                 stream: _db.streamWalletBalance(widget.customerId),
                 builder: (context, balanceSnap) {
                   final balance = balanceSnap.data ?? 0.0;
-                  final hasEnough = balance >= widget.total;
+                  _syncAfterBuild(walletBalance: balance);
 
                   return StreamBuilder<FamilyWallet?>(
                     stream: _db.streamFamilyWalletForUser(widget.customerId),
                     builder: (context, familySnap) {
                       final family = familySnap.data;
-                      // Cache for _placeOrder — schedule after build to avoid
-                      // calling setState during a build pass.
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (!mounted) return;
-                        if (_familyWallet?.id != family?.id ||
-                            _familyWallet?.balance != family?.balance) {
-                          setState(() => _familyWallet = family);
-                        }
-                      });
+                      _syncFamilyAfterBuild(family);
+
                       return Column(
                         children: [
                           if (card == null)
                             _PaymentTile(
-                              id: 'add_card',
                               label: 'Add Card',
                               subtitle: 'No card on file — tap to add one',
                               icon: Icons.add_card,
@@ -511,42 +568,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             )
                           else
                             _PaymentTile(
-                              id: _kPaymentCreditCard,
                               label: card.brand,
                               subtitle: '•••• ${card.last4}',
                               icon: Icons.credit_card_rounded,
-                              isSelected:
-                                  _selectedPaymentId == _kPaymentCreditCard,
-                              onTap: () => setState(
-                                () => _selectedPaymentId = _kPaymentCreditCard,
-                              ),
+                              isSelected: true,
+                              onTap: null,
                             ),
                           const SizedBox(height: 8),
                           _PaymentTile(
-                            id: _kPaymentWallet,
                             label: 'Wallet',
-                            subtitle: hasEnough
+                            subtitle: balance > 0
                                 ? 'Balance: ${balance.toStringAsFixed(2)} SAR'
-                                : 'Insufficient balance — ${balance.toStringAsFixed(2)} SAR',
+                                : 'No balance',
                             icon: Icons.account_balance_wallet_outlined,
-                            isSelected: _selectedPaymentId == _kPaymentWallet,
-                            disabled: !hasEnough,
-                            onTap: () => setState(
-                              () => _selectedPaymentId = _kPaymentWallet,
-                            ),
+                            isSelected: _useWallet,
+                            isToggle: true,
+                            disabled: balance <= 0,
+                            onTap: () => setState(() => _useWallet = !_useWallet),
                           ),
                           if (family != null) ...[
                             const SizedBox(height: 8),
                             _FamilyWalletTile(
                               family: family,
                               currentUserId: widget.customerId,
-                              total: widget.total,
-                              isSelected:
-                                  _selectedPaymentId == _kPaymentFamilyWallet,
-                              onSelected: () => setState(
-                                () =>
-                                    _selectedPaymentId = _kPaymentFamilyWallet,
+                              isOn: _useFamilyWallet,
+                              onToggle: () => setState(
+                                () => _useFamilyWallet = !_useFamilyWallet,
                               ),
+                              onAvailableChanged: (v) =>
+                                  _syncAfterBuild(familyAvailable: v),
                             ),
                           ],
                         ],
@@ -571,6 +621,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             discount: widget.discount,
             total: widget.total,
             appliedCoupon: widget.appliedCoupon,
+            walletCredit: _split.wallet,
+            familyCredit: _split.family,
+            cardCharge: _split.card,
           ),
         ),
 
@@ -580,11 +633,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildPlaceOrderBar() {
+    final cardNeeded = _split.card > 0 && !_hasCard;
+    final disabled = _isPlacingOrder || cardNeeded;
+    final amount = _split.card.toStringAsFixed(2);
+    final label = cardNeeded
+        ? 'Insufficient funds'
+        : !_isGroupCheckout
+              ? 'Place Order  •  $amount SAR'
+              : widget.isGroupHost
+                    ? 'Pay Last & Place Order  •  $amount SAR'
+                    : 'Pay My Part  •  $amount SAR';
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: FilledButton(
-          onPressed: _isPlacingOrder ? null : _placeOrder,
+          onPressed: disabled ? null : _placeOrder,
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(52),
             shape: RoundedRectangleBorder(
@@ -601,11 +665,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                 )
               : Text(
-                  !_isGroupCheckout
-                      ? 'Place Order  •  ${widget.total.toStringAsFixed(2)} SAR'
-                      : widget.isGroupHost
-                      ? 'Pay Last & Place Order  •  ${widget.total.toStringAsFixed(2)} SAR'
-                      : 'Pay My Part  •  ${widget.total.toStringAsFixed(2)} SAR',
+                  label,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -789,29 +849,46 @@ class _DeliveryOptionTile extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-/// A selectable tile representing a payment method.
+/// A payment-method tile. Renders a checkbox when [isToggle] is true (used for
+/// the wallet/family-wallet apply-toggles); otherwise renders a check icon
+/// indicating the implicit primary method.
 class _PaymentTile extends StatelessWidget {
   const _PaymentTile({
-    required this.id,
     required this.label,
     required this.subtitle,
     required this.icon,
     required this.isSelected,
     required this.onTap,
     this.disabled = false,
+    this.isToggle = false,
   });
 
-  final String id;
   final String label;
   final String subtitle;
   final IconData icon;
   final bool isSelected;
   final bool disabled;
-  final VoidCallback onTap;
+  final bool isToggle;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    final Widget trailing;
+    if (isToggle) {
+      trailing = Checkbox(
+        value: isSelected,
+        onChanged: disabled || onTap == null ? null : (_) => onTap!(),
+        activeColor: colorScheme.primary,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      );
+    } else {
+      trailing = Icon(
+        isSelected ? Icons.check_circle : Icons.circle_outlined,
+        color: isSelected ? colorScheme.primary : colorScheme.outline,
+      );
+    }
 
     final tile = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -863,13 +940,7 @@ class _PaymentTile extends StatelessWidget {
               ],
             ),
           ),
-          Radio<String>(
-            value: id,
-            groupValue: isSelected ? id : null,
-            onChanged: disabled ? null : (_) => onTap(),
-            activeColor: colorScheme.primary,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
+          trailing,
         ],
       ),
     );
@@ -881,47 +952,48 @@ class _PaymentTile extends StatelessWidget {
       );
     }
 
+    if (onTap == null) return tile;
     return GestureDetector(onTap: onTap, child: tile);
   }
 }
 
 // ---------------------------------------------------------------------------
 
-/// Family-wallet payment tile. Computes the effective spendable amount
+/// Family-wallet apply-toggle. Computes the effective spendable amount
 /// (`min(remainingLimit, balance)` for members; `balance` for the owner)
-/// and disables the tile when that amount is below the order total.
+/// and reports it via [onAvailableChanged] so the checkout state can compute
+/// the payment split. Tapping toggles whether the credit is applied.
 class _FamilyWalletTile extends StatelessWidget {
   const _FamilyWalletTile({
     required this.family,
     required this.currentUserId,
-    required this.total,
-    required this.isSelected,
-    required this.onSelected,
+    required this.isOn,
+    required this.onToggle,
+    required this.onAvailableChanged,
   });
 
   final FamilyWallet family;
   final String currentUserId;
-  final double total;
-  final bool isSelected;
-  final VoidCallback onSelected;
+  final bool isOn;
+  final VoidCallback onToggle;
+  final ValueChanged<double> onAvailableChanged;
 
   @override
   Widget build(BuildContext context) {
     final isOwner = family.ownerId == currentUserId;
 
     if (isOwner) {
-      // Owner spends without per-member limits.
-      final hasEnough = family.balance >= total;
+      onAvailableChanged(family.balance);
       return _PaymentTile(
-        id: _kPaymentFamilyWallet,
         label: 'Family Wallet',
-        subtitle: hasEnough
+        subtitle: family.balance > 0
             ? 'Available: ${family.balance.toStringAsFixed(2)} SAR'
-            : 'Insufficient balance — ${family.balance.toStringAsFixed(2)} SAR',
+            : 'No balance',
         icon: Icons.family_restroom,
-        isSelected: isSelected,
-        disabled: !hasEnough,
-        onTap: onSelected,
+        isSelected: isOn,
+        isToggle: true,
+        disabled: family.balance <= 0,
+        onTap: onToggle,
       );
     }
 
@@ -942,27 +1014,23 @@ class _FamilyWalletTile extends StatelessWidget {
             ? remainingLimit
             : family.balance;
 
-        final hasEnough = available >= total;
-        final overLimit = limit != null && remainingLimit <= 0;
+        onAvailableChanged(available);
 
-        String subtitle;
-        if (overLimit) {
-          subtitle = 'Spending limit reached';
-        } else if (hasEnough) {
-          subtitle = 'Available: ${available.toStringAsFixed(2)} SAR';
-        } else {
-          subtitle =
-              'Insufficient — only ${available.toStringAsFixed(2)} SAR available';
-        }
+        final overLimit = limit != null && remainingLimit <= 0;
+        final String subtitle = overLimit
+            ? 'Spending limit reached'
+            : available > 0
+                ? 'Available: ${available.toStringAsFixed(2)} SAR'
+                : 'No balance';
 
         return _PaymentTile(
-          id: _kPaymentFamilyWallet,
           label: 'Family Wallet',
           subtitle: subtitle,
           icon: Icons.family_restroom,
-          isSelected: isSelected,
-          disabled: !hasEnough,
-          onTap: onSelected,
+          isSelected: isOn,
+          isToggle: true,
+          disabled: available <= 0,
+          onTap: onToggle,
         );
       },
     );
@@ -979,6 +1047,9 @@ class _CheckoutSummary extends StatelessWidget {
     required this.tax,
     required this.discount,
     required this.total,
+    required this.walletCredit,
+    required this.familyCredit,
+    required this.cardCharge,
     this.appliedCoupon,
   });
 
@@ -987,6 +1058,9 @@ class _CheckoutSummary extends StatelessWidget {
   final double tax;
   final double discount;
   final double total;
+  final double walletCredit;
+  final double familyCredit;
+  final double cardCharge;
   final Coupon? appliedCoupon;
 
   @override
@@ -1008,6 +1082,22 @@ class _CheckoutSummary extends StatelessWidget {
             valueColor: Colors.green,
           ),
         ],
+        if (walletCredit > 0) ...[
+          const SizedBox(height: 8),
+          _SummaryRow(
+            label: 'Wallet credit',
+            value: -walletCredit,
+            valueColor: Colors.green,
+          ),
+        ],
+        if (familyCredit > 0) ...[
+          const SizedBox(height: 8),
+          _SummaryRow(
+            label: 'Family Wallet credit',
+            value: -familyCredit,
+            valueColor: Colors.green,
+          ),
+        ],
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 10),
           child: Divider(height: 1),
@@ -1022,7 +1112,7 @@ class _CheckoutSummary extends StatelessWidget {
               ),
             ),
             Text(
-              '${total.toStringAsFixed(2)} SAR',
+              '${cardCharge.toStringAsFixed(2)} SAR',
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: colorScheme.primary,
