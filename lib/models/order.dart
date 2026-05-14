@@ -28,6 +28,7 @@ class Order {
   final int? restaurantRating;
   final int? driverRating;
   final DateTime? canCancelUntil;
+  final DateTime? restaurantRespondBy;
   final DateTime? scheduledFor;
 
   Order({
@@ -47,6 +48,7 @@ class Order {
     this.paymentId,
     this.familyWalletId,
     required this.canCancelUntil,
+    this.restaurantRespondBy,
     this.scheduledFor,
   });
 
@@ -54,6 +56,7 @@ class Order {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
     final rawCanCancelUntil = data['canCancelUntil'];
+    final rawRestaurantRespondBy = data['restaurantRespondBy'];
     final rawScheduledFor = data['scheduledFor'];
     return Order(
       id: doc.id,
@@ -78,6 +81,9 @@ class Order {
           .toList(),
       canCancelUntil: rawCanCancelUntil is Timestamp
           ? rawCanCancelUntil.toDate()
+          : null,
+      restaurantRespondBy: rawRestaurantRespondBy is Timestamp
+          ? rawRestaurantRespondBy.toDate()
           : null,
       scheduledFor: rawScheduledFor is Timestamp
           ? rawScheduledFor.toDate()

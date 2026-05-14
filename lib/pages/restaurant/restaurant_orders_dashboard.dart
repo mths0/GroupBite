@@ -46,6 +46,7 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
 
   final Map<String, Future<String>> _customerNameFutures = {};
   final Set<String> _autoRejectInFlight = {};
+  final Set<String> _autoCancelInFlight = {};
   Restaurant? _restaurant;
 
   @override
@@ -77,6 +78,19 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
       if (!_autoRejectInFlight.add(order.id)) continue;
       _db.restaurantRejectOrder(order.id).whenComplete(() {
         _autoRejectInFlight.remove(order.id);
+      });
+    }
+  }
+
+  void _autoCancelStale(List<Order> orders) {
+    final now = DateTime.now();
+    for (final order in orders) {
+      if (order.status != OrderStatus.pending) continue;
+      final deadline = order.restaurantRespondBy;
+      if (deadline == null || now.isBefore(deadline)) continue;
+      if (!_autoCancelInFlight.add(order.id)) continue;
+      _db.autoCancelExpiredOrder(order.id).whenComplete(() {
+        _autoCancelInFlight.remove(order.id);
       });
     }
   }
@@ -144,6 +158,7 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
 
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _autoRejectIfClosed(orders);
+                  _autoCancelStale(orders);
                 });
 
                 // Hide pending orders whose customer cancel window is still

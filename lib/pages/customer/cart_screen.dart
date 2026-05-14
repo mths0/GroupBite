@@ -225,32 +225,35 @@ class _CartScreenState extends State<CartScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CheckoutScreen(
-          cartItems: cartItems
-              .map(
-                (item) => cart_models.CartItem(
-                  id: item.cartKey,
-                  name: item.menuItem.name,
-                  description: item.menuItem.description,
-                  imagePath: item.menuItem.imageUrl,
-                  unitPrice: item.customUnitPrice,
-                  selectedOptions: item.selectedOptions,
-                  quantity: item.quantity,
-                ),
-              )
-              .toList(),
-          checkoutData: _checkoutData!,
-          subtotal: _subtotalExclTax,
-          deliveryFee: _deliveryFee,
-          tax: _tax,
-          discount: _discount,
-          total: _total,
-          appliedCoupon: _appliedCoupon,
-          customerId: widget.customerId,
-          restaurantId: widget.restaurantId,
-          onOrderPlaced: () {
-            _cart.clearRestaurantCart(widget.restaurantId);
-          },
+        builder: (_) => CartScope(
+          notifier: _cart,
+          child: CheckoutScreen(
+            cartItems: cartItems
+                .map(
+                  (item) => cart_models.CartItem(
+                    id: item.cartKey,
+                    name: item.menuItem.name,
+                    description: item.menuItem.description,
+                    imagePath: item.menuItem.imageUrl,
+                    unitPrice: item.customUnitPrice,
+                    selectedOptions: item.selectedOptions,
+                    quantity: item.quantity,
+                  ),
+                )
+                .toList(),
+            checkoutData: _checkoutData!,
+            subtotal: _subtotalExclTax,
+            deliveryFee: _deliveryFee,
+            tax: _tax,
+            discount: _discount,
+            total: _total,
+            appliedCoupon: _appliedCoupon,
+            customerId: widget.customerId,
+            restaurantId: widget.restaurantId,
+            onOrderPlaced: () {
+              _cart.clearRestaurantCart(widget.restaurantId);
+            },
+          ),
         ),
       ),
     );

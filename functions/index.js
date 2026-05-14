@@ -3,6 +3,7 @@ const {
   onDocumentCreated,
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
@@ -113,5 +114,46 @@ exports.notifyCustomerOnOrderStatusChange = onDocumentUpdated(
         status,
       },
     );
+  },
+);
+
+// Auto-cancel pending orders whose restaurantRespondBy deadline has passed.
+// Runs every minute. The Dart client also fires this in a transaction as a
+// backup when someone has the app open; both paths converge on the same doc
+// guarded by a status check.
+exports.autoCancelStaleOrders = onSchedule(
+  {
+    schedule: "every 1 minutes",
+    timeZone: "Etc/UTC",
+  },
+  async () => {
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+
+    const snapshot = await db
+      .collection("orders")
+      .where("status", "==", "pending")
+      .where("restaurantRespondBy", "<", now)
+      .get();
+
+    if (snapshot.empty) {
+      console.log("autoCancelStaleOrders: no stale pending orders");
+      return;
+    }
+
+    const writer = db.bulkWriter();
+    let cancelled = 0;
+
+    for (const doc of snapshot.docs) {
+      writer.update(doc.ref, {
+        status: "cancelled",
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancelledBy: "system",
+      });
+      cancelled += 1;
+    }
+
+    await writer.close();
+    console.log(`autoCancelStaleOrders: cancelled ${cancelled} order(s)`);
   },
 );

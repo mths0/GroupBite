@@ -20,6 +20,11 @@ import 'package:food_delivery_platform/utils/tax.dart';
 import 'models/driver.dart';
 import 'models/order.dart';
 
+/// How long after the customer-cancel window expires the restaurant has to
+/// accept or reject the order before it auto-cancels. Testing value; raise to
+/// 5 minutes before shipping.
+const Duration kRestaurantResponseTimeout = Duration(minutes: 1);
+
 class DatabaseService {
   final firestore.FirebaseFirestore _db = firestore.FirebaseFirestore.instance;
 
@@ -244,6 +249,10 @@ class DatabaseService {
     final customerLocation = await getLocation(customerId);
     final restaurantLocation = await getLocation(restaurantId);
 
+    final now = DateTime.now();
+    final canCancelUntil = now.add(const Duration(seconds: 20));
+    final restaurantRespondBy = canCancelUntil.add(kRestaurantResponseTimeout);
+
     await docRef.set({
       'id': orderId,
       'customerId': customerId,
@@ -256,10 +265,10 @@ class DatabaseService {
           ? firestore.Timestamp.fromDate(scheduledFor)
           : null,
 
-      // Cancel window: customer can cancel for 2 minutes
-      'canCancelUntil': firestore.Timestamp.fromDate(
-        DateTime.now().add(const Duration(seconds: 20)),
-      ),
+      // Customer-cancel window followed by the restaurant-response window;
+      // after restaurantRespondBy the order auto-cancels if still pending.
+      'canCancelUntil': firestore.Timestamp.fromDate(canCancelUntil),
+      'restaurantRespondBy': firestore.Timestamp.fromDate(restaurantRespondBy),
       'cancelledAt': null,
       'cancelledBy': null,
       'items': items.map((item) => item.toJson()).toList(),
@@ -399,6 +408,32 @@ class DatabaseService {
         'cancelledAt': firestore.FieldValue.serverTimestamp(),
         'cancelledBy': customerId,
       });
+    });
+  }
+
+  /// Cancels [orderId] if it is still pending past its `restaurantRespondBy`
+  /// deadline. Idempotent — a transaction guards against double-cancellation
+  /// or races with a restaurant accept/reject.
+  Future<bool> autoCancelExpiredOrder(String orderId) async {
+    final orderRef = _db.collection('orders').doc(orderId);
+
+    return _db.runTransaction<bool>((transaction) async {
+      final snapshot = await transaction.get(orderRef);
+      if (!snapshot.exists) return false;
+
+      final data = snapshot.data() as Map<String, dynamic>;
+      if (data['status'] != OrderStatus.pending.name) return false;
+
+      final deadline = data['restaurantRespondBy'];
+      if (deadline is! firestore.Timestamp) return false;
+      if (DateTime.now().isBefore(deadline.toDate())) return false;
+
+      transaction.update(orderRef, {
+        'status': OrderStatus.cancelled.name,
+        'cancelledAt': firestore.FieldValue.serverTimestamp(),
+        'cancelledBy': 'system',
+      });
+      return true;
     });
   }
 

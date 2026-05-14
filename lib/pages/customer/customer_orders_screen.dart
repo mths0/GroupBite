@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
@@ -28,6 +30,35 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
 
   final Map<String, Future<Restaurant?>> _restaurantFutures = {};
   final Map<String, Future<String>> _memberNameFutures = {};
+  final Set<String> _autoCancelInFlight = {};
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  void _autoCancelStale(List<Order> orders) {
+    final now = DateTime.now();
+    for (final order in orders) {
+      if (order.status != OrderStatus.pending) continue;
+      final deadline = order.restaurantRespondBy;
+      if (deadline == null || now.isBefore(deadline)) continue;
+      if (!_autoCancelInFlight.add(order.id)) continue;
+      _db.autoCancelExpiredOrder(order.id).whenComplete(() {
+        _autoCancelInFlight.remove(order.id);
+      });
+    }
+  }
 
   Future<Restaurant?> _restaurantFuture(String restaurantId) {
     return _restaurantFutures.putIfAbsent(
@@ -100,6 +131,9 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
         final orders = snapshot.data ?? [];
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _autoCancelStale(orders);
+        });
         if (orders.isEmpty) {
           return const Center(child: Text('No orders yet'));
         }
