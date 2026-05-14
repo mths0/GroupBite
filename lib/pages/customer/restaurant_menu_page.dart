@@ -107,7 +107,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                     final deliveryFee = widget.restaurant.deliveryFee;
                     final deliveryShare = deliveryFee / memberCount;
                     final tax = mySubtotal * kTaxRate;
-                    final subtotalInclTax = mySubtotal + tax;
+                    final subtotalInclTax = mySubtotal;
                     final total = subtotalInclTax + deliveryShare;
 
                     GroupOrderMember? myMember;
@@ -376,11 +376,11 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                               const Divider(),
 
                               _GroupSummaryRow(
-                                label: 'Your Items Subtotal (incl. tax)',
-                                value: subtotalInclTax,
+                                label: 'Your Items Subtotal',
+                                value: subtotalInclTax - tax,
                               ),
                               _GroupSummaryRow(
-                                label: 'Tax (15%) included',
+                                label: 'Tax (15%)',
                                 value: tax,
                               ),
                               _GroupSummaryRow(
@@ -460,7 +460,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                                       taxRate: kTaxRate,
                                                       walletBalance: 100.0,
                                                     ),
-                                                subtotal: subtotalInclTax,
+                                                subtotal: subtotalInclTax - tax,
                                                 deliveryFee: deliveryShare,
                                                 tax: tax,
                                                 discount: 0.0,
@@ -1143,7 +1143,7 @@ class _MenuItemTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${priceWithTax(item.price).toStringAsFixed(2)} SAR',
+                        '${item.price.toStringAsFixed(2)} SAR',
                         style: theme.textTheme.titleSmall?.copyWith(
                           color: scheme.primary,
                           fontWeight: FontWeight.w800,
@@ -1248,7 +1248,7 @@ class _ConfigPickerSheet extends StatelessWidget {
                   title: Text(summary),
                   subtitle: Text(
                     'In cart: ${line.quantity} • '
-                    '${priceWithTax(line.unitPrice).toStringAsFixed(2)} SAR each (incl. tax)',
+                    '${line.unitPrice.toStringAsFixed(2)} SAR each (incl. tax)',
                   ),
                   trailing: const Icon(Icons.add_circle_outline),
                 ),

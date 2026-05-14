@@ -8,7 +8,6 @@ import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/customer_orders_screen.dart';
 import 'package:food_delivery_platform/pages/customer/map_track_screen.dart';
 import 'package:food_delivery_platform/pages/customer/rate_order_screen.dart';
-import 'package:food_delivery_platform/utils/tax.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   const OrderDetailScreen({
@@ -353,7 +352,7 @@ class _ItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final unitWithTax = priceWithTax(item.priceAtPurchase);
+    final unitWithTax = item.priceAtPurchase;
     final lineTotalWithTax = unitWithTax * item.quantity;
 
     return Row(

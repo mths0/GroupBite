@@ -926,7 +926,7 @@ class DatabaseService {
     final deliveryFee = restaurant?.deliveryFee ?? 0.0;
 
     final tax = subtotal * kTaxRate;
-    final total = subtotal + deliveryFee + tax;
+    final total = subtotal + deliveryFee;
 
     await addOrder(
       customerId: customerId,

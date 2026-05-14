@@ -1,5 +1,5 @@
 const double kTaxRate = 0.15;
 
-double priceWithTax(double pretax) => pretax * (1 + kTaxRate);
+double taxOf(double inclusive) => inclusive * kTaxRate;
 
-double taxOf(double pretax) => pretax * kTaxRate;
+double baseOf(double inclusive) => inclusive * (1 - kTaxRate);
