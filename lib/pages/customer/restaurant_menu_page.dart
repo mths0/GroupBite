@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
+import 'package:food_delivery_platform/cart/cart_controller.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/cart_item.dart' as cart_lines;
@@ -20,11 +21,13 @@ class RestaurantMenuPage extends StatefulWidget {
     required this.restaurant,
     required this.customer,
     this.groupOrderId,
+    this.showGroupQrOnOpen = false,
   });
 
   final app_models.Restaurant restaurant;
   final Customer customer;
   final String? groupOrderId;
+  final bool showGroupQrOnOpen;
 
   bool get isInGroupOrder => groupOrderId != null;
   @override
@@ -61,12 +64,11 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            GroupOrderSummaryScreen(
-              groupOrderId: widget.groupOrderId!,
-              customer: widget.customer,
-              restaurant: widget.restaurant,
-            ),
+        builder: (_) => GroupOrderSummaryScreen(
+          groupOrderId: widget.groupOrderId!,
+          customer: widget.customer,
+          restaurant: widget.restaurant,
+        ),
       ),
     );
   }
@@ -86,6 +88,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
           restaurant: widget.restaurant,
           customer: widget.customer,
           groupOrderId: groupOrderId,
+          showGroupQrOnOpen: true,
         ),
       ),
     );
@@ -98,7 +101,8 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
 
     // Check if user is host
     final group = await DatabaseService().getGroupOrderById(
-        widget.groupOrderId!);
+      widget.groupOrderId!,
+    );
     if (group == null) return true;
 
     final isHost = group.hostCustomerId == widget.customer.id;
@@ -107,24 +111,25 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
 
     final bool? shouldLeave = await showDialog<bool>(
       context: context,
-      builder: (context) =>
-          AlertDialog(
-            title: Text(isHost ? 'End Group Order?' : 'Leave Group Order?'),
-            content: Text(isHost
-                ? 'As the host, leaving will cancel the group order for everyone. Are you sure?'
-                : 'Leaving will remove you from the group and delete your items. Are you sure?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Stay'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: Text(isHost ? 'End Order' : 'Leave Group'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text(isHost ? 'End Group Order?' : 'Leave Group Order?'),
+        content: Text(
+          isHost
+              ? 'As the host, leaving will cancel the group order for everyone. Are you sure?'
+              : 'Leaving will remove you from the group and delete your items. Are you sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Stay'),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text(isHost ? 'End Order' : 'Leave Group'),
+          ),
+        ],
+      ),
     );
 
     if (shouldLeave == true) {
@@ -155,7 +160,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
     final cart = widget.groupOrderId == null ? CartScope.read(context) : null;
     final restaurantId = widget.restaurant.id;
 
-    return PopScope(
+    final page = PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
@@ -193,7 +198,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
             final items = snapshot.data ?? const <MenuItem>[];
 
             return StreamBuilder<
-                firestore.DocumentSnapshot<Map<String, dynamic>>
+              firestore.DocumentSnapshot<Map<String, dynamic>>
             >(
               stream: _restaurantStream,
               builder: (context, restaurantSnap) {
@@ -235,6 +240,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                         _GroupOrderStatusBar(
                           groupOrderId: widget.groupOrderId!,
                           customerId: widget.customer.id,
+                          autoShowQr: widget.showGroupQrOnOpen,
                           onSummaryTap: _navigateToGroupOrderSummary,
                         ),
 
@@ -263,7 +269,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                               padding: const EdgeInsets.all(16),
                               itemCount: filtered.length,
                               separatorBuilder: (_, _) =>
-                              const SizedBox(height: 12),
+                                  const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 final item = filtered[index];
 
@@ -272,24 +278,24 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
 
                                   if (item.optionGroups.isNotEmpty) {
                                     customization =
-                                    await showModalBottomSheet<
-                                        ItemCustomizationResult
-                                    >(
-                                      context: context,
-                                      isScrollControlled: true,
-                                      useSafeArea: true,
-                                      showDragHandle: true,
-                                      clipBehavior: Clip.antiAlias,
-                                      shape: const RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.vertical(
-                                          top: Radius.circular(20),
-                                        ),
-                                      ),
-                                      builder: (_) =>
-                                          ItemCustomizationScreen(
-                                            item: item,
+                                        await showModalBottomSheet<
+                                          ItemCustomizationResult
+                                        >(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          useSafeArea: true,
+                                          showDragHandle: true,
+                                          clipBehavior: Clip.antiAlias,
+                                          shape: const RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.vertical(
+                                              top: Radius.circular(20),
+                                            ),
                                           ),
-                                    );
+                                          builder: (_) =>
+                                              ItemCustomizationScreen(
+                                                item: item,
+                                              ),
+                                        );
 
                                     if (customization == null) {
                                       return;
@@ -301,10 +307,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                       restaurantId: restaurantId,
                                       item: item,
                                       selectedOptions:
-                                      customization?.selectedOptions ??
+                                          customization?.selectedOptions ??
                                           const [],
                                       customUnitPrice:
-                                      customization?.finalUnitPrice,
+                                          customization?.finalUnitPrice,
                                     );
 
                                     if (!context.mounted) return;
@@ -322,9 +328,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
 
                                   final member = await DatabaseService()
                                       .getGroupMember(
-                                    groupOrderId: widget.groupOrderId!,
-                                    customerId: widget.customer.id,
-                                  );
+                                        groupOrderId: widget.groupOrderId!,
+                                        customerId: widget.customer.id,
+                                      );
 
                                   if (member == null) {
                                     if (!context.mounted) return;
@@ -340,7 +346,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                   }
 
                                   if (member.status ==
-                                      GroupMemberStatus.ready ||
+                                          GroupMemberStatus.ready ||
                                       member.status == GroupMemberStatus.paid) {
                                     if (!context.mounted) return;
 
@@ -359,10 +365,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                     memberId: widget.customer.id,
                                     menuItem: item,
                                     selectedOptions:
-                                    customization?.selectedOptions ??
+                                        customization?.selectedOptions ??
                                         const [],
                                     customUnitPrice:
-                                    customization?.finalUnitPrice,
+                                        customization?.finalUnitPrice,
                                   );
 
                                   if (!context.mounted) return;
@@ -397,22 +403,21 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                     chosen = lines.first;
                                   } else {
                                     chosen =
-                                    await showModalBottomSheet<
-                                        cart_lines.CartItem
-                                    >(
-                                      context: context,
-                                      showDragHandle: true,
-                                      shape: const RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.vertical(
-                                          top: Radius.circular(20),
-                                        ),
-                                      ),
-                                      builder: (_) =>
-                                          _ConfigPickerSheet(
+                                        await showModalBottomSheet<
+                                          cart_lines.CartItem
+                                        >(
+                                          context: context,
+                                          showDragHandle: true,
+                                          shape: const RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.vertical(
+                                              top: Radius.circular(20),
+                                            ),
+                                          ),
+                                          builder: (_) => _ConfigPickerSheet(
                                             item: item,
                                             lines: lines,
                                           ),
-                                    );
+                                        );
                                   }
 
                                   if (chosen == null) return;
@@ -427,16 +432,15 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
 
                                 return AnimatedBuilder(
                                   animation: cart,
-                                  builder: (_, _) =>
-                                      _MenuItemTile(
-                                        item: item,
-                                        count: cart.quantityForMenuItem(
-                                          restaurantId: restaurantId,
-                                          menuItemId: item.id,
-                                        ),
-                                        onAdd: handleTap,
-                                        onIncrement: handleIncrement,
-                                      ),
+                                  builder: (_, _) => _MenuItemTile(
+                                    item: item,
+                                    count: cart.quantityForMenuItem(
+                                      restaurantId: restaurantId,
+                                      menuItemId: item.id,
+                                    ),
+                                    onAdd: handleTap,
+                                    onIncrement: handleIncrement,
+                                  ),
                                 );
                               },
                             );
@@ -452,11 +456,11 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
         ),
         floatingActionButton: widget.groupOrderId == null
             ? AnimatedBuilder(
-          animation: cart!,
-          builder: (_, _) {
-            final count = cart.itemCount(restaurantId);
+                animation: cart!,
+                builder: (_, _) {
+                  final count = cart.itemCount(restaurantId);
 
-            return Stack(
+                  return Stack(
               clipBehavior: Clip.none,
               children: [
                 FloatingActionButton(
@@ -504,27 +508,27 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
           },
         )
             : StreamBuilder<List<GroupOrderItem>>(
-          stream: DatabaseService().watchGroupItems(widget.groupOrderId!),
-          builder: (context, snapshot) {
-            final allItems = snapshot.data ?? [];
+                stream: DatabaseService().watchGroupItems(widget.groupOrderId!),
+                builder: (context, snapshot) {
+                  final allItems = snapshot.data ?? [];
 
-            final myItemCount = allItems
+                  final myItemCount = allItems
                 .where((item) => item.memberId == widget.customer.id)
                 .fold<int>(
               0,
                   (sum, item) => sum + item.quantity,
             );
 
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                FloatingActionButton.extended(
-                  onPressed: _navigateToGroupOrderSummary,
-                  icon: const Icon(Icons.receipt_long),
-                  label: const Text('Group Order'),
-                ),
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      FloatingActionButton.extended(
+                        onPressed: _navigateToGroupOrderSummary,
+                        icon: const Icon(Icons.receipt_long),
+                        label: const Text('Group Order'),
+                      ),
 
-                if (myItemCount > 0)
+                      if (myItemCount > 0)
                   Positioned(
                     right: -2,
                     top: -6,
@@ -556,6 +560,48 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
           },
         ),
       ),
+    );
+
+    if (widget.groupOrderId == null) {
+      return page;
+    }
+
+    return StreamBuilder<bool>(
+      stream: DatabaseService().watchIsGroupMember(
+        groupOrderId: widget.groupOrderId!,
+        customerId: widget.customer.id,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data == false) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('You were removed from the group order.'),
+              ),
+            );
+
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => CartScope(
+                  notifier: CartController(),
+                  child: RestaurantMenuPage(
+                    restaurant: widget.restaurant,
+                    customer: widget.customer,
+                  ),
+                ),
+              ),
+            );
+          });
+
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        return page;
+      },
     );
   }
 }
@@ -633,7 +679,7 @@ class HeaderCard extends StatelessWidget {
                         const Icon(Icons.star, size: 18, color: Colors.amber),
                         const SizedBox(width: 6),
                         Text(
-                          restaurant.rating.toString(),
+                          restaurant.rating.toStringAsFixed(1),
                           style: theme.textTheme.bodyMedium,
                         ),
                         const SizedBox(width: 14),
@@ -895,12 +941,46 @@ class _GroupOrderStatusBar extends StatelessWidget {
   const _GroupOrderStatusBar({
     required this.groupOrderId,
     required this.customerId,
+    this.autoShowQr = false,
     this.onSummaryTap,
   });
 
   final String groupOrderId;
   final String customerId;
+  final bool autoShowQr;
   final VoidCallback? onSummaryTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GroupOrderStatusBarBody(
+      groupOrderId: groupOrderId,
+      customerId: customerId,
+      autoShowQr: autoShowQr,
+      onSummaryTap: onSummaryTap,
+    );
+  }
+}
+
+class _GroupOrderStatusBarBody extends StatefulWidget {
+  const _GroupOrderStatusBarBody({
+    required this.groupOrderId,
+    required this.customerId,
+    required this.autoShowQr,
+    this.onSummaryTap,
+  });
+
+  final String groupOrderId;
+  final String customerId;
+  final bool autoShowQr;
+  final VoidCallback? onSummaryTap;
+
+  @override
+  State<_GroupOrderStatusBarBody> createState() =>
+      _GroupOrderStatusBarBodyState();
+}
+
+class _GroupOrderStatusBarBodyState extends State<_GroupOrderStatusBarBody> {
+  bool _didAutoShowQr = false;
 
   void _showQrDialog(BuildContext context, String code) {
     showDialog(
@@ -953,7 +1033,7 @@ class _GroupOrderStatusBar extends StatelessWidget {
     final scheme = theme.colorScheme;
 
     return StreamBuilder<GroupOrder?>(
-      stream: db.watchGroupOrder(groupOrderId),
+      stream: db.watchGroupOrder(widget.groupOrderId),
       builder: (context, snapshot) {
         final groupOrder = snapshot.data;
 
@@ -964,8 +1044,16 @@ class _GroupOrderStatusBar extends StatelessWidget {
           );
         }
 
+        if (widget.autoShowQr && !_didAutoShowQr) {
+          _didAutoShowQr = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            _showQrDialog(context, groupOrder.joinCode);
+          });
+        }
+
         return InkWell(
-          onTap: onSummaryTap,
+          onTap: widget.onSummaryTap,
           borderRadius: BorderRadius.circular(16),
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1005,11 +1093,11 @@ class _GroupOrderStatusBar extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Code: ${groupOrder.joinCode} • ${groupOrder.status
-                            .name}',
+                        'Code: ${groupOrder.joinCode} • ${groupOrder.status.name}',
                         style: TextStyle(
                           color: scheme.onPrimaryContainer.withValues(
-                              alpha: 0.75),
+                            alpha: 0.75,
+                          ),
                           fontSize: 12,
                         ),
                       ),

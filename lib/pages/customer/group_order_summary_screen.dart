@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:food_delivery_platform/cart/cart_controller.dart';
+import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/group_order.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
+import 'package:food_delivery_platform/pages/customer/restaurant_menu_page.dart';
 import 'package:food_delivery_platform/utils/tax.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -60,12 +63,31 @@ class GroupOrderSummaryScreen extends StatelessWidget {
               (m) => m.customerId == customer.id,
             );
             if (membersSnapshot.hasData && !isStillMember) {
-              return _ErrorStateScreen(
-                icon: Icons.person_remove_outlined,
-                title: 'Removed from Group',
-                message:
-                    'You have been removed from this group order by the host.',
-                onPop: () => Navigator.pop(context),
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!context.mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('You were removed from the group order.'),
+                  ),
+                );
+
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (_) => CartScope(
+                      notifier: CartController(),
+                      child: RestaurantMenuPage(
+                        restaurant: restaurant,
+                        customer: customer,
+                      ),
+                    ),
+                  ),
+                  (route) => false,
+                );
+              });
+
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
               );
             }
 
@@ -134,10 +156,16 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                         (m) => m.customerId == customer.id,
                         orElse: () => members.first,
                       );
-                if (myMember == null)
+                final anyMemberReadyOrPaid = members.any(
+                  (m) =>
+                      m.status == GroupMemberStatus.ready ||
+                      m.status == GroupMemberStatus.paid,
+                );
+                if (myMember == null) {
                   return const Scaffold(
                     body: Center(child: CircularProgressIndicator()),
                   );
+                }
 
                 return Scaffold(
                   backgroundColor: scheme.surface,
@@ -173,11 +201,13 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                               _DeliverySplitControl(
                                 groupOrderId: groupOrderId,
                                 currentSplit: groupOrder.deliveryFeeSplit,
+                                enabled: !anyMemberReadyOrPaid,
                               ),
                               const SizedBox(height: 12),
                               _TotalSplitControl(
                                 groupOrderId: groupOrderId,
                                 currentStrategy: groupOrder.totalSplitStrategy,
+                                enabled: !anyMemberReadyOrPaid,
                               ),
                             ],
                           ),
@@ -228,26 +258,56 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                         .name
                                   : null;
 
-                              return _MemberTile(
-                                member: member,
-                                baseShare:
-                                    memberDetails[member
-                                        .customerId]?['baseShare'] ??
-                                    0,
-                                finalToPay: finalToPay,
-                                coveredBy: payerName,
-                                isHost:
-                                    member.customerId ==
-                                    groupOrder.hostCustomerId,
-                                isMe: member.customerId == customer.id,
-                                canRemove:
-                                    isHost && member.customerId != customer.id,
-                                canCover:
-                                    !isHost &&
-                                    member.customerId != customer.id &&
-                                    member.paidBy == null,
-                                onRemove: () => _removeMember(context, member),
-                                onCover: () => _coverMember(context, member),
+                              return Column(
+                                children: [
+                                  _MemberTile(
+                                    member: member,
+                                    baseShare:
+                                        memberDetails[member
+                                            .customerId]?['baseShare'] ??
+                                        0,
+                                    finalToPay: finalToPay,
+                                    coveredBy: payerName,
+                                    isHost:
+                                        member.customerId ==
+                                        groupOrder.hostCustomerId,
+                                    isMe: member.customerId == customer.id,
+                                    canRemove:
+                                        isHost &&
+                                        groupOrder.status ==
+                                            GroupOrderStatus.open &&
+                                        member.customerId != customer.id,
+                                    canCover:
+                                        member.customerId != customer.id &&
+                                        myMember.status !=
+                                            GroupMemberStatus.paid &&
+                                        member.paidBy == null &&
+                                        member.status != GroupMemberStatus.paid,
+                                    onRemove: () =>
+                                        _removeMember(context, member),
+                                    onCover: () =>
+                                        _coverMember(context, member),
+                                  ),
+                                  if (member.customerId == customer.id &&
+                                      member.status ==
+                                          GroupMemberStatus.ordering)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton(
+                                          onPressed: () async {
+                                            await DatabaseService()
+                                                .markGroupMemberReady(
+                                                  groupOrderId: groupOrderId,
+                                                  customerId: customer.id,
+                                                );
+                                          },
+                                          child: const Text('Ready'),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               );
                             },
                             childCount: members.length,
@@ -311,14 +371,22 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                     members: members,
                     hasItems: allItems.isNotEmpty,
                     myStatus: myMember.status,
-                    onPlaceOrder: () => _navigateToCheckout(
-                      context: context,
-                      members: members,
-                      allItems: allItems,
-                      memberDetails: memberDetails,
-                      grandTotal: grandTotal,
-                      groupOrder: groupOrder,
-                    ),
+                    onPlaceOrder: () {
+                      if (isHost && myMember.status == GroupMemberStatus.paid) {
+                        _placeCoveredHostOrder(context, groupOrder);
+                        return;
+                      }
+
+                      _navigateToCheckout(
+                        context: context,
+                        members: members,
+                        allItems: allItems,
+                        memberDetails: memberDetails,
+                        grandTotal: grandTotal,
+                        groupOrder: groupOrder,
+                      );
+                    },
+                    hostCustomerId: groupOrder.hostCustomerId,
                   ),
                 );
               },
@@ -481,6 +549,13 @@ class GroupOrderSummaryScreen extends StatelessWidget {
     BuildContext context,
     GroupOrderMember member,
   ) async {
+    // Prevent host from removing themselves
+    if (member.customerId == customer.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Host cannot remove themselves.')),
+      );
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -517,6 +592,22 @@ class GroupOrderSummaryScreen extends StatelessWidget {
     BuildContext context,
     GroupOrderMember member,
   ) async {
+    final myMember = await DatabaseService().getGroupMember(
+      groupOrderId: groupOrderId,
+      customerId: customer.id,
+    );
+    if (myMember?.status == GroupMemberStatus.paid) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You already paid and cannot cover another member.'),
+        ),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -538,10 +629,57 @@ class GroupOrderSummaryScreen extends StatelessWidget {
     );
 
     if (confirmed == true) {
-      await DatabaseService().coverGroupMemberPayment(
-        groupOrderId: groupOrderId,
-        payerId: customer.id,
-        payeeId: member.customerId,
+      try {
+        await DatabaseService().coverGroupMemberPayment(
+          groupOrderId: groupOrderId,
+          payerId: customer.id,
+          payeeId: member.customerId,
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to cover member: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _placeCoveredHostOrder(
+    BuildContext context,
+    GroupOrder groupOrder,
+  ) async {
+    try {
+      await DatabaseService().placeFinalGroupOrder(
+        groupOrderId: groupOrder.id,
+        customerId: customer.id,
+        restaurantId: restaurant.id,
+      );
+
+      if (!context.mounted) return;
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('Group Order Placed'),
+          content: const Text(
+            'Everyone has paid. The final group order has been placed successfully.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              },
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not place group order: $e')),
       );
     }
   }
@@ -647,10 +785,12 @@ class _DeliverySplitControl extends StatelessWidget {
   const _DeliverySplitControl({
     required this.groupOrderId,
     required this.currentSplit,
+    this.enabled = true,
   });
 
   final String groupOrderId;
   final String currentSplit;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -690,21 +830,21 @@ class _DeliverySplitControl extends StatelessWidget {
                 label: 'Equal',
                 icon: Icons.people_outline,
                 isSelected: currentSplit == 'equal',
-                onTap: () => _updateSplit('equal'),
+                onTap: enabled ? () => _updateSplit('equal') : null,
               ),
               const SizedBox(width: 8),
               _SplitOption(
                 label: 'Proportional',
                 icon: Icons.pie_chart_outline,
                 isSelected: currentSplit == 'proportional',
-                onTap: () => _updateSplit('proportional'),
+                onTap: enabled ? () => _updateSplit('proportional') : null,
               ),
               const SizedBox(width: 8),
               _SplitOption(
                 label: 'Host Pays',
                 icon: Icons.person_outline,
                 isSelected: currentSplit == 'host',
-                onTap: () => _updateSplit('host'),
+                onTap: enabled ? () => _updateSplit('host') : null,
               ),
             ],
           ),
@@ -724,10 +864,12 @@ class _TotalSplitControl extends StatelessWidget {
   const _TotalSplitControl({
     required this.groupOrderId,
     required this.currentStrategy,
+    this.enabled = true,
   });
 
   final String groupOrderId;
   final String currentStrategy;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -763,14 +905,14 @@ class _TotalSplitControl extends StatelessWidget {
                 label: 'Pay For Own',
                 icon: Icons.person_outline,
                 isSelected: currentStrategy == 'individual',
-                onTap: () => _updateStrategy('individual'),
+                onTap: enabled ? () => _updateStrategy('individual') : null,
               ),
               const SizedBox(width: 8),
               _SplitOption(
                 label: 'Split Equally',
                 icon: Icons.groups_outlined,
                 isSelected: currentStrategy == 'equal',
-                onTap: () => _updateStrategy('equal'),
+                onTap: enabled ? () => _updateStrategy('equal') : null,
               ),
             ],
           ),
@@ -797,7 +939,7 @@ class _SplitOption extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1163,6 +1305,7 @@ class _BottomActions extends StatelessWidget {
     required this.hasItems,
     required this.myStatus,
     required this.onPlaceOrder,
+    required this.hostCustomerId,
   });
 
   final bool isHost;
@@ -1170,17 +1313,36 @@ class _BottomActions extends StatelessWidget {
   final bool hasItems;
   final GroupMemberStatus myStatus;
   final VoidCallback onPlaceOrder;
+  final String hostCustomerId;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final allReady = members.every(
-      (m) =>
-          m.status == GroupMemberStatus.ready ||
-          m.status == GroupMemberStatus.paid,
-    );
+    final allReady =
+        members.isNotEmpty &&
+        members.every(
+          (m) =>
+              m.status == GroupMemberStatus.ready ||
+              m.status == GroupMemberStatus.paid,
+        );
+
     final isPaid = myStatus == GroupMemberStatus.paid;
+    final hostMember =
+        members.where((m) => m.customerId == hostCustomerId).isNotEmpty
+        ? members.firstWhere((m) => m.customerId == hostCustomerId)
+        : null;
+    final allNonHostPaid = members
+        .where((m) => m.customerId != hostCustomerId)
+        .every((m) => m.status == GroupMemberStatus.paid);
+
+    final canHostFinalize =
+        isHost && hostMember != null && allNonHostPaid && hasItems;
+    final isButtonDisabled =
+        !allReady ||
+        !hasItems ||
+        (!isHost && isPaid) ||
+        (isHost && !canHostFinalize);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
@@ -1227,16 +1389,16 @@ class _BottomActions extends StatelessWidget {
             width: double.infinity,
             height: 60,
             child: ElevatedButton(
-              onPressed: (isPaid || !hasItems || (isHost && !allReady))
-                  ? null
-                  : onPlaceOrder,
+              onPressed: isButtonDisabled ? null : onPlaceOrder,
               style: ElevatedButton.styleFrom(
                 backgroundColor: scheme.primary,
                 foregroundColor: scheme.onPrimary,
               ),
               child: Text(
                 isPaid
-                    ? 'Payment Completed'
+                    ? isHost
+                          ? 'Place Order'
+                          : 'Payment Completed'
                     : isHost
                     ? 'Pay & Place Order'
                     : 'Proceed to Payment',
