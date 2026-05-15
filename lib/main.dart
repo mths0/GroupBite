@@ -72,7 +72,7 @@ class _OurAppState extends State<OurApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark,
+      themeMode: ThemeMode.system,
       home: const StartScreen(),
       routes: {
         '/register': (context) =>

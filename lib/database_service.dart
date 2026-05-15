@@ -662,6 +662,7 @@ class DatabaseService {
       'status': GroupOrderStatus.open.name,
       'createdAt': firestore.FieldValue.serverTimestamp(),
       'updatedAt': firestore.FieldValue.serverTimestamp(),
+      'deliveryFeeSplit': 'equal', // default split
     });
 
     await groupRef.collection('members').doc(hostCustomerId).set({
@@ -672,6 +673,14 @@ class DatabaseService {
     });
 
     return groupRef.id;
+  }
+
+  Future<void> updateGroupOrder(String groupOrderId,
+      Map<String, dynamic> data) async {
+    await _db.collection('groupOrders').doc(groupOrderId).update({
+      ...data,
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
   }
 
   Future<GroupOrder?> getGroupOrderById(String groupOrderId) async {
@@ -698,28 +707,43 @@ class DatabaseService {
     required String groupOrderId,
     required String customerId,
   }) async {
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
-    final groupSnap = await groupRef.get();
-
-    if (!groupSnap.exists) {
-      throw Exception('Group order not found.');
-    }
-
-    final data = groupSnap.data() ?? {};
-    if (data['status'] != GroupOrderStatus.open.name) {
-      throw Exception('This group order is not open anymore.');
-    }
-
     final user = await getUserById(customerId);
     if (user == null) {
       throw Exception('User not found.');
     }
 
-    await groupRef.collection('members').doc(customerId).set({
-      'customerId': customerId,
-      'name': user.name,
-      'status': GroupMemberStatus.ordering.name,
-      'joinedAt': firestore.FieldValue.serverTimestamp(),
+    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+
+    await _db.runTransaction((transaction) async {
+      final groupSnap = await transaction.get(groupRef);
+
+      if (!groupSnap.exists) {
+        throw Exception('Group order not found.');
+      }
+
+      final data = groupSnap.data() ?? {};
+      if (data['status'] != GroupOrderStatus.open.name) {
+        throw Exception('This group order is not open anymore.');
+      }
+
+      // Check if user is already a member
+      final memberRef = groupRef.collection('members').doc(customerId);
+      final memberSnap = await transaction.get(memberRef);
+
+      if (memberSnap.exists) {
+        return; // Already in group
+      }
+
+      transaction.set(memberRef, {
+        'customerId': customerId,
+        'name': user.name,
+        'status': GroupMemberStatus.ordering.name,
+        'joinedAt': firestore.FieldValue.serverTimestamp(),
+      });
+
+      transaction.update(groupRef, {
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
     });
   }
 
@@ -737,6 +761,56 @@ class DatabaseService {
     if (!doc.exists) return null;
 
     return GroupOrderMember.fromFirestore(doc);
+  }
+
+  Future<void> leaveGroupOrder({
+    required String groupOrderId,
+    required String customerId,
+  }) async {
+    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+
+    await _db.runTransaction((transaction) async {
+      final groupSnap = await transaction.get(groupRef);
+      if (!groupSnap.exists) return;
+
+      final groupData = groupSnap.data()!;
+      final isHost = groupData['hostCustomerId'] == customerId;
+
+      final membersSnap = await groupRef.collection('members').get();
+      final isLastMember = membersSnap.docs.length <= 1;
+
+      // If host leaves or it's the last member, cancel/delete the group
+      if (isHost || isLastMember) {
+        transaction.update(groupRef, {
+          'status': GroupOrderStatus.cancelled.name,
+          'updatedAt': firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Just remove the member
+        transaction.delete(groupRef.collection('members').doc(customerId));
+
+        // Remove their items
+        final itemsSnap = await groupRef.collection('items')
+            .where('memberId', isEqualTo: customerId)
+            .get();
+
+        for (final doc in itemsSnap.docs) {
+          transaction.delete(doc.reference);
+        }
+
+        transaction.update(groupRef, {
+          'updatedAt': firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+
+  Future<void> removeMemberFromGroupOrder({
+    required String groupOrderId,
+    required String customerId,
+  }) async {
+    // This is the same as leave but initiated by host
+    await leaveGroupOrder(groupOrderId: groupOrderId, customerId: customerId);
   }
 
   Future<void> markGroupMemberReady({
@@ -768,6 +842,31 @@ class DatabaseService {
           'paidAt': firestore.FieldValue.serverTimestamp(),
           'updatedAt': firestore.FieldValue.serverTimestamp(),
         });
+  }
+
+  Future<void> coverGroupMemberPayment({
+    required String groupOrderId,
+    required String payerId,
+    required String payeeId,
+  }) async {
+    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final payeeMemberRef = groupRef.collection('members').doc(payeeId);
+
+    await _db.runTransaction((transaction) async {
+      final payeeSnap = await transaction.get(payeeMemberRef);
+      if (!payeeSnap.exists) throw Exception('Member not found');
+
+      transaction.update(payeeMemberRef, {
+        'status': GroupMemberStatus.paid.name,
+        'paidBy': payerId,
+        'paidAt': firestore.FieldValue.serverTimestamp(),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+
+      transaction.update(groupRef, {
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+    });
   }
 
   Future<void> addItemToGroupOrder({

@@ -23,6 +23,8 @@ class GroupOrder {
     required this.status,
     required this.createdAt,
     required this.updatedAt,
+    this.deliveryFeeSplit = 'equal',
+    this.totalSplitStrategy = 'individual', // 'individual' or 'equal'
   });
 
   final String id;
@@ -32,6 +34,8 @@ class GroupOrder {
   final GroupOrderStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String deliveryFeeSplit;
+  final String totalSplitStrategy;
 
   factory GroupOrder.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
@@ -47,6 +51,8 @@ class GroupOrder {
       ),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      deliveryFeeSplit: data['deliveryFeeSplit'] ?? 'equal',
+      totalSplitStrategy: data['totalSplitStrategy'] ?? 'individual',
     );
   }
 
@@ -61,12 +67,14 @@ class GroupOrderMember {
     required this.name,
     required this.status,
     required this.joinedAt,
+    this.paidBy,
   });
 
   final String customerId;
   final String name;
   final GroupMemberStatus status;
   final DateTime joinedAt;
+  final String? paidBy;
 
   factory GroupOrderMember.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -81,6 +89,7 @@ class GroupOrderMember {
         orElse: () => GroupMemberStatus.ordering,
       ),
       joinedAt: (data['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      paidBy: data['paidBy'],
     );
   }
 }
