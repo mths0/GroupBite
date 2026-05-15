@@ -259,6 +259,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _placeOrder() async {
     setState(() => _isPlacingOrder = true);
 
+    var groupAmountToRefundOnFailure = 0.0;
+
     try {
       final restaurant = await _db.getRestaurantById(widget.restaurantId);
       if (!mounted) return;
@@ -293,6 +295,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           customerId: widget.customerId,
           amount: split.wallet,
         );
+        if (widget.groupOrderId != null) {
+          groupAmountToRefundOnFailure += split.wallet;
+        }
       }
       if (split.family > 0) {
         final wallet = _familyWallet;
@@ -304,6 +309,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           userId: widget.customerId,
           amount: split.family,
         );
+        if (widget.groupOrderId != null) {
+          groupAmountToRefundOnFailure += split.family;
+        }
       }
 
       // GROUP CHECKOUT:
@@ -313,7 +321,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           groupOrderId: widget.groupOrderId!,
           customerId: widget.customerId,
           restaurantId: widget.restaurantId,
+          paidAmount: widget.total,
         );
+        groupAmountToRefundOnFailure = 0;
 
         if (!mounted) return;
 
@@ -458,6 +468,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
+      if (groupAmountToRefundOnFailure > 0) {
+        try {
+          await _db.addFundsToWallet(
+            customerId: widget.customerId,
+            amount: groupAmountToRefundOnFailure,
+          );
+        } catch (_) {
+          // Best-effort rollback. The original error is still shown below.
+        }
+      }
+
       if (!mounted) return;
 
       setState(() => _isPlacingOrder = false);

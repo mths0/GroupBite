@@ -29,6 +29,9 @@ const Duration kRestaurantResponseTimeout = Duration(minutes: 1);
 /// before it auto-cancels. Testing value; raise to 10 minutes before shipping.
 const Duration kDriverAcceptTimeout = Duration(minutes: 1);
 
+/// Group orders close automatically unless the host extends the timer.
+const Duration kGroupOrderTimerDuration = Duration(minutes: 10);
+
 class DatabaseService {
   final firestore.FirebaseFirestore _db = firestore.FirebaseFirestore.instance;
 
@@ -654,6 +657,7 @@ class DatabaseService {
 
     final groupRef = _db.collection('groupOrders').doc();
     final joinCode = IdGenerator.generateJoinCode();
+    final now = DateTime.now();
 
     await groupRef.set({
       'hostCustomerId': hostCustomerId,
@@ -662,6 +666,10 @@ class DatabaseService {
       'status': GroupOrderStatus.open.name,
       'createdAt': firestore.FieldValue.serverTimestamp(),
       'updatedAt': firestore.FieldValue.serverTimestamp(),
+      'expiresAt': firestore.Timestamp.fromDate(
+        now.add(kGroupOrderTimerDuration),
+      ),
+      'timerExtensions': 0,
       'deliveryFeeSplit': 'equal', // default split
     });
 
@@ -679,9 +687,100 @@ class DatabaseService {
     String groupOrderId,
     Map<String, dynamic> data,
   ) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     await _db.collection('groupOrders').doc(groupOrderId).update({
       ...data,
       'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> _ensureGroupOrderActive(String groupOrderId) async {
+    final expired = await expireGroupOrderIfNeeded(groupOrderId: groupOrderId);
+    if (expired) {
+      throw Exception('This group order has closed.');
+    }
+
+    final group = await getGroupOrderById(groupOrderId);
+    if (group == null) {
+      throw Exception('Group order not found.');
+    }
+    if (group.status == GroupOrderStatus.cancelled) {
+      throw Exception('This group order has closed.');
+    }
+    if (group.status == GroupOrderStatus.completed) {
+      throw Exception('This group order is already completed.');
+    }
+  }
+
+  Future<bool> expireGroupOrderIfNeeded({
+    required String groupOrderId,
+  }) async {
+    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupSnap = await groupRef.get();
+    final data = groupSnap.data();
+
+    if (data == null) return false;
+
+    final status = data['status'];
+    if (status == GroupOrderStatus.cancelled.name ||
+        status == GroupOrderStatus.completed.name) {
+      return false;
+    }
+
+    final expiresAt = (data['expiresAt'] as firestore.Timestamp?)?.toDate();
+    if (expiresAt == null || DateTime.now().isBefore(expiresAt)) {
+      return false;
+    }
+
+    await _cancelGroupOrderWithRefund(
+      groupOrderId: groupOrderId,
+      reason: 'expired',
+    );
+
+    return true;
+  }
+
+  Future<void> extendGroupOrderTimer({
+    required String groupOrderId,
+    required String hostCustomerId,
+  }) async {
+    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+
+    await _db.runTransaction((transaction) async {
+      final groupSnap = await transaction.get(groupRef);
+      final data = groupSnap.data();
+
+      if (data == null) {
+        throw Exception('Group order not found.');
+      }
+
+      if (data['hostCustomerId'] != hostCustomerId) {
+        throw Exception('Only the host can extend the group order timer.');
+      }
+
+      final status = data['status'];
+      if (status == GroupOrderStatus.cancelled.name ||
+          status == GroupOrderStatus.completed.name) {
+        throw Exception('This group order has already closed.');
+      }
+
+      final now = DateTime.now();
+      final currentExpiresAt =
+          (data['expiresAt'] as firestore.Timestamp?)?.toDate() ?? now;
+
+      if (!now.isBefore(currentExpiresAt)) {
+        throw Exception('This group order has already closed.');
+      }
+
+      final base = currentExpiresAt.isAfter(now) ? currentExpiresAt : now;
+      transaction.update(groupRef, {
+        'expiresAt': firestore.Timestamp.fromDate(
+          base.add(kGroupOrderTimerDuration),
+        ),
+        'timerExtensions': firestore.FieldValue.increment(1),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
     });
   }
 
@@ -709,6 +808,8 @@ class DatabaseService {
     required String groupOrderId,
     required String customerId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     final user = await getUserById(customerId);
     if (user == null) {
       throw Exception('User not found.');
@@ -769,6 +870,8 @@ class DatabaseService {
     required String groupOrderId,
     required String customerId,
   }) async {
+    await expireGroupOrderIfNeeded(groupOrderId: groupOrderId);
+
     final groupRef = _db.collection('groupOrders').doc(groupOrderId);
     final membersCol = groupRef.collection('members');
 
@@ -782,10 +885,11 @@ class DatabaseService {
     final isLastMember = membersSnap.docs.length <= 1;
 
     if (isHostLeaving || isLastMember) {
-      await groupRef.update({
-        'status': GroupOrderStatus.cancelled.name,
-        'updatedAt': firestore.FieldValue.serverTimestamp(),
-      });
+      await _cancelGroupOrderWithRefund(
+        groupOrderId: groupOrderId,
+        cancelledBy: customerId,
+        reason: isHostLeaving ? 'host_left' : 'last_member_left',
+      );
       return;
     }
 
@@ -841,6 +945,8 @@ class DatabaseService {
     required String groupOrderId,
     required String customerId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     final groupRef = _db.collection('groupOrders').doc(groupOrderId);
     final groupSnap = await groupRef.get();
 
@@ -863,6 +969,8 @@ class DatabaseService {
     required String groupOrderId,
     required String customerId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     await _db
         .collection('groupOrders')
         .doc(groupOrderId)
@@ -878,6 +986,8 @@ class DatabaseService {
     required String groupOrderId,
     required String customerId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     await _db
         .collection('groupOrders')
         .doc(groupOrderId)
@@ -895,6 +1005,8 @@ class DatabaseService {
     required String payerId,
     required String payeeId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     final groupRef = _db.collection('groupOrders').doc(groupOrderId);
     final payerMemberRef = groupRef.collection('members').doc(payerId);
     final payeeMemberRef = groupRef.collection('members').doc(payeeId);
@@ -940,6 +1052,8 @@ class DatabaseService {
     List<SelectedOptionChoice> selectedOptions = const [],
     double? customUnitPrice,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     final groupRef = _db.collection('groupOrders').doc(groupOrderId);
 
     final unitPrice = customUnitPrice ?? menuItem.price;
@@ -991,6 +1105,8 @@ class DatabaseService {
     required String memberId,
     required String itemId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     final itemRef = _db
         .collection('groupOrders')
         .doc(groupOrderId)
@@ -1029,6 +1145,8 @@ class DatabaseService {
     required String memberId,
     required String itemId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     final itemRef = _db
         .collection('groupOrders')
         .doc(groupOrderId)
@@ -1072,6 +1190,8 @@ class DatabaseService {
     required String memberId,
     required String menuItemId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     final itemRef = _db
         .collection('groupOrders')
         .doc(groupOrderId)
@@ -1100,6 +1220,8 @@ class DatabaseService {
     required String memberId,
     required String itemId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     final itemRef = _db
         .collection('groupOrders')
         .doc(groupOrderId)
@@ -1124,6 +1246,8 @@ class DatabaseService {
   Future<void> lockGroupOrder({
     required String groupOrderId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     await _db.collection('groupOrders').doc(groupOrderId).update({
       'status': GroupOrderStatus.locked.name,
       'updatedAt': firestore.FieldValue.serverTimestamp(),
@@ -1142,10 +1266,82 @@ class DatabaseService {
   Future<void> cancelGroupOrder({
     required String groupOrderId,
   }) async {
-    await _db.collection('groupOrders').doc(groupOrderId).update({
+    await _cancelGroupOrderWithRefund(
+      groupOrderId: groupOrderId,
+      reason: 'cancelled',
+    );
+  }
+
+  Future<void> _cancelGroupOrderWithRefund({
+    required String groupOrderId,
+    String? cancelledBy,
+    required String reason,
+  }) async {
+    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupSnap = await groupRef.get();
+    final data = groupSnap.data();
+
+    if (data == null) return;
+
+    if (data['status'] == GroupOrderStatus.completed.name) {
+      return;
+    }
+
+    await _refundGroupOrderPayments(groupOrderId: groupOrderId);
+
+    await groupRef.update({
       'status': GroupOrderStatus.cancelled.name,
+      'cancelledReason': reason,
+      'cancelledBy': cancelledBy,
+      'cancelledAt': firestore.FieldValue.serverTimestamp(),
       'updatedAt': firestore.FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> _refundGroupOrderPayments({
+    required String groupOrderId,
+  }) async {
+    final membersSnap = await _db
+        .collection('groupOrders')
+        .doc(groupOrderId)
+        .collection('members')
+        .get();
+
+    final batch = _db.batch();
+    var hasRefunds = false;
+
+    for (final doc in membersSnap.docs) {
+      final data = doc.data();
+      final alreadyRefunded = data['paymentRefunded'] == true;
+      final paidAmount = (data['paidAmount'] as num?)?.toDouble() ?? 0.0;
+      final payerId = (data['paymentCustomerId'] ?? doc.id).toString();
+
+      if (alreadyRefunded || paidAmount <= 0 || payerId.isEmpty) {
+        continue;
+      }
+
+      hasRefunds = true;
+
+      batch.set(
+        _walletDoc(payerId),
+        {
+          'balance': firestore.FieldValue.increment(paidAmount),
+          'updatedAt': firestore.FieldValue.serverTimestamp(),
+        },
+        firestore.SetOptions(merge: true),
+      );
+
+      batch.update(doc.reference, {
+        'paymentRefunded': true,
+        'refundedAmount': paidAmount,
+        'refundedAt': firestore.FieldValue.serverTimestamp(),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (hasRefunds) {
+      await batch.commit();
+    }
   }
 
   Future<void> placeFinalGroupOrder({
@@ -1153,6 +1349,8 @@ class DatabaseService {
     required String customerId,
     required String restaurantId,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     final groupRef = _db.collection('groupOrders').doc(groupOrderId);
 
     final groupSnapshot = await groupRef.get();
@@ -1244,7 +1442,10 @@ class DatabaseService {
     required String groupOrderId,
     required String customerId,
     required String restaurantId,
+    required double paidAmount,
   }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
     final groupRef = _db.collection('groupOrders').doc(groupOrderId);
 
     final groupSnapshot = await groupRef.get();
@@ -1275,6 +1476,7 @@ class DatabaseService {
     }
 
     final isHost = customerId == hostCustomerId;
+    final hostPaysAll = groupData['totalSplitStrategy'] == 'host';
     final currentMemberData = currentMemberDoc.first.data();
     final currentMemberPaid =
         currentMemberData['status'] == GroupMemberStatus.paid.name;
@@ -1286,14 +1488,21 @@ class DatabaseService {
       return data['status'] != GroupMemberStatus.paid.name;
     }).toList();
 
-    if (isHost && otherMembersNotPaid.isNotEmpty) {
+    if (isHost && !hostPaysAll && otherMembersNotPaid.isNotEmpty) {
       throw Exception('Host must pay last. Wait until all members pay first.');
+    }
+
+    if (!isHost && hostPaysAll) {
+      throw Exception('The host is covering this group order.');
     }
 
     if (!currentMemberPaid) {
       await groupRef.collection('members').doc(customerId).update({
         'status': GroupMemberStatus.paid.name,
         'paidBy': firestore.FieldValue.delete(),
+        'paidAmount': paidAmount,
+        'paymentCustomerId': customerId,
+        'paymentRefunded': false,
         'paidAt': firestore.FieldValue.serverTimestamp(),
         'updatedAt': firestore.FieldValue.serverTimestamp(),
       });
@@ -1301,6 +1510,27 @@ class DatabaseService {
 
     if (!isHost) {
       return false;
+    }
+
+    if (hostPaysAll) {
+      final batch = _db.batch();
+
+      for (final doc in membersSnapshot.docs) {
+        if (doc.id == hostCustomerId) continue;
+
+        batch.update(doc.reference, {
+          'status': GroupMemberStatus.paid.name,
+          'paidBy': hostCustomerId,
+          'paidAt': firestore.FieldValue.serverTimestamp(),
+          'updatedAt': firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      batch.update(groupRef, {
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+
+      await batch.commit();
     }
 
     final updatedMembersSnapshot = await groupRef.collection('members').get();

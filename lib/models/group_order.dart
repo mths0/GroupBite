@@ -23,8 +23,11 @@ class GroupOrder {
     required this.status,
     required this.createdAt,
     required this.updatedAt,
+    required this.expiresAt,
     this.deliveryFeeSplit = 'equal',
     this.totalSplitStrategy = 'individual', // 'individual' or 'equal'
+    this.timerExtensions = 0,
+    this.cancelledReason,
   });
 
   final String id;
@@ -34,11 +37,17 @@ class GroupOrder {
   final GroupOrderStatus status;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime expiresAt;
   final String deliveryFeeSplit;
   final String totalSplitStrategy;
+  final int timerExtensions;
+  final String? cancelledReason;
 
   factory GroupOrder.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
+
+    final createdAt =
+        (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
 
     return GroupOrder(
       id: doc.id,
@@ -49,10 +58,15 @@ class GroupOrder {
         (s) => s.name == data['status'],
         orElse: () => GroupOrderStatus.open,
       ),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: createdAt,
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      expiresAt:
+          (data['expiresAt'] as Timestamp?)?.toDate() ??
+          createdAt.add(const Duration(minutes: 10)),
       deliveryFeeSplit: data['deliveryFeeSplit'] ?? 'equal',
       totalSplitStrategy: data['totalSplitStrategy'] ?? 'individual',
+      timerExtensions: (data['timerExtensions'] as num?)?.toInt() ?? 0,
+      cancelledReason: data['cancelledReason']?.toString(),
     );
   }
 

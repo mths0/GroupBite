@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:food_delivery_platform/cart/cart_controller.dart';
@@ -38,10 +40,13 @@ class GroupOrderSummaryScreen extends StatelessWidget {
         if (groupSnapshot.connectionState != ConnectionState.waiting &&
             (groupOrder == null ||
                 groupOrder.status == GroupOrderStatus.cancelled)) {
+          final expired = groupOrder?.cancelledReason == 'expired';
           return _ErrorStateScreen(
-            icon: Icons.cancel_outlined,
-            title: 'Order Cancelled',
-            message: 'This group order is no longer available.',
+            icon: expired ? Icons.timer_off_outlined : Icons.cancel_outlined,
+            title: expired ? 'Group Order Closed' : 'Order Cancelled',
+            message: expired
+                ? 'The group order timer ended and any paid amounts were refunded to wallets.'
+                : 'This group order is no longer available.',
             onPop: () => Navigator.pop(context),
           );
         }
@@ -124,6 +129,14 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                     mBaseShare =
                         grandTotal / (members.isEmpty ? 1 : members.length);
                     // For equal split, we just distribute the grand total
+                  } else if (groupOrder.totalSplitStrategy == 'host') {
+                    mDeliveryShare =
+                        member.customerId == groupOrder.hostCustomerId
+                        ? deliveryFee
+                        : 0;
+                    mBaseShare = member.customerId == groupOrder.hostCustomerId
+                        ? grandTotal
+                        : 0;
                   } else {
                     if (groupOrder.deliveryFeeSplit == 'equal') {
                       mDeliveryShare =
@@ -156,10 +169,29 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                         (m) => m.customerId == customer.id,
                         orElse: () => members.first,
                       );
-                final anyMemberReadyOrPaid = members.any(
-                  (m) =>
-                      m.status == GroupMemberStatus.ready ||
-                      m.status == GroupMemberStatus.paid,
+                final hostMemberMatches = members.where(
+                  (m) => m.customerId == groupOrder.hostCustomerId,
+                );
+                final hostMember = hostMemberMatches.isEmpty
+                    ? null
+                    : hostMemberMatches.first;
+                final hostReady =
+                    hostMember?.status == GroupMemberStatus.ready ||
+                    hostMember?.status == GroupMemberStatus.paid;
+                final allMembersHaveItems =
+                    members.isNotEmpty &&
+                    members.every(
+                      (m) => allItems.any((i) => i.memberId == m.customerId),
+                    );
+                final allReady =
+                    members.isNotEmpty &&
+                    members.every(
+                      (m) =>
+                          m.status == GroupMemberStatus.ready ||
+                          m.status == GroupMemberStatus.paid,
+                    );
+                final currentMemberHasItems = allItems.any(
+                  (i) => i.memberId == customer.id,
                 );
                 if (myMember == null) {
                   return const Scaffold(
@@ -194,6 +226,18 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                         child: _JoinCodeHeader(joinCode: groupOrder.joinCode),
                       ),
 
+                      SliverToBoxAdapter(
+                        child: RepaintBoundary(
+                          child: _GroupOrderTimerCard(
+                            key: ValueKey(groupOrder.expiresAt),
+                            groupOrderId: groupOrderId,
+                            expiresAt: groupOrder.expiresAt,
+                            isHost: isHost,
+                            hostCustomerId: groupOrder.hostCustomerId,
+                          ),
+                        ),
+                      ),
+
                       if (isHost)
                         SliverToBoxAdapter(
                           child: Column(
@@ -201,13 +245,18 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                               _DeliverySplitControl(
                                 groupOrderId: groupOrderId,
                                 currentSplit: groupOrder.deliveryFeeSplit,
-                                enabled: !anyMemberReadyOrPaid,
+                                deliveryFee: deliveryFee,
+                                memberCount: members.length,
+                                currentStrategy: groupOrder.totalSplitStrategy,
+                                enabled: isHost && !hostReady,
                               ),
                               const SizedBox(height: 12),
                               _TotalSplitControl(
                                 groupOrderId: groupOrderId,
                                 currentStrategy: groupOrder.totalSplitStrategy,
-                                enabled: !anyMemberReadyOrPaid,
+                                grandTotal: grandTotal,
+                                memberCount: members.length,
+                                enabled: isHost && !hostReady,
                               ),
                             ],
                           ),
@@ -260,6 +309,46 @@ class GroupOrderSummaryScreen extends StatelessWidget {
 
                               return Column(
                                 children: [
+                                  Builder(
+                                    builder: (context) {
+                                      final isCurrentMember =
+                                          member.customerId == customer.id;
+                                      final memberHasItems = allItems.any(
+                                        (i) => i.memberId == member.customerId,
+                                      );
+                                      final isMemberHost =
+                                          member.customerId ==
+                                          groupOrder.hostCustomerId;
+                                      final canMarkReady =
+                                          isCurrentMember &&
+                                          member.status ==
+                                              GroupMemberStatus.ordering &&
+                                          memberHasItems &&
+                                          (isMemberHost ? true : hostReady);
+                                      final disabledMessage = memberHasItems
+                                          ? 'Waiting for host to lock the split.'
+                                          : 'Add at least one item before marking ready.';
+
+                                      return _MemberReadyAction(
+                                        visible:
+                                            isCurrentMember &&
+                                            member.status ==
+                                                GroupMemberStatus.ordering,
+                                        enabled: canMarkReady,
+                                        label: isMemberHost
+                                            ? 'Lock Split & Ready'
+                                            : 'Agree & Ready',
+                                        disabledMessage: disabledMessage,
+                                        onReady: () async {
+                                          await DatabaseService()
+                                              .markGroupMemberReady(
+                                                groupOrderId: groupOrderId,
+                                                customerId: customer.id,
+                                              );
+                                        },
+                                      );
+                                    },
+                                  ),
                                   _MemberTile(
                                     member: member,
                                     baseShare:
@@ -279,6 +368,10 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                         member.customerId != customer.id,
                                     canCover:
                                         member.customerId != customer.id &&
+                                        groupOrder.totalSplitStrategy !=
+                                            'host' &&
+                                        hostReady &&
+                                        allReady &&
                                         myMember.status !=
                                             GroupMemberStatus.paid &&
                                         member.paidBy == null &&
@@ -288,25 +381,6 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                     onCover: () =>
                                         _coverMember(context, member),
                                   ),
-                                  if (member.customerId == customer.id &&
-                                      member.status ==
-                                          GroupMemberStatus.ordering)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton(
-                                          onPressed: () async {
-                                            await DatabaseService()
-                                                .markGroupMemberReady(
-                                                  groupOrderId: groupOrderId,
-                                                  customerId: customer.id,
-                                                );
-                                          },
-                                          child: const Text('Ready'),
-                                        ),
-                                      ),
-                                    ),
                                 ],
                               );
                             },
@@ -370,6 +444,11 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                     isHost: isHost,
                     members: members,
                     hasItems: allItems.isNotEmpty,
+                    allMembersHaveItems: allMembersHaveItems,
+                    hostReady: hostReady,
+                    allReady: allReady,
+                    currentMemberHasItems: currentMemberHasItems,
+                    totalSplitStrategy: groupOrder.totalSplitStrategy,
                     myStatus: myMember.status,
                     onPlaceOrder: () {
                       if (isHost && myMember.status == GroupMemberStatus.paid) {
@@ -411,6 +490,10 @@ class GroupOrderSummaryScreen extends StatelessWidget {
 
     // Items this user is paying for (own items + items of people they covered)
     final itemsUserPaysFor = allItems.where((item) {
+      if (groupOrder.totalSplitStrategy == 'host') {
+        return isHost;
+      }
+
       if (item.memberId == me) {
         // Only pay for own items if not covered by someone else
         final myMember = members.firstWhere((m) => m.customerId == me);
@@ -431,7 +514,21 @@ class GroupOrderSummaryScreen extends StatelessWidget {
 
     // If strategy is equal split, and user is NOT covered by someone else
     final myMember = members.firstWhere((m) => m.customerId == me);
-    if (groupOrder.totalSplitStrategy == 'equal' && myMember.paidBy == null) {
+    if (groupOrder.totalSplitStrategy == 'host') {
+      if (isHost) {
+        paySubtotal = memberDetails.values.fold<double>(
+          0,
+          (sum, details) => sum + (details['subtotal'] ?? 0),
+        );
+        payTax = memberDetails.values.fold<double>(
+          0,
+          (sum, details) => sum + (details['tax'] ?? 0),
+        );
+        payDelivery = restaurant.deliveryFee;
+        payTotal = grandTotal;
+      }
+    } else if (groupOrder.totalSplitStrategy == 'equal' &&
+        myMember.paidBy == null) {
       payTotal = grandTotal / members.length;
       // For equal split, we can't easily break down subtotal/tax/delivery per person
       // but we'll approximate it for display in CheckoutScreen
@@ -781,21 +878,195 @@ class _QrSheet extends StatelessWidget {
   }
 }
 
+class _GroupOrderTimerCard extends StatefulWidget {
+  const _GroupOrderTimerCard({
+    super.key,
+    required this.groupOrderId,
+    required this.expiresAt,
+    required this.isHost,
+    required this.hostCustomerId,
+  });
+
+  final String groupOrderId;
+  final DateTime expiresAt;
+  final bool isHost;
+  final String hostCustomerId;
+
+  @override
+  State<_GroupOrderTimerCard> createState() => _GroupOrderTimerCardState();
+}
+
+class _GroupOrderTimerCardState extends State<_GroupOrderTimerCard> {
+  Timer? _timer;
+  bool _isExtending = false;
+  bool _didRequestClose = false;
+
+  Duration get _remaining => widget.expiresAt.difference(DateTime.now());
+
+  @override
+  void initState() {
+    super.initState();
+    _startTicker();
+  }
+
+  @override
+  void didUpdateWidget(covariant _GroupOrderTimerCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.expiresAt != widget.expiresAt) {
+      _didRequestClose = false;
+      _startTicker();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startTicker() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {});
+      _closeIfExpired();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _closeIfExpired());
+  }
+
+  Future<void> _closeIfExpired() async {
+    if (_didRequestClose || _remaining > Duration.zero) return;
+    _didRequestClose = true;
+    await DatabaseService().expireGroupOrderIfNeeded(
+      groupOrderId: widget.groupOrderId,
+    );
+  }
+
+  Future<void> _extendTimer() async {
+    setState(() => _isExtending = true);
+    try {
+      await DatabaseService().extendGroupOrderTimer(
+        groupOrderId: widget.groupOrderId,
+        hostCustomerId: widget.hostCustomerId,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not extend timer: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isExtending = false);
+    }
+  }
+
+  String _formatRemaining(Duration value) {
+    final safe = value.isNegative ? Duration.zero : value;
+    final minutes = safe.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = safe.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final remaining = _remaining;
+    final expired = remaining <= Duration.zero;
+    final urgent = remaining.inSeconds <= 120;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: urgent
+            ? scheme.errorContainer.withOpacity(0.45)
+            : scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: urgent
+              ? scheme.error.withOpacity(0.35)
+              : scheme.outlineVariant,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(
+                expired ? Icons.timer_off_outlined : Icons.timer_outlined,
+                color: urgent ? scheme.error : scheme.primary,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                expired
+                    ? 'Group order closing'
+                    : 'Closes in ${_formatRemaining(remaining)}',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: urgent ? scheme.error : scheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            widget.isHost
+                ? 'Only the host can extend the timer.'
+                : 'Ask the host to extend if the group needs more time.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          if (widget.isHost)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.tonalIcon(
+                  onPressed: expired || _isExtending ? null : _extendTimer,
+                  icon: _isExtending
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_alarm_outlined),
+                  label: const Text('Extend 10 min'),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DeliverySplitControl extends StatelessWidget {
   const _DeliverySplitControl({
     required this.groupOrderId,
     required this.currentSplit,
+    required this.deliveryFee,
+    required this.memberCount,
+    required this.currentStrategy,
     this.enabled = true,
   });
 
   final String groupOrderId;
   final String currentSplit;
+  final double deliveryFee;
+  final int memberCount;
+  final String currentStrategy;
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final hostPaysAll = currentStrategy == 'host';
+    final perPerson = memberCount == 0 ? 0.0 : deliveryFee / memberCount;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
@@ -821,30 +1092,53 @@ class _DeliverySplitControl extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              const Spacer(),
+              _LockPill(locked: !enabled),
             ],
           ),
+          const SizedBox(height: 6),
+          Text(
+            hostPaysAll
+                ? 'Delivery follows Host Covers All.'
+                : 'Choose how the delivery fee is divided before locking the split.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 12),
-          Row(
+          Column(
             children: [
               _SplitOption(
                 label: 'Equal',
                 icon: Icons.people_outline,
+                description: 'Everyone pays the same delivery share.',
+                preview: '${perPerson.toStringAsFixed(2)} SAR each',
                 isSelected: currentSplit == 'equal',
-                onTap: enabled ? () => _updateSplit('equal') : null,
+                onTap: enabled && !hostPaysAll
+                    ? () => _updateSplit('equal')
+                    : null,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(height: 8),
               _SplitOption(
-                label: 'Proportional',
+                label: 'By item total',
                 icon: Icons.pie_chart_outline,
+                description: 'Higher item subtotal pays more of delivery.',
+                preview: 'Weighted by subtotal',
                 isSelected: currentSplit == 'proportional',
-                onTap: enabled ? () => _updateSplit('proportional') : null,
+                onTap: enabled && !hostPaysAll
+                    ? () => _updateSplit('proportional')
+                    : null,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(height: 8),
               _SplitOption(
                 label: 'Host Pays',
                 icon: Icons.person_outline,
+                description: 'Only the host pays the delivery fee.',
+                preview: '${deliveryFee.toStringAsFixed(2)} SAR by host',
                 isSelected: currentSplit == 'host',
-                onTap: enabled ? () => _updateSplit('host') : null,
+                onTap: enabled && !hostPaysAll
+                    ? () => _updateSplit('host')
+                    : null,
               ),
             ],
           ),
@@ -864,17 +1158,23 @@ class _TotalSplitControl extends StatelessWidget {
   const _TotalSplitControl({
     required this.groupOrderId,
     required this.currentStrategy,
+    required this.grandTotal,
+    required this.memberCount,
     this.enabled = true,
   });
 
   final String groupOrderId;
   final String currentStrategy;
+  final double grandTotal;
+  final int memberCount;
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final equalShare = memberCount == 0 ? 0.0 : grandTotal / memberCount;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
@@ -896,23 +1196,46 @@ class _TotalSplitControl extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              const Spacer(),
+              _LockPill(locked: !enabled),
             ],
           ),
+          const SizedBox(height: 6),
+          Text(
+            'Choose how item subtotal, tax, and delivery are assigned.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 12),
-          Row(
+          Column(
             children: [
               _SplitOption(
                 label: 'Pay For Own',
                 icon: Icons.person_outline,
+                description:
+                    'Each member pays their own items plus delivery rule.',
+                preview: 'Best for mixed orders',
                 isSelected: currentStrategy == 'individual',
                 onTap: enabled ? () => _updateStrategy('individual') : null,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(height: 8),
               _SplitOption(
                 label: 'Split Equally',
                 icon: Icons.groups_outlined,
+                description: 'Everyone pays the same grand-total share.',
+                preview: '${equalShare.toStringAsFixed(2)} SAR each',
                 isSelected: currentStrategy == 'equal',
                 onTap: enabled ? () => _updateStrategy('equal') : null,
+              ),
+              const SizedBox(height: 8),
+              _SplitOption(
+                label: 'Host Covers All',
+                icon: Icons.workspace_premium_outlined,
+                description: 'Members only agree. Host pays the full order.',
+                preview: '${grandTotal.toStringAsFixed(2)} SAR by host',
+                isSelected: currentStrategy == 'host',
+                onTap: enabled ? () => _updateStrategy('host') : null,
               ),
             ],
           ),
@@ -932,12 +1255,16 @@ class _SplitOption extends StatelessWidget {
   const _SplitOption({
     required this.label,
     required this.icon,
+    required this.description,
+    required this.preview,
     required this.isSelected,
     required this.onTap,
   });
 
   final String label;
   final IconData icon;
+  final String description;
+  final String preview;
   final bool isSelected;
   final VoidCallback? onTap;
 
@@ -945,37 +1272,163 @@ class _SplitOption extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? scheme.primary
-                : scheme.primary.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? scheme.onPrimary : scheme.primary,
-                size: 20,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? scheme.onPrimary : scheme.primary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+    final foreground = isSelected ? scheme.onPrimary : scheme.onSurface;
+    final muted = isSelected
+        ? scheme.onPrimary.withOpacity(0.78)
+        : scheme.outline;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? scheme.primary : scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? scheme.primary : scheme.outlineVariant,
+            width: isSelected ? 2 : 1,
           ),
         ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? scheme.onPrimary : scheme.primary,
+              size: 22,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: foreground,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  preview,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Icon(
+                  isSelected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked,
+                  color: isSelected ? scheme.onPrimary : scheme.outline,
+                  size: 18,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LockPill extends StatelessWidget {
+  const _LockPill({required this.locked});
+
+  final bool locked;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: locked
+            ? scheme.surfaceContainerHighest
+            : scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            locked ? Icons.lock_outline : Icons.lock_open_outlined,
+            size: 13,
+            color: locked ? scheme.outline : scheme.primary,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            locked ? 'Locked' : 'Editable',
+            style: TextStyle(
+              color: locked ? scheme.outline : scheme.primary,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemberReadyAction extends StatelessWidget {
+  const _MemberReadyAction({
+    required this.visible,
+    required this.enabled,
+    required this.label,
+    required this.disabledMessage,
+    required this.onReady,
+  });
+
+  final bool visible;
+  final bool enabled;
+  final String label;
+  final String disabledMessage;
+  final Future<void> Function() onReady;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    if (!visible) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!enabled)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                disabledMessage,
+                style: TextStyle(
+                  color: scheme.outline,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ElevatedButton.icon(
+            onPressed: enabled ? onReady : null,
+            icon: const Icon(Icons.check_circle_outline),
+            label: Text(label),
+          ),
+        ],
       ),
     );
   }
@@ -1303,6 +1756,11 @@ class _BottomActions extends StatelessWidget {
     required this.isHost,
     required this.members,
     required this.hasItems,
+    required this.allMembersHaveItems,
+    required this.hostReady,
+    required this.allReady,
+    required this.currentMemberHasItems,
+    required this.totalSplitStrategy,
     required this.myStatus,
     required this.onPlaceOrder,
     required this.hostCustomerId,
@@ -1311,6 +1769,11 @@ class _BottomActions extends StatelessWidget {
   final bool isHost;
   final List<GroupOrderMember> members;
   final bool hasItems;
+  final bool allMembersHaveItems;
+  final bool hostReady;
+  final bool allReady;
+  final bool currentMemberHasItems;
+  final String totalSplitStrategy;
   final GroupMemberStatus myStatus;
   final VoidCallback onPlaceOrder;
   final String hostCustomerId;
@@ -1319,13 +1782,6 @@ class _BottomActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final allReady =
-        members.isNotEmpty &&
-        members.every(
-          (m) =>
-              m.status == GroupMemberStatus.ready ||
-              m.status == GroupMemberStatus.paid,
-        );
 
     final isPaid = myStatus == GroupMemberStatus.paid;
     final hostMember =
@@ -1336,13 +1792,32 @@ class _BottomActions extends StatelessWidget {
         .where((m) => m.customerId != hostCustomerId)
         .every((m) => m.status == GroupMemberStatus.paid);
 
+    final hostPaysAll = totalSplitStrategy == 'host';
     final canHostFinalize =
-        isHost && hostMember != null && allNonHostPaid && hasItems;
+        isHost &&
+        hostMember != null &&
+        hasItems &&
+        allReady &&
+        (hostPaysAll || allNonHostPaid);
     final isButtonDisabled =
-        !allReady ||
         !hasItems ||
+        !currentMemberHasItems ||
+        !hostReady ||
+        !allReady ||
+        (!isHost && hostPaysAll) ||
         (!isHost && isPaid) ||
         (isHost && !canHostFinalize);
+    final statusMessage = !hasItems
+        ? 'Add items before continuing.'
+        : !allMembersHaveItems
+        ? 'Waiting for every member to add at least one item.'
+        : !hostReady
+        ? 'Host can still change the split. Host must lock it first.'
+        : !allReady
+        ? 'Waiting for all members to agree to the split.'
+        : isHost && !hostPaysAll && !allNonHostPaid
+        ? 'Members pay first. Host pays last to place the order.'
+        : null;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
@@ -1360,7 +1835,7 @@ class _BottomActions extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (!allReady)
+          if (statusMessage != null)
             Container(
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 16),
@@ -1369,13 +1844,17 @@ class _BottomActions extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
-                children: const [
-                  Icon(Icons.timer_outlined, color: Colors.orange, size: 20),
-                  SizedBox(width: 12),
+                children: [
+                  const Icon(
+                    Icons.timer_outlined,
+                    color: Colors.orange,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Waiting for all members to confirm their items...',
-                      style: TextStyle(
+                      statusMessage,
+                      style: const TextStyle(
                         color: Colors.orange,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -1399,8 +1878,12 @@ class _BottomActions extends StatelessWidget {
                     ? isHost
                           ? 'Place Order'
                           : 'Payment Completed'
+                    : !isHost && hostPaysAll
+                    ? 'Covered by Host'
                     : isHost
-                    ? 'Pay & Place Order'
+                    ? hostPaysAll
+                          ? 'Pay Full Order'
+                          : 'Pay & Place Order'
                     : 'Proceed to Payment',
               ),
             ),

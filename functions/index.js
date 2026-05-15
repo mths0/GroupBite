@@ -167,3 +167,94 @@ exports.autoCancelStaleOrders = onSchedule(
     );
   },
 );
+
+async function cancelGroupOrderWithWalletRefund(db, groupRef, reason) {
+  await db.runTransaction(async (transaction) => {
+    const groupSnap = await transaction.get(groupRef);
+    if (!groupSnap.exists) return;
+
+    const group = groupSnap.data() || {};
+    if (group.status === "completed" || group.status === "cancelled") {
+      return;
+    }
+
+    const membersSnap = await transaction.get(groupRef.collection("members"));
+
+    for (const memberDoc of membersSnap.docs) {
+      const member = memberDoc.data() || {};
+      const paidAmount = Number(member.paidAmount || 0);
+      const payerId = String(member.paymentCustomerId || memberDoc.id);
+
+      if (member.paymentRefunded === true || paidAmount <= 0 || !payerId) {
+        continue;
+      }
+
+      const walletRef = db
+        .collection("users")
+        .doc(payerId)
+        .collection("wallet")
+        .doc("main");
+
+      transaction.set(
+        walletRef,
+        {
+          balance: admin.firestore.FieldValue.increment(paidAmount),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      transaction.update(memberDoc.ref, {
+        paymentRefunded: true,
+        refundedAmount: paidAmount,
+        refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    transaction.update(groupRef, {
+      status: "cancelled",
+      cancelledReason: reason,
+      cancelledBy: "system",
+      cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+}
+
+exports.autoCloseExpiredGroupOrders = onSchedule(
+  {
+    schedule: "every 1 minutes",
+    timeZone: "Etc/UTC",
+  },
+  async () => {
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+
+    const expiredSnap = await db
+      .collection("groupOrders")
+      .where("expiresAt", "<", now)
+      .get();
+
+    const activeExpired = expiredSnap.docs.filter((doc) => {
+      const status = doc.data()?.status;
+      return status !== "completed" && status !== "cancelled";
+    });
+
+    if (activeExpired.length === 0) {
+      console.log("autoCloseExpiredGroupOrders: nothing expired");
+      return;
+    }
+
+    await Promise.all(
+      activeExpired.map((doc) =>
+        cancelGroupOrderWithWalletRefund(db, doc.ref, "expired"),
+      ),
+    );
+
+    console.log(
+      "autoCloseExpiredGroupOrders: closed " +
+        `${activeExpired.length} group order(s)`,
+    );
+  },
+);

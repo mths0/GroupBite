@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/cart/cart_controller.dart';
@@ -461,63 +463,62 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                   final count = cart.itemCount(restaurantId);
 
                   return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                FloatingActionButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            CartScope(
-                              notifier: cart,
-                              child: CartScreen(
-                                restaurantId: restaurantId,
-                                customerId: widget.customer.id,
+                    clipBehavior: Clip.none,
+                    children: [
+                      FloatingActionButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CartScope(
+                                notifier: cart,
+                                child: CartScreen(
+                                  restaurantId: restaurantId,
+                                  customerId: widget.customer.id,
+                                ),
                               ),
                             ),
+                          );
+                        },
+                        child: const Icon(Icons.shopping_cart_outlined),
                       ),
-                    );
-                  },
-                  child: const Icon(Icons.shopping_cart_outlined),
-                ),
-                if (count > 0)
-                  Positioned(
-                    right: -2,
-                    top: -2,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
+                      if (count > 0)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        )
+                    ],
+                  );
+                },
+              )
             : StreamBuilder<List<GroupOrderItem>>(
                 stream: DatabaseService().watchGroupItems(widget.groupOrderId!),
                 builder: (context, snapshot) {
                   final allItems = snapshot.data ?? [];
 
                   final myItemCount = allItems
-                .where((item) => item.memberId == widget.customer.id)
-                .fold<int>(
-              0,
-                  (sum, item) => sum + item.quantity,
-            );
+                      .where((item) => item.memberId == widget.customer.id)
+                      .fold<int>(
+                        0,
+                        (sum, item) => sum + item.quantity,
+                      );
 
                   return Stack(
                     clipBehavior: Clip.none,
@@ -529,36 +530,36 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                       ),
 
                       if (myItemCount > 0)
-                  Positioned(
-                    right: -2,
-                    top: -6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: theme.colorScheme.surface,
-                          width: 2,
+                        Positioned(
+                          right: -2,
+                          top: -6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: theme.colorScheme.surface,
+                                width: 2,
+                              ),
+                            ),
+                            child: Text(
+                              '$myItemCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        '$myItemCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
+                    ],
+                  );
+                },
+              ),
       ),
     );
 
@@ -981,6 +982,30 @@ class _GroupOrderStatusBarBody extends StatefulWidget {
 
 class _GroupOrderStatusBarBodyState extends State<_GroupOrderStatusBarBody> {
   bool _didAutoShowQr = false;
+  bool _didRequestClose = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _formatRemaining(DateTime expiresAt) {
+    final remaining = expiresAt.difference(DateTime.now());
+    final safe = remaining.isNegative ? Duration.zero : remaining;
+    final minutes = safe.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = safe.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
 
   void _showQrDialog(BuildContext context, String code) {
     showDialog(
@@ -1052,6 +1077,15 @@ class _GroupOrderStatusBarBodyState extends State<_GroupOrderStatusBarBody> {
           });
         }
 
+        if (!_didRequestClose && DateTime.now().isAfter(groupOrder.expiresAt)) {
+          _didRequestClose = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            DatabaseService().expireGroupOrderIfNeeded(
+              groupOrderId: widget.groupOrderId,
+            );
+          });
+        }
+
         return InkWell(
           onTap: widget.onSummaryTap,
           borderRadius: BorderRadius.circular(16),
@@ -1093,7 +1127,7 @@ class _GroupOrderStatusBarBodyState extends State<_GroupOrderStatusBarBody> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Code: ${groupOrder.joinCode} • ${groupOrder.status.name}',
+                        'Code: ${groupOrder.joinCode} • closes in ${_formatRemaining(groupOrder.expiresAt)}',
                         style: TextStyle(
                           color: scheme.onPrimaryContainer.withValues(
                             alpha: 0.75,
