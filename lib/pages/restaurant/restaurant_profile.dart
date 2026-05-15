@@ -1,12 +1,14 @@
 import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
-import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
+import 'package:food_delivery_platform/pages/support/support_screen.dart';
+import 'package:image_picker/image_picker.dart';
 
 class RestaurantProfile extends StatefulWidget {
   const RestaurantProfile({
@@ -311,8 +313,7 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
                           width: 120,
                           height: 120,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _imagePlaceholder(scheme),
+                          errorBuilder: (_, _, _) => _imagePlaceholder(scheme),
                         )
                       : _imagePlaceholder(scheme),
                 ),
@@ -444,6 +445,26 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
               onPressed: _signOut,
               icon: const Icon(Icons.logout),
               label: const Text('Sign Out'),
+            ),
+          ),
+          SizedBox(
+            height: 50,
+            child: TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SupportScreen(
+                      userId: widget.restaurant.id,
+                      userRole: 'restaurant',
+                      userName: widget.restaurant.name,
+                      userEmail: widget.restaurant.email,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.support_agent),
+              label: const Text('Support'),
             ),
           ),
         ],

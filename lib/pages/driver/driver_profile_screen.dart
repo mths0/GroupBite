@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/models/driver.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
+import 'package:food_delivery_platform/pages/support/support_screen.dart';
 
 class DriverProfileTab extends StatelessWidget {
   const DriverProfileTab({
@@ -127,6 +128,26 @@ class DriverProfileTab extends StatelessWidget {
             onPressed: () => _signOut(context),
             icon: const Icon(Icons.logout),
             label: const Text('Sign Out'),
+          ),
+        ),
+        SizedBox(
+          height: 50,
+          child: TextButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SupportScreen(
+                    userId: driver.id,
+                    userRole: 'driver',
+                    userName: driver.name,
+                    userEmail: driver.email,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.support_agent),
+            label: const Text('Support'),
           ),
         ),
       ],

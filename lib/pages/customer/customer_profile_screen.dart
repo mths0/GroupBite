@@ -10,6 +10,7 @@ import 'package:food_delivery_platform/pages/customer/address_widgets.dart';
 import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
 import 'package:food_delivery_platform/pages/customer/family_wallet_tab.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
+import 'package:food_delivery_platform/pages/support/support_screen.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 
 class CustomerProfileScreen extends StatefulWidget {
@@ -207,8 +208,8 @@ class _AccountTabState extends State<_AccountTab>
   @override
   bool get wantKeepAlive => true;
 
-  late final Stream<List<CustomerAddress>> _addressesStream =
-      widget.db.streamCustomerAddresses(widget.customer.id);
+  late final Stream<List<CustomerAddress>> _addressesStream = widget.db
+      .streamCustomerAddresses(widget.customer.id);
 
   Future<void> _pickDefaultAddress() async {
     final picked = await showModalBottomSheet<CustomerAddress>(
@@ -303,8 +304,7 @@ class _AccountTabState extends State<_AccountTab>
             return AddressChip(
               label: defaultAddress?.label,
               fullAddress: defaultAddress?.fullAddress,
-              isLoading:
-                  snapshot.connectionState == ConnectionState.waiting,
+              isLoading: snapshot.connectionState == ConnectionState.waiting,
               onTap: () => _pickDefaultAddress(),
             );
           },
@@ -333,6 +333,26 @@ class _AccountTabState extends State<_AccountTab>
             onPressed: widget.onSignOut,
             icon: const Icon(Icons.logout),
             label: const Text('Sign Out'),
+          ),
+        ),
+        SizedBox(
+          height: 50,
+          child: TextButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SupportScreen(
+                    userId: widget.customer.id,
+                    userRole: 'customer',
+                    userName: widget.customer.name,
+                    userEmail: widget.customer.email,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.support_agent),
+            label: const Text('Support'),
           ),
         ),
       ],

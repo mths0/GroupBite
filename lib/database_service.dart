@@ -1773,4 +1773,36 @@ class DatabaseService {
   }) async {
     await _db.collection(collection).doc(docId).delete();
   }
+  // ===========================================================================
+  // USER SUPPORT TICKETS
+  // ===========================================================================
+
+  Future<void> createSupportTicket({
+    required String userId,
+    required String userRole,
+    required String userName,
+    required String userEmail,
+    required String type,
+    required String subject,
+    required String message,
+    String? orderId,
+    String? orderStatus,
+  }) async {
+    final doc = _db.collection('support_tickets').doc();
+
+    await doc.set({
+      'id': doc.id,
+      'userId': userId,
+      'userRole': userRole,
+      'userName': userName,
+      'userEmail': userEmail,
+      'type': type,
+      'subject': subject.trim(),
+      'message': message.trim(),
+      'orderId': orderId,
+      'orderStatus': orderStatus,
+      'status': 'open',
+      'createdAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
 }

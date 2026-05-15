@@ -222,7 +222,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     (r) => LocationService.isWithinDistanceKm(
                       from: r.location,
                       to: _deliveryLocation,
-                      maxDistanceKm: 25,
+                      maxDistanceKm: 10.0, // Only show restaurants within 10 km
                     ),
                   )
                   .toList();

@@ -32,8 +32,8 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
   Restaurant? _restaurant;
   Customer? _customer;
   bool _isLoading = true;
-  static const double _pickupDistanceKm = 0.3;
-  static const double _deliveredDistanceKm = 0.15;
+  static const double _pickupDistanceKm = 0.03;
+  static const double _deliveredDistanceKm = 0.025;
 
   @override
   void initState() {
