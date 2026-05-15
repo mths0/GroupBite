@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/menu_item_option.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/utils/tax.dart';
 import 'package:image_picker/image_picker.dart';
 
 class MenuManagementScreen extends StatefulWidget {
@@ -547,8 +546,6 @@ class _MenuItemCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final priceText = "${item.price.toStringAsFixed(0)} SAR";
-    final withTaxText =
-        "${priceWithTax(item.price).toStringAsFixed(2)} with tax";
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -637,13 +634,6 @@ class _MenuItemCard extends StatelessWidget {
                                       color: scheme.primary,
                                       fontWeight: FontWeight.w900,
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  withTaxText,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: scheme.outline,
                                   ),
                                 ),
                               ],
@@ -998,7 +988,7 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
                         controller: _priceCtrl,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
-                          labelText: "Price (SAR, before tax)",
+                          labelText: "Price (SAR, incl. tax)",
                         ),
                         validator: (v) {
                           final t = (v ?? "").trim();
@@ -1007,29 +997,6 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
                           if (d == null || d <= 0) return "Enter a valid price";
                           return null;
                         },
-                      ),
-                      const SizedBox(height: 6),
-                      Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: Builder(
-                          builder: (context) {
-                            final parsed =
-                                double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
-                            final hint = parsed <= 0
-                                ? "Customers will see this price + 15% tax."
-                                : "With 15% tax, customers see "
-                                      "${priceWithTax(parsed).toStringAsFixed(2)} SAR.";
-                            return Text(
-                              hint,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.outline,
-                                  ),
-                            );
-                          },
-                        ),
                       ),
                       const SizedBox(height: 10),
                       // Item IMAGE

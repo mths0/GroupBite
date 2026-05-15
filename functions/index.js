@@ -3,6 +3,7 @@ const {
   onDocumentCreated,
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
@@ -112,6 +113,57 @@ exports.notifyCustomerOnOrderStatusChange = onDocumentUpdated(
         orderId: event.params.orderId,
         status,
       },
+    );
+  },
+);
+
+// Auto-cancel orders whose stage deadline has passed:
+//   * status "pending"  + restaurantRespondBy < now → restaurant didn't reply
+//   * status "accepted" + driverAcceptBy     < now → no driver picked it up
+// Runs every minute. The Dart client also fires this in a transaction as a
+// backup when someone has the app open; both paths converge on the same doc
+// guarded by a status check.
+exports.autoCancelStaleOrders = onSchedule(
+  {
+    schedule: "every 1 minutes",
+    timeZone: "Etc/UTC",
+  },
+  async () => {
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+
+    const [pendingSnap, acceptedSnap] = await Promise.all([
+      db
+        .collection("orders")
+        .where("status", "==", "pending")
+        .where("restaurantRespondBy", "<", now)
+        .get(),
+      db
+        .collection("orders")
+        .where("status", "==", "accepted")
+        .where("driverAcceptBy", "<", now)
+        .get(),
+    ]);
+
+    const stale = [...pendingSnap.docs, ...acceptedSnap.docs];
+    if (stale.length === 0) {
+      console.log("autoCancelStaleOrders: nothing stale");
+      return;
+    }
+
+    const writer = db.bulkWriter();
+    for (const doc of stale) {
+      writer.update(doc.ref, {
+        status: "cancelled",
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancelledBy: "system",
+      });
+    }
+
+    await writer.close();
+    console.log(
+      `autoCancelStaleOrders: cancelled ${stale.length} order(s) ` +
+        `(${pendingSnap.size} pending, ${acceptedSnap.size} accepted)`,
     );
   },
 );

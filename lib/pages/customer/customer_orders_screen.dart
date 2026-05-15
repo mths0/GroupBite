@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:food_delivery_platform/cart/cart_scope.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/family_wallet.dart';
@@ -27,6 +30,39 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
 
   final Map<String, Future<Restaurant?>> _restaurantFutures = {};
   final Map<String, Future<String>> _memberNameFutures = {};
+  final Set<String> _autoCancelInFlight = {};
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  void _autoCancelStale(List<Order> orders) {
+    final now = DateTime.now();
+    for (final order in orders) {
+      DateTime? deadline;
+      if (order.status == OrderStatus.pending) {
+        deadline = order.restaurantRespondBy;
+      } else if (order.status == OrderStatus.accepted) {
+        deadline = order.driverAcceptBy;
+      }
+      if (deadline == null || now.isBefore(deadline)) continue;
+      if (!_autoCancelInFlight.add(order.id)) continue;
+      _db.autoCancelExpiredOrder(order.id).whenComplete(() {
+        _autoCancelInFlight.remove(order.id);
+      });
+    }
+  }
 
   Future<Restaurant?> _restaurantFuture(String restaurantId) {
     return _restaurantFutures.putIfAbsent(
@@ -99,6 +135,9 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
         final orders = snapshot.data ?? [];
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _autoCancelStale(orders);
+        });
         if (orders.isEmpty) {
           return const Center(child: Text('No orders yet'));
         }
@@ -161,13 +200,18 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   }
 
   void _openDetail(Order order, String displayName) {
+    final cart = CartScope.read(context);
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => OrderDetailScreen(
-          order: order,
-          customer: widget.customer,
-          displayCustomerName: displayName,
+        builder: (_) =>
+            CartScope(
+              notifier: cart,
+              child: OrderDetailScreen(
+                order: order,
+                customer: widget.customer,
+                displayCustomerName: displayName,
+              ),
         ),
       ),
     );
@@ -197,6 +241,7 @@ class CancelOrderTimer extends StatefulWidget {
 class _CancelOrderTimerState extends State<CancelOrderTimer> {
   late final Stream<int> _ticker;
   bool _isCancelling = false;
+  bool _isSkipping = false;
 
   @override
   void initState() {
@@ -272,6 +317,26 @@ class _CancelOrderTimerState extends State<CancelOrderTimer> {
       if (mounted) {
         setState(() => _isCancelling = false);
       }
+    }
+  }
+
+  Future<void> _skipTimer() async {
+    setState(() => _isSkipping = true);
+    try {
+      await DatabaseService().skipCancelTimer(
+        orderId: widget.orderId,
+        customerId: widget.customerId,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSkipping = false);
     }
   }
 
@@ -369,33 +434,67 @@ class _CancelOrderTimerState extends State<CancelOrderTimer> {
 
               const SizedBox(height: 10),
 
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _isCancelling ? null : _confirmCancelOrder,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colorScheme.error,
-                    foregroundColor: colorScheme.onError,
-                    minimumSize: const Size.fromHeight(44),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: (_isCancelling || _isSkipping)
+                          ? null
+                          : _confirmCancelOrder,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colorScheme.error,
+                        foregroundColor: colorScheme.onError,
+                        minimumSize: const Size.fromHeight(44),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: _isCancelling
+                          ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: Colors.white,
+                        ),
+                      )
+                          : const Icon(Icons.cancel_outlined),
+                      label: Text(
+                        _isCancelling ? 'Cancelling...' : 'Cancel Order',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ),
-                  icon: _isCancelling
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.cancel_outlined),
-                  label: Text(
-                    _isCancelling ? 'Cancelling...' : 'Cancel Order',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: (_isCancelling || _isSkipping)
+                          ? null
+                          : _skipTimer,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colorScheme.onSurface,
+                        minimumSize: const Size.fromHeight(44),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: _isSkipping
+                          ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: colorScheme.onSurface,
+                        ),
+                      )
+                          : const Icon(Icons.skip_next),
+                      label: Text(
+                        _isSkipping ? 'Skipping...' : 'Skip Timer',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),

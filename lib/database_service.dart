@@ -20,6 +20,15 @@ import 'package:food_delivery_platform/utils/tax.dart';
 import 'models/driver.dart';
 import 'models/order.dart';
 
+/// How long after the customer-cancel window expires the restaurant has to
+/// accept or reject the order before it auto-cancels. Testing value; raise to
+/// 5 minutes before shipping.
+const Duration kRestaurantResponseTimeout = Duration(minutes: 1);
+
+/// How long after the restaurant accepts an order a driver has to pick it up
+/// before it auto-cancels. Testing value; raise to 10 minutes before shipping.
+const Duration kDriverAcceptTimeout = Duration(minutes: 1);
+
 class DatabaseService {
   final firestore.FirebaseFirestore _db = firestore.FirebaseFirestore.instance;
 
@@ -254,6 +263,10 @@ class DatabaseService {
     final customerLocation = await getLocation(customerId);
     final restaurantLocation = await getLocation(restaurantId);
 
+    final now = DateTime.now();
+    final canCancelUntil = now.add(const Duration(minutes: 5));
+    final restaurantRespondBy = canCancelUntil.add(kRestaurantResponseTimeout);
+
     await docRef.set({
       'id': orderId,
       'customerId': customerId,
@@ -266,10 +279,10 @@ class DatabaseService {
           ? firestore.Timestamp.fromDate(scheduledFor)
           : null,
 
-      // Cancel window: customer can cancel for 2 minutes
-      'canCancelUntil': firestore.Timestamp.fromDate(
-        DateTime.now().add(const Duration(seconds: 20)),
-      ),
+      // Customer-cancel window followed by the restaurant-response window;
+      // after restaurantRespondBy the order auto-cancels if still pending.
+      'canCancelUntil': firestore.Timestamp.fromDate(canCancelUntil),
+      'restaurantRespondBy': firestore.Timestamp.fromDate(restaurantRespondBy),
       'cancelledAt': null,
       'cancelledBy': null,
       'items': items.map((item) => item.toJson()).toList(),
@@ -295,8 +308,10 @@ class DatabaseService {
   }
 
   Future<void> restaurantAcceptOrder(String orderId) async {
+    final driverAcceptBy = DateTime.now().add(kDriverAcceptTimeout);
     await _db.collection('orders').doc(orderId).update({
       'status': OrderStatus.accepted.name,
+      'driverAcceptBy': firestore.Timestamp.fromDate(driverAcceptBy),
     });
   }
 
@@ -409,6 +424,80 @@ class DatabaseService {
         'cancelledAt': firestore.FieldValue.serverTimestamp(),
         'cancelledBy': customerId,
       });
+    });
+  }
+
+  /// Ends the customer-cancel window early so the restaurant sees the order
+  /// immediately. Also recomputes `restaurantRespondBy` to give the restaurant
+  /// the full response window starting from now.
+  Future<void> skipCancelTimer({
+    required String orderId,
+    required String customerId,
+  }) async {
+    final orderRef = _db.collection('orders').doc(orderId);
+
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(orderRef);
+      if (!snapshot.exists) {
+        throw Exception('Order not found.');
+      }
+
+      final data = snapshot.data() as Map<String, dynamic>;
+      if (data['customerId'] != customerId) {
+        throw Exception('You cannot modify this order.');
+      }
+      if (data['status'] != OrderStatus.pending.name) {
+        throw Exception('This order is no longer pending.');
+      }
+
+      final now = DateTime.now();
+      transaction.update(orderRef, {
+        'canCancelUntil': firestore.Timestamp.fromDate(now),
+        'restaurantRespondBy': firestore.Timestamp.fromDate(
+          now.add(kRestaurantResponseTimeout),
+        ),
+      });
+    });
+  }
+
+  /// Cancels [orderId] if a stage deadline has passed:
+  ///   * status `pending`  + `restaurantRespondBy` in the past → restaurant
+  ///     never responded.
+  ///   * status `accepted` + `driverAcceptBy`     in the past → no driver
+  ///     picked it up.
+  /// Idempotent — a transaction guards against double-cancellation or races
+  /// with a real accept/reject/assign.
+  Future<bool> autoCancelExpiredOrder(String orderId) async {
+    final orderRef = _db.collection('orders').doc(orderId);
+
+    return _db.runTransaction<bool>((transaction) async {
+      final snapshot = await transaction.get(orderRef);
+      if (!snapshot.exists) return false;
+
+      final data = snapshot.data() as Map<String, dynamic>;
+      final status = data['status'];
+      final now = DateTime.now();
+
+      firestore.Timestamp? deadline;
+      if (status == OrderStatus.pending.name) {
+        final raw = data['restaurantRespondBy'];
+        if (raw is firestore.Timestamp) deadline = raw;
+      } else if (status == OrderStatus.accepted.name) {
+        final raw = data['driverAcceptBy'];
+        if (raw is firestore.Timestamp) deadline = raw;
+      } else {
+        return false;
+      }
+
+      if (deadline == null) return false;
+      if (now.isBefore(deadline.toDate())) return false;
+
+      transaction.update(orderRef, {
+        'status': OrderStatus.cancelled.name,
+        'cancelledAt': firestore.FieldValue.serverTimestamp(),
+        'cancelledBy': 'system',
+      });
+      return true;
     });
   }
 
@@ -556,9 +645,13 @@ class DatabaseService {
 
   Future<String> createGroupOrder({
     required String hostCustomerId,
-    required String hostName,
     required String restaurantId,
   }) async {
+    final host = await getUserById(hostCustomerId);
+    if (host == null) {
+      throw Exception('Host user not found.');
+    }
+
     final groupRef = _db.collection('groupOrders').doc();
     final joinCode = IdGenerator.generateJoinCode();
 
@@ -573,7 +666,7 @@ class DatabaseService {
 
     await groupRef.collection('members').doc(hostCustomerId).set({
       'customerId': hostCustomerId,
-      'name': hostName,
+      'name': host.name,
       'status': GroupMemberStatus.ordering.name,
       'joinedAt': firestore.FieldValue.serverTimestamp(),
     });
@@ -604,7 +697,6 @@ class DatabaseService {
   Future<void> joinGroupOrder({
     required String groupOrderId,
     required String customerId,
-    required String customerName,
   }) async {
     final groupRef = _db.collection('groupOrders').doc(groupOrderId);
     final groupSnap = await groupRef.get();
@@ -618,9 +710,14 @@ class DatabaseService {
       throw Exception('This group order is not open anymore.');
     }
 
+    final user = await getUserById(customerId);
+    if (user == null) {
+      throw Exception('User not found.');
+    }
+
     await groupRef.collection('members').doc(customerId).set({
       'customerId': customerId,
-      'name': customerName,
+      'name': user.name,
       'status': GroupMemberStatus.ordering.name,
       'joinedAt': firestore.FieldValue.serverTimestamp(),
     });
@@ -936,7 +1033,7 @@ class DatabaseService {
     final deliveryFee = restaurant?.deliveryFee ?? 0.0;
 
     final tax = subtotal * kTaxRate;
-    final total = subtotal + deliveryFee + tax;
+    final total = subtotal + deliveryFee;
 
     await addOrder(
       customerId: customerId,

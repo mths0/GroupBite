@@ -8,7 +8,6 @@ import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/customer_orders_screen.dart';
 import 'package:food_delivery_platform/pages/customer/map_track_screen.dart';
 import 'package:food_delivery_platform/pages/customer/rate_order_screen.dart';
-import 'package:food_delivery_platform/utils/tax.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   const OrderDetailScreen({
@@ -110,28 +109,53 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Future<void> _orderSameOrderAgain(Order order) async {
-    final cart = CartScope.of(context);
+    final cart = CartScope.read(context);
     cart.clearRestaurantCart(order.restaurantId);
 
     final menu = await DatabaseService().getMenuForRestaurant(
       restaurantId: order.restaurantId,
     );
 
-    for (var item in order.items) {
-      if (menu.any((menu) => menu.id == item.menuId)) {
-        final menuitem = menu.firstWhere((menu) => menu.id == item.menuId);
-        for (int i = 0; i < item.quantity; i++) {
-          cart.addItem(
-            restaurantId: order.restaurantId,
-            item: menuitem,
-            selectedOptions: const [],
-            customUnitPrice: menuitem.price,
-          );
-        }
+    var addedCount = 0;
+    for (final item in order.items) {
+      final menuitem = menu.where((m) => m.id == item.menuId).firstOrNull;
+      if (menuitem == null) continue;
+
+      final extras = item.selectedOptions.fold<double>(
+        0.0,
+        (sum, o) => sum + o.extraPrice,
+      );
+      final unitPrice = menuitem.price + extras;
+
+      for (var i = 0; i < item.quantity; i++) {
+        cart.addItem(
+          restaurantId: order.restaurantId,
+          item: menuitem,
+          selectedOptions: item.selectedOptions,
+          customUnitPrice: unitPrice,
+        );
       }
+      addedCount++;
     }
 
     if (!mounted) return;
+
+    if (addedCount == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("None of these items are available anymore."),
+        ),
+      );
+      return;
+    }
+
+    if (addedCount < order.items.length) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Some items are no longer available and were skipped."),
+        ),
+      );
+    }
 
     Navigator.push(
       context,
@@ -151,14 +175,30 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final order = widget.order;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Order details'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: StreamBuilder<Order?>(
+        stream: _db.streamOrderById(widget.order.id),
+        initialData: widget.order,
+        builder: (context, snap) {
+          final order = snap.data ?? widget.order;
+          return _buildBody(context, theme, scheme, order);
+        },
+      ),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme scheme,
+    Order order,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
         children: [
           Row(
             children: [
@@ -339,7 +379,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
             ),
         ],
-      ),
     );
   }
 }
@@ -353,7 +392,7 @@ class _ItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final unitWithTax = priceWithTax(item.priceAtPurchase);
+    final unitWithTax = item.priceAtPurchase;
     final lineTotalWithTax = unitWithTax * item.quantity;
 
     return Row(

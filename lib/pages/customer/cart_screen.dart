@@ -115,26 +115,26 @@ class _CartScreenState extends State<CartScreen> {
   // Calculations
   // ---------------------------------------------------------------------------
 
-  double get _subtotal => _cart.subtotal(widget.restaurantId);
+  double get _subtotalInclTax => _cart.subtotal(widget.restaurantId);
 
-  double get _tax => _subtotal * (_checkoutData?.taxRate ?? kTaxRate);
+  double get _tax => _subtotalInclTax * (_checkoutData?.taxRate ?? kTaxRate);
 
-  double get _subtotalInclTax => _subtotal + _tax;
+  double get _subtotalExclTax => _subtotalInclTax - _tax;
 
   double get _discount {
     if (_appliedCoupon == null) return 0.0;
 
     if (_appliedCoupon!.discountType ==
         cart_models.CouponDiscountType.percentage) {
-      return _subtotal * (_appliedCoupon!.discountValue / 100);
+      return _subtotalInclTax * (_appliedCoupon!.discountValue / 100);
     }
 
-    return _appliedCoupon!.discountValue > _subtotal
-        ? _subtotal
+    return _appliedCoupon!.discountValue > _subtotalInclTax
+        ? _subtotalInclTax
         : _appliedCoupon!.discountValue;
   }
 
-  double get _total => _subtotal + _deliveryFee + _tax - _discount;
+  double get _total => _subtotalInclTax + _deliveryFee - _discount;
 
   // ---------------------------------------------------------------------------
   // Promo Code
@@ -225,32 +225,35 @@ class _CartScreenState extends State<CartScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CheckoutScreen(
-          cartItems: cartItems
-              .map(
-                (item) => cart_models.CartItem(
-                  id: item.cartKey,
-                  name: item.menuItem.name,
-                  description: item.menuItem.description,
-                  imagePath: item.menuItem.imageUrl,
-                  unitPrice: item.customUnitPrice,
-                  selectedOptions: item.selectedOptions,
-                  quantity: item.quantity,
-                ),
-              )
-              .toList(),
-          checkoutData: _checkoutData!,
-          subtotal: _subtotalInclTax,
-          deliveryFee: _deliveryFee,
-          tax: _tax,
-          discount: _discount,
-          total: _total,
-          appliedCoupon: _appliedCoupon,
-          customerId: widget.customerId,
-          restaurantId: widget.restaurantId,
-          onOrderPlaced: () {
-            _cart.clearRestaurantCart(widget.restaurantId);
-          },
+        builder: (_) => CartScope(
+          notifier: _cart,
+          child: CheckoutScreen(
+            cartItems: cartItems
+                .map(
+                  (item) => cart_models.CartItem(
+                    id: item.cartKey,
+                    name: item.menuItem.name,
+                    description: item.menuItem.description,
+                    imagePath: item.menuItem.imageUrl,
+                    unitPrice: item.customUnitPrice,
+                    selectedOptions: item.selectedOptions,
+                    quantity: item.quantity,
+                  ),
+                )
+                .toList(),
+            checkoutData: _checkoutData!,
+            subtotal: _subtotalExclTax,
+            deliveryFee: _deliveryFee,
+            tax: _tax,
+            discount: _discount,
+            total: _total,
+            appliedCoupon: _appliedCoupon,
+            customerId: widget.customerId,
+            restaurantId: widget.restaurantId,
+            onOrderPlaced: () {
+              _cart.clearRestaurantCart(widget.restaurantId);
+            },
+          ),
         ),
       ),
     );
@@ -337,7 +340,7 @@ class _CartScreenState extends State<CartScreen> {
         ),
         const SizedBox(height: 12),
         _BillSummaryCard(
-          subtotal: _subtotalInclTax,
+          subtotal: _subtotalExclTax,
           deliveryFee: _deliveryFee,
           tax: _tax,
           discount: _discount,
@@ -484,7 +487,7 @@ class _CartItemCard extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        '${priceWithTax(item.lineTotal).toStringAsFixed(2)} SAR',
+                        '${item.lineTotal.toStringAsFixed(2)} SAR',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: colorScheme.primary,
                           fontWeight: FontWeight.w700,
@@ -799,9 +802,9 @@ class _BillSummaryCard extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            _BillRow(label: 'Subtotal (incl. tax)', value: subtotal),
+            _BillRow(label: 'Subtotal', value: subtotal),
             const SizedBox(height: 10),
-            _BillRow(label: 'Tax (15%) included', value: tax),
+            _BillRow(label: 'Tax (15%)', value: tax),
             const SizedBox(height: 10),
             _BillRow(label: 'Delivery Fee', value: deliveryFee),
 
