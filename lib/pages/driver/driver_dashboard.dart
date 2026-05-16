@@ -11,9 +11,14 @@ import 'package:food_delivery_platform/pages/driver/driver_profile_screen.dart';
 import 'package:food_delivery_platform/utils/location_service.dart';
 
 class DriverDashboard extends StatefulWidget {
-  const DriverDashboard({super.key, required this.driver});
+  const DriverDashboard({
+    super.key,
+    required this.driver,
+    this.initialLocation,
+  });
 
   final Driver driver;
+  final firestore.GeoPoint? initialLocation;
 
   @override
   State<DriverDashboard> createState() => _DriverDashboardState();
@@ -48,43 +53,87 @@ class _DriverDashboardState extends State<DriverDashboard>
     return '${distanceKm.toStringAsFixed(1)} km away';
   }
 
-  Future<void> _updateDriverLocation() async {
-    final position = await LocationService.getCurrentLocation();
+  Future<bool> _updateDriverLocation({bool showError = false}) async {
+    try {
+      final position = await LocationService.getCurrentLocation();
 
-    final geoPoint = firestore.GeoPoint(position.latitude, position.longitude);
+      final geoPoint = firestore.GeoPoint(
+        position.latitude,
+        position.longitude,
+      );
 
-    await DatabaseService().updateDriverLocation(
-      driverId: widget.driver.id,
-      location: geoPoint,
-    );
+      if (mounted) {
+        setState(() {
+          _driverLocation = geoPoint;
+        });
+      }
+
+      await DatabaseService().updateDriverLocation(
+        driverId: widget.driver.id,
+        location: geoPoint,
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint('Driver location update error: $e');
+      if (showError && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Share your current location before accepting orders.',
+            ),
+          ),
+        );
+      }
+      if (mounted) {
+        _updateDriverStatus(DriverStatus.offline);
+      }
+      return false;
+    }
   }
 
   Future<void> _startLiveLocationTracking() async {
     try {
-      await LocationService.getCurrentLocation(); // triggers permission flow first
+      final sharedLocation = await _updateDriverLocation();
+      if (!sharedLocation) return;
+
+      if (widget.driver.status == DriverStatus.offline) {
+        _updateDriverStatus(DriverStatus.available);
+      }
 
       _locationSubscription?.cancel();
-      _locationSubscription = LocationService.getLiveLocationStream().listen((
-        position,
-      ) async {
-        final geoPoint = firestore.GeoPoint(
-          position.latitude,
-          position.longitude,
-        );
+      _locationSubscription = LocationService.getLiveLocationStream().listen(
+        (
+          position,
+        ) async {
+          final geoPoint = firestore.GeoPoint(
+            position.latitude,
+            position.longitude,
+          );
 
-        if (!mounted) return;
+          if (!mounted) return;
 
-        setState(() {
-          _driverLocation = geoPoint;
-        });
+          setState(() {
+            _driverLocation = geoPoint;
+          });
 
-        await DatabaseService().updateDriverLocation(
-          driverId: widget.driver.id,
-          location: geoPoint,
-        );
-      });
+          await DatabaseService().updateDriverLocation(
+            driverId: widget.driver.id,
+            location: geoPoint,
+          );
+        },
+        onError: (error) {
+          debugPrint('Live location stream error: $error');
+          if (mounted) {
+            _updateDriverStatus(DriverStatus.offline);
+          }
+        },
+      );
     } catch (e) {
       debugPrint('Live location error: $e');
+      if (mounted) {
+        _updateDriverStatus(DriverStatus.offline);
+      }
     }
   }
 
@@ -93,16 +142,12 @@ class _DriverDashboardState extends State<DriverDashboard>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _driverLocation = widget.driver.location;
+    _driverLocation = widget.initialLocation;
 
     _availableOrdersStream = DatabaseService().getAvailableOrdersForDrivers();
     _driverOrdersStream = DatabaseService().getOrdersForDriver(
       widget.driver.id,
     );
-
-    if (widget.driver.status == DriverStatus.offline) {
-      _updateDriverStatus(DriverStatus.available);
-    }
 
     _startLiveLocationTracking();
   }
@@ -195,6 +240,9 @@ class _DriverDashboardState extends State<DriverDashboard>
   }
 
   Future<void> _acceptOrder(Order order) async {
+    final sharedLocation = await _updateDriverLocation(showError: true);
+    if (!sharedLocation) return;
+
     try {
       await DatabaseService().assignOrderToDriver(
         orderId: order.id,
@@ -283,7 +331,7 @@ class _DriverDashboardState extends State<DriverDashboard>
                   activeOrders.first.id,
                 );
                 _updateDriverStatus(DriverStatus.available);
-                _updateDriverLocation();
+                await _updateDriverLocation();
               },
             );
           }
@@ -382,7 +430,7 @@ class _AvailableOrderTile extends StatelessWidget {
                 BoxShadow(
                   blurRadius: 14,
                   offset: const Offset(0, 4),
-                  color: Colors.black.withOpacity(0.06),
+                  color: Colors.black.withValues(alpha: 0.06),
                 ),
               ],
             ),

@@ -6,7 +6,7 @@ import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/driver.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/customer/customer_dashboard.dart';
-import 'package:food_delivery_platform/pages/driver/driver_dashboard.dart';
+import 'package:food_delivery_platform/pages/driver/driver_location_gate.dart';
 import 'package:food_delivery_platform/pages/restaurant/restaurant_dashboard.dart';
 
 class RoleNavigator {
@@ -41,7 +41,7 @@ class RoleNavigator {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (_) => DriverDashboard(driver: user as Driver),
+            builder: (_) => DriverLocationGate(driver: user as Driver),
           ),
           (_) => false,
         );

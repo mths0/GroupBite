@@ -46,6 +46,19 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
     );
   }
 
+  Future<void> _openManageCategories(List<String> tabs) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => _ManageCategoriesSheet(
+        initialTabs: tabs,
+        restaurantId: widget.restaurant.id,
+      ),
+    );
+  }
+
   Future<void> _addOrEditItem({
     required String category,
     MenuItem? existing,
@@ -171,73 +184,78 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
                       _selectedTabIndex = index;
                     },
                   ),
-                  actions: [
+                ),
+
+                body: Column(
+                  children: [
                     Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: OutlinedButton.icon(
-                        onPressed: () => showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          builder: (_) => _ManageCategoriesSheet(
-                            initialTabs: tabs,
-                            restaurantId: widget.restaurant.id,
-                          ),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _openManageCategories(tabs),
+                          icon: const Icon(Icons.line_weight_rounded),
+                          label: const Text("Manage Categories"),
                         ),
-                        icon: const Icon(Icons.line_weight_rounded),
-                        label: const Text("Manage Categories"),
+                      ),
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: tabs.map((category) {
+                          return StreamBuilder<
+                            firestore.QuerySnapshot<Map<String, dynamic>>
+                          >(
+                            stream: _streamFor(category),
+                            builder: (context, snap) {
+                              if (snap.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
+
+                              if (snap.hasError) {
+                                return Center(
+                                  child: Text("Error ${snap.error}"),
+                                );
+                              }
+
+                              final data = snap.data?.docs ?? [];
+                              if (data.isEmpty) {
+                                return const Center(
+                                  child: Text("No items yet"),
+                                );
+                              }
+
+                              final items = data
+                                  .map((doc) => MenuItem.fromFirestore(doc))
+                                  .toList();
+
+                              return ListView.separated(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: items.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, i) {
+                                  final item = items[i];
+                                  return _MenuItemCard(
+                                    item: item,
+                                    onEdit: () => _addOrEditItem(
+                                      category: category,
+                                      existing: item,
+                                    ),
+                                    onDelete: () => _deleteItem(item),
+                                    onToggleAvailable: (v) =>
+                                        _toggleAvailable(item, v),
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        }).toList(),
                       ),
                     ),
                   ],
-                ),
-
-                body: TabBarView(
-                  children: tabs.map((category) {
-                    return StreamBuilder<
-                      firestore.QuerySnapshot<Map<String, dynamic>>
-                    >(
-                      stream: _streamFor(category),
-                      builder: (context, snap) {
-                        if (snap.connectionState == ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-
-                        if (snap.hasError) {
-                          return Center(child: Text("Error ${snap.error}"));
-                        }
-
-                        final data = snap.data?.docs ?? [];
-                        if (data.isEmpty) {
-                          return const Center(child: Text("No items yet"));
-                        }
-
-                        final items = data
-                            .map((doc) => MenuItem.fromFirestore(doc))
-                            .toList();
-
-                        return ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: items.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, i) {
-                            final item = items[i];
-                            return _MenuItemCard(
-                              item: item,
-                              onEdit: () => _addOrEditItem(
-                                category: category,
-                                existing: item,
-                              ),
-                              onDelete: () => _deleteItem(item),
-                              onToggleAvailable: (v) =>
-                                  _toggleAvailable(item, v),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  }).toList(),
                 ),
 
                 bottomNavigationBar: Builder(
@@ -443,7 +461,6 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
-
                 SizedBox(
                   height: 250,
                   child: _tabs.isEmpty

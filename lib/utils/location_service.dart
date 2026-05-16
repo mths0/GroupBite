@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:geolocator/geolocator.dart';
 
@@ -60,11 +58,11 @@ class LocationService {
   }
 
   static Stream<Position> getLiveLocationStream() {
-  const settings = LocationSettings(
-    accuracy: LocationAccuracy.high,
-    distanceFilter: 10, // update every 10 meters
-  );
+    const settings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10, // update every 10 meters
+    );
 
-  return Geolocator.getPositionStream(locationSettings: settings);
-}
+    return Geolocator.getPositionStream(locationSettings: settings);
+  }
 }
