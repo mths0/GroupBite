@@ -48,24 +48,26 @@ class _RestaurantDashboardState extends State<RestaurantDashboard> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: false,
-        titleSpacing: 16,
-        title: Text(
-          widget.restaurant.name,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {},
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
+      appBar: _navIndex < 2
+          ? null
+          : AppBar(
+              centerTitle: false,
+              titleSpacing: 16,
+              title: Text(
+                widget.restaurant.name,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_none),
+                  onPressed: () {},
+                ),
+                const SizedBox(width: 6),
+              ],
+            ),
       body: PageView(
         controller: _pageController,
         onPageChanged: (index) => setState(() => _navIndex = index),
@@ -100,5 +102,3 @@ class _RestaurantDashboardState extends State<RestaurantDashboard> {
     );
   }
 }
-
-

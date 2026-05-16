@@ -253,14 +253,6 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
                       style: const TextStyle(color: Colors.red, fontSize: 12),
                     ),
                   ),
-                if (_locationError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      _locationError!,
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
-                    ),
-                  ),
                 const SizedBox(height: 20),
 
                 SizedBox(

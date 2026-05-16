@@ -202,125 +202,132 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       appBar: AppBar(
         title: Text(widget.existing == null ? 'Add Address' : 'Edit Address'),
       ),
-      body: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  GoogleMap(
-                    initialCameraPosition: CameraPosition(
-                      target: initialTarget,
-                      zoom: 14,
+      body: SafeArea(
+        top: false,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              Expanded(
+                child: Stack(
+                  children: [
+                    GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: initialTarget,
+                        zoom: 14,
+                      ),
+                      onMapCreated: (controller) {
+                        _mapController = controller;
+                        if (widget.existing == null &&
+                            _selectedLatLng == null) {
+                          _goToCurrentLocation();
+                        }
+                      },
+                      onTap: _onMapTap,
+                      markers: _selectedLatLng == null
+                          ? {}
+                          : {
+                              Marker(
+                                markerId: const MarkerId('selected_location'),
+                                position: _selectedLatLng!,
+                              ),
+                            },
                     ),
-                    onMapCreated: (controller) {
-                      _mapController = controller;
-                      if (widget.existing == null && _selectedLatLng == null) {
-                        _goToCurrentLocation();
-                      }
-                    },
-                    onTap: _onMapTap,
-                    markers: _selectedLatLng == null
-                        ? {}
-                        : {
-                            Marker(
-                              markerId: const MarkerId('selected_location'),
-                              position: _selectedLatLng!,
-                            ),
-                          },
-                  ),
-                  Positioned(
-                    right: 16,
-                    top: 16,
-                    child: FloatingActionButton.small(
-                      onPressed: _isGettingCurrentLocation
-                          ? null
-                          : _goToCurrentLocation,
-                      child: _isGettingCurrentLocation
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.my_location),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _labelController,
-                    decoration: const InputDecoration(
-                      labelText: 'Label',
-                      hintText: 'Home / Work / University',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _detailsController,
-                    decoration: const InputDecoration(
-                      labelText: 'Home number / floor / apartment',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: _isLoadingAddress
-                        ? const Row(
-                            children: [
-                              SizedBox(
+                    Positioned(
+                      right: 16,
+                      top: 16,
+                      child: FloatingActionButton.small(
+                        onPressed: _isGettingCurrentLocation
+                            ? null
+                            : _goToCurrentLocation,
+                        child: _isGettingCurrentLocation
+                            ? const SizedBox(
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
-                              ),
-                              SizedBox(width: 10),
-                              Text('Resolving address...'),
-                            ],
-                          )
-                        : Text(
-                            _resolvedAddress.isEmpty
-                                ? 'Tap on the map to choose location'
-                                : _resolvedAddress,
-                          ),
-                  ),
-                  const SizedBox(height: 12),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: _isDefault,
-                    onChanged: (v) => setState(() => _isDefault = v),
-                    title: const Text('Set as default'),
-                  ),
-                  const SizedBox(height: 12),
-                  SafeArea(
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: _save,
-                        child: const Text('Save Address'),
+                              )
+                            : const Icon(Icons.my_location),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              Flexible(
+                fit: FlexFit.loose,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _labelController,
+                        decoration: const InputDecoration(
+                          labelText: 'Label',
+                          hintText: 'Home / Work / University',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _detailsController,
+                        decoration: const InputDecoration(
+                          labelText: 'Home number / floor / apartment',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: _isLoadingAddress
+                            ? const Row(
+                                children: [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text('Resolving address...'),
+                                ],
+                              )
+                            : Text(
+                                _resolvedAddress.isEmpty
+                                    ? 'Tap on the map to choose location'
+                                    : _resolvedAddress,
+                              ),
+                      ),
+                      const SizedBox(height: 12),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _isDefault,
+                        onChanged: (v) => setState(() => _isDefault = v),
+                        title: const Text('Set as default'),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: _save,
+                          child: const Text('Save Address'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

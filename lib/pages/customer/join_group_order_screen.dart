@@ -138,88 +138,94 @@ class _JoinGroupOrderScreenState extends State<JoinGroupOrderScreen> {
       appBar: AppBar(
         title: const Text('Join Group Order'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 300,
-              child: Stack(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: MobileScanner(
-                      controller: controller,
-                      onDetect: _joinWithBarcode,
+                  SizedBox(
+                    height: 300,
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: MobileScanner(
+                            controller: controller,
+                            onDetect: _joinWithBarcode,
+                          ),
+                        ),
+
+                        // Positioned(
+                        //   top: 12,
+                        //   left: 12,
+                        //   right: 12,
+                        //   child: Row(
+                        //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        //     children: [
+                        //       IconButton(
+                        //         icon: const Icon(Icons.close, color: Colors.white),
+                        //         onPressed: () => Navigator.pop(context),
+                        //       ),
+                        //       // ValueListenableBuilder(
+                        //       //   valueListenable: controller,
+                        //       //   builder: (context, state, child) {
+                        //       //     return IconButton(
+                        //       //       icon: Icon(
+                        //       //         state.torchState == TorchState.on
+                        //       //             ? Icons.flash_on
+                        //       //             : Icons.flash_off,
+                        //       //         color: Colors.white,
+                        //       //       ),
+                        //       //       onPressed: () => controller.toggleTorch(),
+                        //       //     );
+                        //       //   },
+                        //       // ),
+                        //     ],
+                        //   ),
+                        // ),
+                        Center(
+                          child: Container(
+                            width: 220,
+                            height: 220,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 3,
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-
-                  // Positioned(
-                  //   top: 12,
-                  //   left: 12,
-                  //   right: 12,
-                  //   child: Row(
-                  //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  //     children: [
-                  //       IconButton(
-                  //         icon: const Icon(Icons.close, color: Colors.white),
-                  //         onPressed: () => Navigator.pop(context),
-                  //       ),
-                  //       // ValueListenableBuilder(
-                  //       //   valueListenable: controller,
-                  //       //   builder: (context, state, child) {
-                  //       //     return IconButton(
-                  //       //       icon: Icon(
-                  //       //         state.torchState == TorchState.on
-                  //       //             ? Icons.flash_on
-                  //       //             : Icons.flash_off,
-                  //       //         color: Colors.white,
-                  //       //       ),
-                  //       //       onPressed: () => controller.toggleTorch(),
-                  //       //     );
-                  //       //   },
-                  //       // ),
-                  //     ],
-                  //   ),
-                  // ),
-                  Center(
-                    child: Container(
-                      width: 220,
-                      height: 220,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white, width: 3),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _codeController,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'Group Code',
+                      border: OutlineInputBorder(),
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: _isLoading ? null : _join,
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Join'),
                   ),
                 ],
               ),
             ),
-
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: _codeController,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'Group Code',
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            FilledButton(
-              onPressed: _isLoading ? null : _join,
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Join'),
-            ),
-          ],
+          ),
         ),
       ),
     );

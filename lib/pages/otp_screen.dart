@@ -116,43 +116,47 @@ class _OtpScreenState extends State<OtpScreen> {
       appBar: AppBar(
         title: const Text('Verification'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Enter OTP',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text('We sent a 6-digit code to your phone'),
-
-            const SizedBox(height: 24),
-
-            TextField(
-              controller: otpController,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              decoration: InputDecoration(
-                hintText: '123456',
-                errorText: errorText,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Enter OTP',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('We sent a 6-digit code to your phone'),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: otpController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    decoration: InputDecoration(
+                      hintText: '123456',
+                      errorText: errorText,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: isLoading
+                        ? const LoadingIndicator()
+                        : ElevatedButton(
+                            onPressed: verifyOtp,
+                            child: const Text('Verify'),
+                          ),
+                  ),
+                ],
               ),
             ),
-
-            const SizedBox(height: 24),
-
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: isLoading
-                  ? const LoadingIndicator()
-                  : ElevatedButton(
-                      onPressed: verifyOtp,
-                      child: const Text('Verify'),
-                    ),
-            ),
-          ],
+          ),
         ),
       ),
     );

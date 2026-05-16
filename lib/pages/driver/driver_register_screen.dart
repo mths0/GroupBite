@@ -207,12 +207,12 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
       );
 
       Navigator.pushAndRemoveUntil(
-  context,
-  MaterialPageRoute(
-    builder: (_) => const StartScreen(),
-  ),
-  (route) => false,
-);
+        context,
+        MaterialPageRoute(
+          builder: (_) => const StartScreen(),
+        ),
+        (route) => false,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -228,116 +228,121 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
       appBar: AppBar(
         title: const Text("Driver Registration"),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Center(
-          child: Column(
-            children: [
-              Text(
-                "Register as Driver",
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.email,
-                style: TextStyle(color: Colors.grey[700]),
-              ),
-              const SizedBox(height: 20),
-
-              TextField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                maxLength: 9,
-                decoration: InputDecoration(
-                  labelText: "Phone Number",
-                  hintText: '5X XXX XXXX',
-                  prefixIcon: const Icon(Icons.phone),
-                  errorText: phoneErrorText,
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              TextField(
-                controller: nationalIdController,
-                keyboardType: TextInputType.number,
-                maxLength: 10,
-                decoration: InputDecoration(
-                  labelText: "National ID",
-                  errorText: nationalIdErrorText,
-                  prefixIcon: const Icon(Icons.badge_outlined),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              TextField(
-                controller: nameController,
-                keyboardType: TextInputType.text,
-                decoration: InputDecoration(
-                  labelText: "Full Name",
-                  hintText: 'Cristiano Ronaldo',
-                  errorText: nameErrorText,
-                  prefixIcon: const Icon(Icons.person_outline),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              OutlinedButton.icon(
-                onPressed: isLoading ? null : _getLocation,
-                icon: Icon(
-                  currentPosition != null
-                      ? Icons.location_on
-                      : Icons.my_location,
-                  color: currentPosition != null ? Colors.green : null,
-                ),
-                label: Text(
-                  currentPosition != null
-                      ? "Location Captured"
-                      : "Get Current Location",
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: currentPosition != null
-                      ? Colors.green
-                      : null,
-                ),
-              ),
-
-              if (locationError != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    locationError!,
-                    style: const TextStyle(color: Colors.red, fontSize: 12),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                children: [
+                  Text(
+                    "Register as Driver",
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                ),
-
-              if (generalErrorText != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12.0),
-                  child: Text(
-                    generalErrorText!,
-                    style: const TextStyle(color: Colors.red, fontSize: 12),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.email,
+                    style: TextStyle(color: Colors.grey[700]),
                   ),
-                ),
+                  const SizedBox(height: 20),
 
-              const SizedBox(height: 24),
+                  TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    maxLength: 9,
+                    decoration: InputDecoration(
+                      labelText: "Phone Number",
+                      hintText: '5X XXX XXXX',
+                      prefixIcon: const Icon(Icons.phone),
+                      errorText: phoneErrorText,
+                    ),
+                  ),
 
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: isLoading
-                    ? const LoadingIndicator()
-                    : ElevatedButton(
-                        onPressed: validateData,
-                        child: const Text(
-                          'Register',
-                          style: TextStyle(fontSize: 16),
-                        ),
+                  const SizedBox(height: 10),
+
+                  TextField(
+                    controller: nationalIdController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 10,
+                    decoration: InputDecoration(
+                      labelText: "National ID",
+                      errorText: nationalIdErrorText,
+                      prefixIcon: const Icon(Icons.badge_outlined),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  TextField(
+                    controller: nameController,
+                    keyboardType: TextInputType.text,
+                    decoration: InputDecoration(
+                      labelText: "Full Name",
+                      hintText: 'Cristiano Ronaldo',
+                      errorText: nameErrorText,
+                      prefixIcon: const Icon(Icons.person_outline),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  OutlinedButton.icon(
+                    onPressed: isLoading ? null : _getLocation,
+                    icon: Icon(
+                      currentPosition != null
+                          ? Icons.location_on
+                          : Icons.my_location,
+                      color: currentPosition != null ? Colors.green : null,
+                    ),
+                    label: Text(
+                      currentPosition != null
+                          ? "Location Captured"
+                          : "Get Current Location",
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: currentPosition != null
+                          ? Colors.green
+                          : null,
+                    ),
+                  ),
+
+                  if (locationError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        locationError!,
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
                       ),
+                    ),
+
+                  if (generalErrorText != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: Text(
+                        generalErrorText!,
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
+
+                  const SizedBox(height: 24),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: isLoading
+                        ? const LoadingIndicator()
+                        : ElevatedButton(
+                            onPressed: validateData,
+                            child: const Text(
+                              'Register',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
