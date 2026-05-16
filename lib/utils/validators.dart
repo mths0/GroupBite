@@ -1,7 +1,9 @@
 class Validators {
   static RegExp regExpLettersOnly = RegExp(r'^[A-Za-z\s]+$');
+  static RegExp regExpRestaurantName = RegExp(r'^[A-Za-z\s&]+$');
   static RegExp regExpNumbersOnly = RegExp(r'^\d+$');
   static RegExp regExpSpecialChars = RegExp(r'[!@#$%^&*(),.?":{}|<>]');
+
   static String? validateName(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
@@ -16,6 +18,17 @@ class Validators {
     final splitName = trimmed.split(RegExp(r'\s+'));
     if (splitName.length < 2) {
       return "Enter full name";
+    }
+    return null;
+  }
+
+  static String? validateRestaurantName(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return 'Restaurant name is required';
+    }
+    if (!regExpRestaurantName.hasMatch(trimmed)) {
+      return 'Restaurant name can only contain letters, spaces, and &';
     }
     return null;
   }

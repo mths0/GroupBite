@@ -53,7 +53,7 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
       errorText = null;
     });
 
-    final nameError = Validators.validateName(_nameCtrl.text.trim());
+    final nameError = Validators.validateRestaurantName(_nameCtrl.text.trim());
     final phoneError = Validators.validatePhone(_phoneCtrl.text.trim());
     final tagsError = _selectedTags.isEmpty
         ? "Please select at least one category"
@@ -61,7 +61,7 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
 
     if (nameError != null ||
         phoneError != null ||
-        tagsErrorText != null ||
+        tagsError != null ||
         _currentGeoPoint == null) {
       setState(() {
         nameErrorText = nameError;
@@ -251,7 +251,7 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
                     labelText: "Restaurant name",
-                    hintText: "Burger House",
+                    hintText: "Chapati & Karak",
                     prefixIcon: const Icon(Icons.storefront),
                     errorText: nameErrorText,
                   ),

@@ -8,6 +8,7 @@ import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/pages/support/support_screen.dart';
+import 'package:food_delivery_platform/utils/validators.dart';
 import 'package:image_picker/image_picker.dart';
 
 class RestaurantProfile extends StatefulWidget {
@@ -35,6 +36,7 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
 
   bool _isSaving = false;
   bool _isUploadingImage = false;
+  String? _nameErrorText;
 
   String? _imageUrl;
   File? _selectedImageFile;
@@ -214,6 +216,12 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
   }
 
   Future<void> _saveProfile() async {
+    final nameError = Validators.validateRestaurantName(_nameController.text);
+    if (nameError != null) {
+      setState(() => _nameErrorText = nameError);
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
@@ -243,6 +251,7 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
       setState(() {
         _imageUrl = uploadedImageUrl;
         _selectedImageFile = null;
+        _nameErrorText = null;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -347,6 +356,7 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
             controller: _nameController,
             label: 'Restaurant Name',
             icon: Icons.storefront_outlined,
+            errorText: _nameErrorText,
           ),
           const SizedBox(height: 12),
 
@@ -487,12 +497,14 @@ class _ProfileTextField extends StatelessWidget {
     required this.controller,
     required this.label,
     required this.icon,
+    this.errorText,
     this.keyboardType,
   });
 
   final TextEditingController controller;
   final String label;
   final IconData icon;
+  final String? errorText;
   final TextInputType? keyboardType;
 
   @override
@@ -503,6 +515,7 @@ class _ProfileTextField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
+        errorText: errorText,
         border: const OutlineInputBorder(),
       ),
     );

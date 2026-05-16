@@ -14,6 +14,11 @@ void main() {
         expect(result, 'Name must contain letters only');
       });
 
+      test('returns error if person name contains ampersand', () {
+        final result = Validators.validateName('Chapati & Karak');
+        expect(result, 'Name must contain letters only');
+      });
+
       test('returns error if only one name provided', () {
         final result = Validators.validateName('Khalid');
         expect(result, 'Enter full name');
@@ -21,6 +26,39 @@ void main() {
 
       test('returns null for valid full name', () {
         final result = Validators.validateName('  Khalid Faez  ');
+        expect(result, null);
+      });
+    });
+
+    group('validateRestaurantName', () {
+      test('returns error if restaurant name is empty', () {
+        final result = Validators.validateRestaurantName('');
+        expect(result, 'Restaurant name is required');
+      });
+
+      test('returns error if restaurant name contains numbers', () {
+        final result = Validators.validateRestaurantName('Karak 123');
+        expect(
+          result,
+          'Restaurant name can only contain letters, spaces, and &',
+        );
+      });
+
+      test('returns error if restaurant name contains unsupported symbols', () {
+        final result = Validators.validateRestaurantName('Chapati @ Karak');
+        expect(
+          result,
+          'Restaurant name can only contain letters, spaces, and &',
+        );
+      });
+
+      test('accepts ampersand in restaurant name', () {
+        final result = Validators.validateRestaurantName('Chapati & Karak');
+        expect(result, null);
+      });
+
+      test('accepts one-word restaurant name', () {
+        final result = Validators.validateRestaurantName('Karak');
         expect(result, null);
       });
     });
