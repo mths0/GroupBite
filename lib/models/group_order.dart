@@ -82,6 +82,9 @@ class GroupOrderMember {
     required this.status,
     required this.joinedAt,
     this.paidBy,
+    this.paymentMode = 'own',
+    this.paymentValue,
+    this.paymentDeclaredAt,
   });
 
   final String customerId;
@@ -89,6 +92,9 @@ class GroupOrderMember {
   final GroupMemberStatus status;
   final DateTime joinedAt;
   final String? paidBy;
+  final String paymentMode;
+  final double? paymentValue;
+  final DateTime? paymentDeclaredAt;
 
   factory GroupOrderMember.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -104,6 +110,9 @@ class GroupOrderMember {
       ),
       joinedAt: (data['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       paidBy: data['paidBy'],
+      paymentMode: (data['paymentMode'] as String?) ?? 'own',
+      paymentValue: (data['paymentValue'] as num?)?.toDouble(),
+      paymentDeclaredAt: (data['paymentDeclaredAt'] as Timestamp?)?.toDate(),
     );
   }
 }

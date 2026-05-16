@@ -1052,6 +1052,40 @@ class DatabaseService {
     });
   }
 
+  Future<void> setGroupMemberPayment({
+    required String groupOrderId,
+    required String memberId,
+    required String mode,
+    double? value,
+  }) async {
+    await _ensureGroupOrderActive(groupOrderId);
+
+    if (mode != 'own' && mode != 'fixed' && mode != 'percent') {
+      throw Exception('Invalid payment mode.');
+    }
+
+    final memberRef = _groupOrders
+        .doc(groupOrderId)
+        .collection('members')
+        .doc(memberId);
+
+    final snap = await memberRef.get();
+    if (!snap.exists) throw Exception('Member not found');
+
+    final status = (snap.data() ?? const {})['status'];
+    if (status == GroupMemberStatus.ready.name ||
+        status == GroupMemberStatus.paid.name) {
+      throw Exception('You already locked your split and cannot change it.');
+    }
+
+    await memberRef.update({
+      'paymentMode': mode,
+      'paymentValue': mode == 'own' ? null : value,
+      'paymentDeclaredAt': firestore.FieldValue.serverTimestamp(),
+      'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> addItemToGroupOrder({
     required String groupOrderId,
     required String memberId,

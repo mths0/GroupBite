@@ -110,55 +110,111 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                 final deliveryFee = restaurant.deliveryFee;
                 final grandTotal = subtotal + tax + deliveryFee;
 
-                // Map to store base shares for each member ID
-                final Map<String, Map<String, double>> memberDetails = {};
+                // Per-member items totals (used by all strategies).
+                final Map<String, double> mSubtotalById = {};
+                final Map<String, double> mTaxById = {};
                 for (final member in members) {
-                  final mItems = allItems
+                  final mSub = allItems
                       .where((i) => i.memberId == member.customerId)
-                      .toList();
-                  final mSubtotal = mItems.fold<double>(
-                    0,
-                    (sum, i) => sum + i.lineTotal,
-                  );
-                  final mTax = mSubtotal * kTaxRate;
+                      .fold<double>(0, (s, i) => s + i.lineTotal);
+                  mSubtotalById[member.customerId] = mSub;
+                  mTaxById[member.customerId] = mSub * kTaxRate;
+                }
 
-                  double mDeliveryShare = 0;
-                  double mBaseShare = 0;
+                final Map<String, Map<String, double>> memberDetails = {};
+                bool perUserOvercommitted = false;
 
-                  if (groupOrder.totalSplitStrategy == 'equal') {
-                    mBaseShare =
-                        grandTotal / (members.isEmpty ? 1 : members.length);
-                    // For equal split, we just distribute the grand total
-                  } else if (groupOrder.totalSplitStrategy == 'host') {
-                    mDeliveryShare =
-                        member.customerId == groupOrder.hostCustomerId
-                        ? deliveryFee
-                        : 0;
-                    mBaseShare = member.customerId == groupOrder.hostCustomerId
-                        ? grandTotal
-                        : 0;
-                  } else {
-                    if (groupOrder.deliveryFeeSplit == 'equal') {
-                      mDeliveryShare =
-                          deliveryFee / (members.isEmpty ? 1 : members.length);
-                    } else if (groupOrder.deliveryFeeSplit == 'proportional') {
-                      mDeliveryShare = subtotal > 0
-                          ? (mSubtotal / subtotal) * deliveryFee
-                          : 0;
-                    } else if (groupOrder.deliveryFeeSplit == 'host') {
-                      mDeliveryShare =
-                          member.customerId == groupOrder.hostCustomerId
-                          ? deliveryFee
-                          : 0;
+                if (groupOrder.totalSplitStrategy == 'equal') {
+                  final share = members.isEmpty
+                      ? 0.0
+                      : grandTotal / members.length;
+                  for (final member in members) {
+                    memberDetails[member.customerId] = {
+                      'subtotal': mSubtotalById[member.customerId] ?? 0,
+                      'tax': mTaxById[member.customerId] ?? 0,
+                      'delivery': members.isEmpty
+                          ? 0.0
+                          : deliveryFee / members.length,
+                      'baseShare': share,
+                    };
+                  }
+                } else if (groupOrder.totalSplitStrategy == 'host') {
+                  for (final member in members) {
+                    final isHostMember =
+                        member.customerId == groupOrder.hostCustomerId;
+                    memberDetails[member.customerId] = {
+                      'subtotal': mSubtotalById[member.customerId] ?? 0,
+                      'tax': mTaxById[member.customerId] ?? 0,
+                      'delivery': isHostMember ? deliveryFee : 0.0,
+                      'baseShare': isHostMember ? grandTotal : 0.0,
+                    };
+                  }
+                } else {
+                  // Per-User: sequential declarations against a running
+                  // remaining balance. When delivery is on the host the
+                  // distributable total excludes delivery.
+                  final hostCoversDelivery =
+                      groupOrder.deliveryFeeSplit == 'host';
+                  final distributable = hostCoversDelivery
+                      ? subtotal + tax
+                      : grandTotal;
+
+                  final nonHostMembers = members
+                      .where((m) => m.customerId != groupOrder.hostCustomerId)
+                      .toList()
+                    ..sort((a, b) {
+                      final ad =
+                          a.paymentDeclaredAt ??
+                          DateTime.fromMillisecondsSinceEpoch(
+                            8640000000000000,
+                          );
+                      final bd =
+                          b.paymentDeclaredAt ??
+                          DateTime.fromMillisecondsSinceEpoch(
+                            8640000000000000,
+                          );
+                      return ad.compareTo(bd);
+                    });
+
+                  double remaining = distributable;
+                  for (final member in nonHostMembers) {
+                    double share;
+                    switch (member.paymentMode) {
+                      case 'fixed':
+                        final v = member.paymentValue ?? 0;
+                        share = v.clamp(0, remaining).toDouble();
+                        if (v > remaining + 0.005) perUserOvercommitted = true;
+                        break;
+                      case 'percent':
+                        final v = (member.paymentValue ?? 0).clamp(0, 100);
+                        share = remaining * v / 100;
+                        break;
+                      case 'own':
+                      default:
+                        share =
+                            (mSubtotalById[member.customerId] ?? 0) +
+                            (mTaxById[member.customerId] ?? 0);
+                        share = share.clamp(0, remaining).toDouble();
+                        break;
                     }
-                    mBaseShare = mSubtotal + mTax + mDeliveryShare;
+                    memberDetails[member.customerId] = {
+                      'subtotal': mSubtotalById[member.customerId] ?? 0,
+                      'tax': mTaxById[member.customerId] ?? 0,
+                      'delivery': 0.0,
+                      'baseShare': share,
+                    };
+                    remaining -= share;
                   }
 
-                  memberDetails[member.customerId] = {
-                    'subtotal': mSubtotal,
-                    'tax': mTax,
-                    'delivery': mDeliveryShare,
-                    'baseShare': mBaseShare,
+                  final hostShare =
+                      (remaining < 0 ? 0.0 : remaining) +
+                      (hostCoversDelivery ? deliveryFee : 0.0);
+                  memberDetails[groupOrder.hostCustomerId] = {
+                    'subtotal':
+                        mSubtotalById[groupOrder.hostCustomerId] ?? 0,
+                    'tax': mTaxById[groupOrder.hostCustomerId] ?? 0,
+                    'delivery': hostCoversDelivery ? deliveryFee : 0.0,
+                    'baseShare': hostShare,
                   };
                 }
 
@@ -351,6 +407,13 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                   ),
                                   _MemberTile(
                                     member: member,
+                                    items: allItems
+                                        .where(
+                                          (i) =>
+                                              i.memberId == member.customerId,
+                                        )
+                                        .toList(),
+                                    groupOrderId: groupOrderId,
                                     baseShare:
                                         memberDetails[member
                                             .customerId]?['baseShare'] ??
@@ -361,6 +424,20 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                         member.customerId ==
                                         groupOrder.hostCustomerId,
                                     isMe: member.customerId == customer.id,
+                                    canMutateItems:
+                                        member.customerId == customer.id &&
+                                        member.status ==
+                                            GroupMemberStatus.ordering,
+                                    totalSplitStrategy:
+                                        groupOrder.totalSplitStrategy,
+                                    canEditPayment:
+                                        member.customerId == customer.id &&
+                                        member.customerId !=
+                                            groupOrder.hostCustomerId &&
+                                        member.status ==
+                                            GroupMemberStatus.ordering &&
+                                        groupOrder.totalSplitStrategy ==
+                                            'individual',
                                     canRemove:
                                         isHost &&
                                         groupOrder.status ==
@@ -437,7 +514,12 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                         ),
                       ),
 
-                      const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                      SliverToBoxAdapter(
+                        child: SizedBox(
+                          height:
+                              MediaQuery.viewPaddingOf(context).bottom + 220,
+                        ),
+                      ),
                     ],
                   ),
                   bottomSheet: _BottomActions(
@@ -450,6 +532,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                     currentMemberHasItems: currentMemberHasItems,
                     totalSplitStrategy: groupOrder.totalSplitStrategy,
                     myStatus: myMember.status,
+                    perUserOvercommitted: perUserOvercommitted,
                     onPlaceOrder: () {
                       if (isHost && myMember.status == GroupMemberStatus.paid) {
                         _placeCoveredHostOrder(context, groupOrder);
@@ -1211,11 +1294,11 @@ class _TotalSplitControl extends StatelessWidget {
           Column(
             children: [
               _SplitOption(
-                label: 'Pay For Own',
+                label: 'Per User',
                 icon: Icons.person_outline,
                 description:
-                    'Each member pays their own items plus delivery rule.',
-                preview: 'Best for mixed orders',
+                    'Each member declares their share (fixed, percent, or own items). Host covers the rest.',
+                preview: 'Members choose',
                 isSelected: currentStrategy == 'individual',
                 onTap: enabled ? () => _updateStrategy('individual') : null,
               ),
@@ -1508,11 +1591,16 @@ class _JoinCodeHeader extends StatelessWidget {
 class _MemberTile extends StatelessWidget {
   const _MemberTile({
     required this.member,
+    required this.items,
+    required this.groupOrderId,
     required this.baseShare,
     required this.finalToPay,
     this.coveredBy,
     required this.isHost,
     required this.isMe,
+    required this.canMutateItems,
+    required this.totalSplitStrategy,
+    required this.canEditPayment,
     required this.canRemove,
     required this.canCover,
     required this.onRemove,
@@ -1520,15 +1608,39 @@ class _MemberTile extends StatelessWidget {
   });
 
   final GroupOrderMember member;
+  final List<GroupOrderItem> items;
+  final String groupOrderId;
   final double baseShare;
   final double finalToPay;
   final String? coveredBy;
   final bool isHost;
   final bool isMe;
+  final bool canMutateItems;
+  final String totalSplitStrategy;
+  final bool canEditPayment;
   final bool canRemove;
   final bool canCover;
   final VoidCallback onRemove;
   final VoidCallback onCover;
+
+  String _customizationSummary(GroupOrderItem item) {
+    if (item.selectedOptions.isEmpty) return '';
+    return item.selectedOptions
+        .map((o) => '${o.groupTitle}: ${o.choiceName}')
+        .join(' • ');
+  }
+
+  String _paymentDeclarationLabel() {
+    switch (member.paymentMode) {
+      case 'fixed':
+        return 'Paying ${(member.paymentValue ?? 0).toStringAsFixed(2)} SAR';
+      case 'percent':
+        return 'Paying ${(member.paymentValue ?? 0).toStringAsFixed(0)}%';
+      case 'own':
+      default:
+        return 'Paying own share';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1537,86 +1649,534 @@ class _MemberTile extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: scheme.outlineVariant.withOpacity(0.3)),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: isHost
-              ? Colors.amber.withOpacity(0.2)
-              : scheme.primary.withOpacity(0.1),
-          child: Text(
-            member.name[0].toUpperCase(),
-            style: TextStyle(
-              color: isHost ? Colors.amber[800] : scheme.primary,
-              fontWeight: FontWeight.bold,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: isHost
+                    ? Colors.amber.withOpacity(0.2)
+                    : scheme.primary.withOpacity(0.1),
+                child: Text(
+                  member.name[0].toUpperCase(),
+                  style: TextStyle(
+                    color: isHost ? Colors.amber[800] : scheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            member.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isMe) _Badge(label: 'YOU', color: scheme.primary),
+                        if (isHost)
+                          _Badge(label: 'HOST', color: Colors.amber[800]!),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (coveredBy != null)
+                      Text(
+                        'Covered by $coveredBy',
+                        style: TextStyle(
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      )
+                    else
+                      Text(
+                        'Total to pay: ${finalToPay.toStringAsFixed(2)} SAR',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    if (finalToPay > baseShare && coveredBy == null)
+                      Text(
+                        '(Includes others you covered)',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: scheme.primary,
+                        ),
+                      ),
+                    const SizedBox(height: 4),
+                    _StatusBadge(status: member.status),
+                  ],
+                ),
+              ),
+              if (canCover)
+                TextButton.icon(
+                  onPressed: onCover,
+                  icon: const Icon(
+                    Icons.volunteer_activism_outlined,
+                    size: 16,
+                  ),
+                  label: const Text(
+                    'Cover',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                ),
+              if (canRemove)
+                IconButton(
+                  icon: const Icon(
+                    Icons.person_remove_outlined,
+                    color: Colors.redAccent,
+                  ),
+                  onPressed: onRemove,
+                ),
+            ],
+          ),
+          if (items.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: scheme.outlineVariant.withOpacity(0.4),
+                ),
+              ),
+              child: Column(
+                children: items.map((item) {
+                  final summary = _customizationSummary(item);
+                  return Padding(
+                    padding: EdgeInsets.symmetric(
+                      vertical: items.length > 1 ? 6 : 2,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.name,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (summary.isNotEmpty)
+                                Text(
+                                  summary,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.outline,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              Text(
+                                '${item.lineTotal.toStringAsFixed(2)} SAR',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (canMutateItems) ...[
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            icon: const Icon(
+                              Icons.remove_circle_outline,
+                              size: 22,
+                            ),
+                            onPressed: () async {
+                              try {
+                                await DatabaseService()
+                                    .decrementGroupOrderItem(
+                                      groupOrderId: groupOrderId,
+                                      memberId: member.customerId,
+                                      itemId: item.id,
+                                    );
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('$e')),
+                                );
+                              }
+                            },
+                          ),
+                          SizedBox(
+                            width: 24,
+                            child: Text(
+                              '${item.quantity}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            icon: const Icon(
+                              Icons.add_circle_outline,
+                              size: 22,
+                            ),
+                            onPressed: () async {
+                              try {
+                                await DatabaseService()
+                                    .incrementGroupOrderItem(
+                                      groupOrderId: groupOrderId,
+                                      memberId: member.customerId,
+                                      itemId: item.id,
+                                    );
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('$e')),
+                                );
+                              }
+                            },
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.redAccent,
+                              size: 20,
+                            ),
+                            onPressed: () async {
+                              try {
+                                await DatabaseService()
+                                    .removeGroupOrderItem(
+                                      groupOrderId: groupOrderId,
+                                      memberId: member.customerId,
+                                      itemId: item.id,
+                                    );
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('$e')),
+                                );
+                              }
+                            },
+                          ),
+                        ] else
+                          Text(
+                            'x${item.quantity}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+          if (totalSplitStrategy == 'individual' && !isHost) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.payments_outlined,
+                  size: 16,
+                  color: scheme.outline,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _paymentDeclarationLabel(),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                if (canEditPayment)
+                  TextButton.icon(
+                    onPressed: () async {
+                      await showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        showDragHandle: true,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
+                        ),
+                        builder: (_) => _PaymentModeSheet(
+                          groupOrderId: groupOrderId,
+                          memberId: member.customerId,
+                          currentMode: member.paymentMode,
+                          currentValue: member.paymentValue,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text(
+                      'Edit',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentModeSheet extends StatefulWidget {
+  const _PaymentModeSheet({
+    required this.groupOrderId,
+    required this.memberId,
+    required this.currentMode,
+    required this.currentValue,
+  });
+
+  final String groupOrderId;
+  final String memberId;
+  final String currentMode;
+  final double? currentValue;
+
+  @override
+  State<_PaymentModeSheet> createState() => _PaymentModeSheetState();
+}
+
+class _PaymentModeSheetState extends State<_PaymentModeSheet> {
+  late String _mode;
+  late final TextEditingController _valueCtrl;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.currentMode;
+    _valueCtrl = TextEditingController(
+      text: widget.currentValue == null
+          ? ''
+          : widget.currentValue!.toStringAsFixed(
+              widget.currentMode == 'percent' ? 0 : 2,
+            ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _valueCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    double? value;
+    if (_mode != 'own') {
+      value = double.tryParse(_valueCtrl.text.trim());
+      if (value == null || value <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enter a positive amount.')),
+        );
+        return;
+      }
+      if (_mode == 'percent' && value > 100) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Percentage cannot exceed 100.')),
+        );
+        return;
+      }
+    }
+    setState(() => _saving = true);
+    try {
+      await DatabaseService().setGroupMemberPayment(
+        groupOrderId: widget.groupOrderId,
+        memberId: widget.memberId,
+        mode: _mode,
+        value: value,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+      setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final needsValue = _mode != 'own';
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 8,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'How will you pay?',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
             ),
           ),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                member.name,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 4),
+          Text(
+            'Declarations are applied in order. Host covers the rest.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.outline,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _ModeChoice(
+            label: 'My own share',
+            description: 'Pay for the items you ordered (plus tax).',
+            selected: _mode == 'own',
+            onTap: () => setState(() => _mode = 'own'),
+          ),
+          const SizedBox(height: 8),
+          _ModeChoice(
+            label: 'Fixed amount',
+            description: 'I will pay a specific number of SAR.',
+            selected: _mode == 'fixed',
+            onTap: () => setState(() => _mode = 'fixed'),
+          ),
+          const SizedBox(height: 8),
+          _ModeChoice(
+            label: 'Percentage',
+            description: 'I will pay a % of the remaining balance.',
+            selected: _mode == 'percent',
+            onTap: () => setState(() => _mode = 'percent'),
+          ),
+          if (needsValue) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _valueCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: _mode == 'percent' ? 'Percentage (0-100)' : 'SAR',
+                suffixText: _mode == 'percent' ? '%' : 'SAR',
+                border: const OutlineInputBorder(),
               ),
             ),
-            if (isMe) _Badge(label: 'YOU', color: scheme.primary),
-            if (isHost) _Badge(label: 'HOST', color: Colors.amber[800]!),
           ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            if (coveredBy != null)
-              Text(
-                'Covered by $coveredBy',
-                style: TextStyle(
-                  color: Colors.green[700],
-                  fontWeight: FontWeight.bold,
-                  fontSize: 11,
-                ),
-              )
-            else
-              Text(
-                'Total to pay: ${finalToPay.toStringAsFixed(2)} SAR',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-            if (finalToPay > baseShare && coveredBy == null)
-              Text(
-                '(Includes others you covered)',
-                style: TextStyle(fontSize: 10, color: scheme.primary),
-              ),
+class _ModeChoice extends StatelessWidget {
+  const _ModeChoice({
+    required this.label,
+    required this.description,
+    required this.selected,
+    required this.onTap,
+  });
 
-            const SizedBox(height: 4),
-            _StatusBadge(status: member.status),
-          ],
+  final String label;
+  final String description;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected ? scheme.primary : scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? scheme.primary : scheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            if (canCover)
-              TextButton.icon(
-                onPressed: onCover,
-                icon: const Icon(Icons.volunteer_activism_outlined, size: 16),
-                label: const Text('Cover', style: TextStyle(fontSize: 11)),
+            Icon(
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked,
+              color: selected ? scheme.onPrimary : scheme.outline,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: selected ? scheme.onPrimary : scheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    description,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: selected
+                          ? scheme.onPrimary.withOpacity(0.78)
+                          : scheme.outline,
+                    ),
+                  ),
+                ],
               ),
-            if (canRemove)
-              IconButton(
-                icon: const Icon(
-                  Icons.person_remove_outlined,
-                  color: Colors.redAccent,
-                ),
-                onPressed: onRemove,
-              ),
+            ),
           ],
         ),
       ),
@@ -1764,6 +2324,7 @@ class _BottomActions extends StatelessWidget {
     required this.myStatus,
     required this.onPlaceOrder,
     required this.hostCustomerId,
+    this.perUserOvercommitted = false,
   });
 
   final bool isHost;
@@ -1777,6 +2338,7 @@ class _BottomActions extends StatelessWidget {
   final GroupMemberStatus myStatus;
   final VoidCallback onPlaceOrder;
   final String hostCustomerId;
+  final bool perUserOvercommitted;
 
   @override
   Widget build(BuildContext context) {
@@ -1806,11 +2368,14 @@ class _BottomActions extends StatelessWidget {
         !allReady ||
         (!isHost && hostPaysAll) ||
         (!isHost && isPaid) ||
-        (isHost && !canHostFinalize);
+        (isHost && !canHostFinalize) ||
+        perUserOvercommitted;
     final statusMessage = !hasItems
         ? 'Add items before continuing.'
         : !allMembersHaveItems
         ? 'Waiting for every member to add at least one item.'
+        : perUserOvercommitted
+        ? 'Member declarations exceed the order total — please lower one.'
         : !hostReady
         ? 'Host can still change the split. Host must lock it first.'
         : !allReady

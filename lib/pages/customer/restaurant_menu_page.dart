@@ -257,7 +257,16 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                       ),
 
                       Expanded(
-                        child: TabBarView(
+                        child: StreamBuilder<List<GroupOrderItem>>(
+                          stream: widget.groupOrderId == null
+                              ? null
+                              : DatabaseService()
+                                    .watchGroupItems(widget.groupOrderId!),
+                          builder: (context, groupItemsSnap) {
+                            final groupItems =
+                                groupItemsSnap.data ??
+                                const <GroupOrderItem>[];
+                            return TabBarView(
                           children: tabs.map((cat) {
                             final filtered = items
                                 .where((e) => e.category == cat)
@@ -385,9 +394,87 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                 }
 
                                 if (cart == null) {
+                                  final myLines = groupItems
+                                      .where(
+                                        (g) =>
+                                            g.menuItemId == item.id &&
+                                            g.memberId == widget.customer.id,
+                                      )
+                                      .toList();
+                                  final myCount = myLines.fold<int>(
+                                    0,
+                                    (s, g) => s + g.quantity,
+                                  );
+
+                                  Future<void> handleGroupIncrement() async {
+                                    if (myLines.isEmpty) return;
+
+                                    final member = await DatabaseService()
+                                        .getGroupMember(
+                                          groupOrderId: widget.groupOrderId!,
+                                          customerId: widget.customer.id,
+                                        );
+
+                                    if (member == null) return;
+
+                                    if (member.status ==
+                                            GroupMemberStatus.ready ||
+                                        member.status ==
+                                            GroupMemberStatus.paid) {
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'You already marked yourself ready. You cannot add more items.',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    GroupOrderItem? chosen;
+                                    if (myLines.length == 1) {
+                                      chosen = myLines.first;
+                                    } else {
+                                      chosen =
+                                          await showModalBottomSheet<
+                                            GroupOrderItem
+                                          >(
+                                            context: context,
+                                            showDragHandle: true,
+                                            shape: const RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.vertical(
+                                                    top: Radius.circular(20),
+                                                  ),
+                                            ),
+                                            builder: (_) =>
+                                                _GroupConfigPickerSheet(
+                                                  item: item,
+                                                  lines: myLines,
+                                                ),
+                                          );
+                                    }
+
+                                    if (chosen == null) return;
+
+                                    await DatabaseService()
+                                        .incrementGroupOrderItem(
+                                          groupOrderId: widget.groupOrderId!,
+                                          memberId: widget.customer.id,
+                                          itemId: chosen.id,
+                                        );
+                                  }
+
                                   return _MenuItemTile(
                                     item: item,
+                                    count: myCount,
                                     onAdd: handleTap,
+                                    onIncrement: myCount > 0
+                                        ? handleGroupIncrement
+                                        : null,
                                   );
                                 }
 
@@ -447,6 +534,8 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                               },
                             );
                           }).toList(),
+                        );
+                          },
                         ),
                       ),
                     ],
@@ -923,6 +1012,70 @@ class _ConfigPickerSheet extends StatelessWidget {
                 child: ListTile(
                   onTap: () => Navigator.pop(context, line),
                   title: Text(summary),
+                  subtitle: Text(
+                    'In cart: ${line.quantity} • '
+                    '${line.unitPrice.toStringAsFixed(2)} SAR each (incl. tax)',
+                  ),
+                  trailing: const Icon(Icons.add_circle_outline),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupConfigPickerSheet extends StatelessWidget {
+  const _GroupConfigPickerSheet({
+    required this.item,
+    required this.lines,
+  });
+
+  final MenuItem item;
+  final List<GroupOrderItem> lines;
+
+  String _summaryFor(GroupOrderItem line) {
+    if (line.selectedOptions.isEmpty) return 'No customizations';
+    return line.selectedOptions
+        .map((o) => '${o.groupTitle}: ${o.choiceName}')
+        .join(' • ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Add another ${item.name}',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Pick which one to add',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.outline,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...lines.map((line) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  onTap: () => Navigator.pop(context, line),
+                  title: Text(_summaryFor(line)),
                   subtitle: Text(
                     'In cart: ${line.quantity} • '
                     '${line.unitPrice.toStringAsFixed(2)} SAR each (incl. tax)',
