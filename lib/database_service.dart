@@ -35,6 +35,9 @@ const Duration kGroupOrderTimerDuration = Duration(minutes: 10);
 class DatabaseService {
   final firestore.FirebaseFirestore _db = firestore.FirebaseFirestore.instance;
 
+  firestore.CollectionReference<Map<String, dynamic>> get _groupOrders =>
+      _db.collection('group_orders');
+
   // ===========================================================================
   // FCM
   // ===========================================================================
@@ -221,6 +224,10 @@ class DatabaseService {
     required String restaurantId,
     required double totalPrice,
   }) async {
+    final now = DateTime.now();
+    final canCancelUntil = now.add(const Duration(minutes: 5));
+    final restaurantRespondBy = canCancelUntil.add(kRestaurantResponseTimeout);
+
     await _db.collection('orders').add({
       'customerId': customerId,
       'restaurantId': restaurantId,
@@ -228,6 +235,9 @@ class DatabaseService {
       'status': OrderStatus.pending.name,
       'totalPrice': totalPrice,
       'createdAt': firestore.FieldValue.serverTimestamp(),
+      'canCancelUntil': firestore.Timestamp.fromDate(canCancelUntil),
+      'restaurantRespondBy': firestore.Timestamp.fromDate(restaurantRespondBy),
+      'restaurantNotifiedAt': null,
     });
   }
 
@@ -286,6 +296,7 @@ class DatabaseService {
       // after restaurantRespondBy the order auto-cancels if still pending.
       'canCancelUntil': firestore.Timestamp.fromDate(canCancelUntil),
       'restaurantRespondBy': firestore.Timestamp.fromDate(restaurantRespondBy),
+      'restaurantNotifiedAt': null,
       'cancelledAt': null,
       'cancelledBy': null,
       'items': items.map((item) => item.toJson()).toList(),
@@ -655,7 +666,7 @@ class DatabaseService {
       throw Exception('Host user not found.');
     }
 
-    final groupRef = _db.collection('groupOrders').doc();
+    final groupRef = _groupOrders.doc();
     final joinCode = IdGenerator.generateJoinCode();
     final now = DateTime.now();
 
@@ -689,7 +700,7 @@ class DatabaseService {
   ) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    await _db.collection('groupOrders').doc(groupOrderId).update({
+    await _groupOrders.doc(groupOrderId).update({
       ...data,
       'updatedAt': firestore.FieldValue.serverTimestamp(),
     });
@@ -716,7 +727,7 @@ class DatabaseService {
   Future<bool> expireGroupOrderIfNeeded({
     required String groupOrderId,
   }) async {
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
     final groupSnap = await groupRef.get();
     final data = groupSnap.data();
 
@@ -745,7 +756,7 @@ class DatabaseService {
     required String groupOrderId,
     required String hostCustomerId,
   }) async {
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
 
     await _db.runTransaction((transaction) async {
       final groupSnap = await transaction.get(groupRef);
@@ -785,7 +796,7 @@ class DatabaseService {
   }
 
   Future<GroupOrder?> getGroupOrderById(String groupOrderId) async {
-    final doc = await _db.collection('groupOrders').doc(groupOrderId).get();
+    final doc = await _groupOrders.doc(groupOrderId).get();
 
     if (!doc.exists) return null;
 
@@ -793,8 +804,7 @@ class DatabaseService {
   }
 
   Future<String?> findGroupOrderIdByJoinCode(String joinCode) async {
-    final snapshot = await firestore.FirebaseFirestore.instance
-        .collection('groupOrders')
+    final snapshot = await _groupOrders
         .where('joinCode', isEqualTo: joinCode.trim().toUpperCase())
         .limit(1)
         .get();
@@ -815,7 +825,7 @@ class DatabaseService {
       throw Exception('User not found.');
     }
 
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
 
     await _db.runTransaction((transaction) async {
       final groupSnap = await transaction.get(groupRef);
@@ -854,8 +864,7 @@ class DatabaseService {
     required String groupOrderId,
     required String customerId,
   }) async {
-    final doc = await _db
-        .collection('groupOrders')
+    final doc = await _groupOrders
         .doc(groupOrderId)
         .collection('members')
         .doc(customerId)
@@ -872,7 +881,7 @@ class DatabaseService {
   }) async {
     await expireGroupOrderIfNeeded(groupOrderId: groupOrderId);
 
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
     final membersCol = groupRef.collection('members');
 
     final membersSnap = await membersCol.get();
@@ -903,7 +912,7 @@ class DatabaseService {
     required String groupOrderId,
     required String customerId,
   }) async {
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
     final membersCol = groupRef.collection('members');
     final memberRef = membersCol.doc(customerId);
 
@@ -947,7 +956,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
     final groupSnap = await groupRef.get();
 
     if (!groupSnap.exists) {
@@ -971,8 +980,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    await _db
-        .collection('groupOrders')
+    await _groupOrders
         .doc(groupOrderId)
         .collection('members')
         .doc(customerId)
@@ -988,8 +996,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    await _db
-        .collection('groupOrders')
+    await _groupOrders
         .doc(groupOrderId)
         .collection('members')
         .doc(customerId)
@@ -1007,7 +1014,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
     final payerMemberRef = groupRef.collection('members').doc(payerId);
     final payeeMemberRef = groupRef.collection('members').doc(payeeId);
 
@@ -1054,7 +1061,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
 
     final unitPrice = customUnitPrice ?? menuItem.price;
 
@@ -1107,8 +1114,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    final itemRef = _db
-        .collection('groupOrders')
+    final itemRef = _groupOrders
         .doc(groupOrderId)
         .collection('items')
         .doc(itemId);
@@ -1147,8 +1153,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    final itemRef = _db
-        .collection('groupOrders')
+    final itemRef = _groupOrders
         .doc(groupOrderId)
         .collection('items')
         .doc(itemId);
@@ -1192,8 +1197,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    final itemRef = _db
-        .collection('groupOrders')
+    final itemRef = _groupOrders
         .doc(groupOrderId)
         .collection('items')
         .doc('${memberId}_$menuItemId');
@@ -1222,8 +1226,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    final itemRef = _db
-        .collection('groupOrders')
+    final itemRef = _groupOrders
         .doc(groupOrderId)
         .collection('items')
         .doc(itemId);
@@ -1248,7 +1251,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    await _db.collection('groupOrders').doc(groupOrderId).update({
+    await _groupOrders.doc(groupOrderId).update({
       'status': GroupOrderStatus.locked.name,
       'updatedAt': firestore.FieldValue.serverTimestamp(),
     });
@@ -1257,7 +1260,7 @@ class DatabaseService {
   Future<void> completeGroupOrder({
     required String groupOrderId,
   }) async {
-    await _db.collection('groupOrders').doc(groupOrderId).update({
+    await _groupOrders.doc(groupOrderId).update({
       'status': GroupOrderStatus.completed.name,
       'updatedAt': firestore.FieldValue.serverTimestamp(),
     });
@@ -1277,7 +1280,7 @@ class DatabaseService {
     String? cancelledBy,
     required String reason,
   }) async {
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
     final groupSnap = await groupRef.get();
     final data = groupSnap.data();
 
@@ -1301,8 +1304,7 @@ class DatabaseService {
   Future<void> _refundGroupOrderPayments({
     required String groupOrderId,
   }) async {
-    final membersSnap = await _db
-        .collection('groupOrders')
+    final membersSnap = await _groupOrders
         .doc(groupOrderId)
         .collection('members')
         .get();
@@ -1351,7 +1353,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
 
     final groupSnapshot = await groupRef.get();
     final groupData = groupSnapshot.data();
@@ -1446,7 +1448,7 @@ class DatabaseService {
   }) async {
     await _ensureGroupOrderActive(groupOrderId);
 
-    final groupRef = _db.collection('groupOrders').doc(groupOrderId);
+    final groupRef = _groupOrders.doc(groupOrderId);
 
     final groupSnapshot = await groupRef.get();
     final groupData = groupSnapshot.data();
@@ -1554,7 +1556,7 @@ class DatabaseService {
   }
 
   Stream<GroupOrder?> watchGroupOrder(String groupOrderId) {
-    return _db.collection('groupOrders').doc(groupOrderId).snapshots().map((
+    return _groupOrders.doc(groupOrderId).snapshots().map((
       doc,
     ) {
       if (!doc.exists) return null;
@@ -1563,22 +1565,18 @@ class DatabaseService {
   }
 
   Stream<List<GroupOrderMember>> watchGroupMembers(String groupOrderId) {
-    return _db
-        .collection('groupOrders')
-        .doc(groupOrderId)
-        .collection('members')
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map(GroupOrderMember.fromFirestore).toList();
-        });
+    return _groupOrders.doc(groupOrderId).collection('members').snapshots().map(
+      (snapshot) {
+        return snapshot.docs.map(GroupOrderMember.fromFirestore).toList();
+      },
+    );
   }
 
   Stream<bool> watchIsGroupMember({
     required String groupOrderId,
     required String customerId,
   }) {
-    return _db
-        .collection('groupOrders')
+    return _groupOrders
         .doc(groupOrderId)
         .collection('members')
         .doc(customerId)
@@ -1587,8 +1585,7 @@ class DatabaseService {
   }
 
   Stream<List<GroupOrderItem>> watchGroupItems(String groupOrderId) {
-    return _db
-        .collection('groupOrders')
+    return _groupOrders
         .doc(groupOrderId)
         .collection('items')
         .orderBy('createdAt', descending: false)

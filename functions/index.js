@@ -1,6 +1,5 @@
 const { setGlobalOptions } = require("firebase-functions/v2");
 const {
-  onDocumentCreated,
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -44,31 +43,134 @@ async function sendToUserToken(userId, title, body, data = {}) {
   console.log(`Notification sent to user: ${userId}`);
 }
 
-exports.notifyRestaurantOnNewOrder = onDocumentCreated(
+function timestampToMillis(value) {
+  if (!value || typeof value.toMillis !== "function") return null;
+  return value.toMillis();
+}
+
+function isOrderReadyForRestaurant(order, nowMillis) {
+  if (!order || order.status !== "pending") return false;
+  if (!Object.prototype.hasOwnProperty.call(order, "restaurantNotifiedAt")) {
+    return false;
+  }
+  if (order.restaurantNotifiedAt) return false;
+
+  const cancelUntilMillis = timestampToMillis(order.canCancelUntil);
+  if (cancelUntilMillis === null) return true;
+
+  return cancelUntilMillis <= nowMillis;
+}
+
+async function claimRestaurantNotification(db, orderRef, nowMillis) {
+  let orderToNotify = null;
+
+  await db.runTransaction(async (transaction) => {
+    const orderSnap = await transaction.get(orderRef);
+    if (!orderSnap.exists) return;
+
+    const order = orderSnap.data() || {};
+    if (!isOrderReadyForRestaurant(order, nowMillis)) return;
+
+    transaction.update(orderRef, {
+      restaurantNotifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    orderToNotify = order;
+  });
+
+  return orderToNotify;
+}
+
+async function notifyRestaurantAboutOrder(orderId, order) {
+  const restaurantId = order.restaurantId;
+  if (!restaurantId) return;
+
+  const scheduledForMillis = timestampToMillis(order.scheduledFor);
+  const isScheduled =
+    scheduledForMillis !== null && scheduledForMillis > Date.now();
+
+  await sendToUserToken(
+    restaurantId,
+    isScheduled ? "New Scheduled Order" : "New Order",
+    `You have a new order #${orderId}`,
+    {
+      type: "new_order",
+      orderId,
+      status: order.status || "pending",
+      scheduledFor: order.scheduledFor?.toDate?.()?.toISOString?.() || "",
+    },
+  );
+}
+
+exports.notifyRestaurantWhenOrderRevealed = onDocumentUpdated(
   "orders/{orderId}",
   async (event) => {
-    const snap = event.data;
-    if (!snap) return;
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
 
-    const order = snap.data();
+    const nowMillis = Date.now();
+    if (
+      isOrderReadyForRestaurant(before, nowMillis) ||
+      !isOrderReadyForRestaurant(after, nowMillis)
+    ) {
+      return;
+    }
+
+    const order = await claimRestaurantNotification(
+      admin.firestore(),
+      event.data.after.ref,
+      nowMillis,
+    );
+
     if (!order) return;
 
-    const restaurantId = order.restaurantId;
-    if (!restaurantId) return;
-
-    await sendToUserToken(
-      restaurantId,
-      "New Order",
-      `You have a new order #${event.params.orderId}`,
-      {
-        type: "new_order",
-        orderId: event.params.orderId,
-        status: order.status || "pending",
-      },
-    );
+    await notifyRestaurantAboutOrder(event.params.orderId, order);
   },
 );
 
+exports.notifyRestaurantsForReadyOrders = onSchedule(
+  {
+    schedule: "every 1 minutes",
+    timeZone: "Etc/UTC",
+  },
+  async () => {
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+    const nowMillis = now.toMillis();
+
+    const readySnap = await db
+      .collection("orders")
+      .where("status", "==", "pending")
+      .where("canCancelUntil", "<=", now)
+      .get();
+
+    const claimed = await Promise.all(
+      readySnap.docs.map(async (doc) => {
+        const order = await claimRestaurantNotification(
+          db,
+          doc.ref,
+          nowMillis,
+        );
+        return order ? { id: doc.id, order } : null;
+      }),
+    );
+
+    const toNotify = claimed.filter(Boolean);
+    if (toNotify.length === 0) {
+      console.log("notifyRestaurantsForReadyOrders: nothing ready");
+      return;
+    }
+
+    await Promise.all(
+      toNotify.map(({ id, order }) => notifyRestaurantAboutOrder(id, order)),
+    );
+
+    console.log(
+      `notifyRestaurantsForReadyOrders: notified ${toNotify.length} order(s)`,
+    );
+  },
+);
 exports.notifyCustomerOnOrderStatusChange = onDocumentUpdated(
   "orders/{orderId}",
   async (event) => {
@@ -232,7 +334,7 @@ exports.autoCloseExpiredGroupOrders = onSchedule(
     const now = admin.firestore.Timestamp.now();
 
     const expiredSnap = await db
-      .collection("groupOrders")
+      .collection("group_orders")
       .where("expiresAt", "<", now)
       .get();
 
