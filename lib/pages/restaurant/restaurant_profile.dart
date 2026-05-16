@@ -4,8 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/auth_service.dart';
+import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
+import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/pages/support/support_screen.dart';
 import 'package:food_delivery_platform/utils/validators.dart';
@@ -37,8 +39,11 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
   bool _isSaving = false;
   bool _isUploadingImage = false;
   String? _nameErrorText;
+  String? _locationErrorText;
 
   String? _imageUrl;
+  String? _locationPreview;
+  GeoPoint? _restaurantLocation;
   File? _selectedImageFile;
 
   final ImagePicker _picker = ImagePicker();
@@ -98,6 +103,10 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
       _deliveryFeeController.text = restaurant.deliveryFee.toStringAsFixed(0);
       _selectedTags = restaurant.tags.toSet();
       _imageUrl = restaurant.imageUrl;
+      _restaurantLocation = restaurant.location;
+      _locationPreview = restaurant.location == null
+          ? null
+          : 'Restaurant location selected';
       _isOpen = restaurant.isOpen;
       _hasOffer = restaurant.hasOffer;
 
@@ -215,10 +224,49 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
     }
   }
 
+  Future<void> _pickLocation() async {
+    final existingLocation = _restaurantLocation;
+    final result = await Navigator.push<CustomerAddress>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddAddressScreen(
+          existing: existingLocation == null
+              ? null
+              : CustomerAddress(
+                  id: 'restaurant_location',
+                  label: '',
+                  fullAddress: _locationPreview ?? '',
+                  buildingDetails: '',
+                  location: existingLocation,
+                  isDefault: false,
+                ),
+          title: 'Restaurant Location',
+          showLabelField: false,
+          showBuildingDetailsField: false,
+          showDefaultToggle: false,
+          saveButtonText: 'Save Location',
+        ),
+      ),
+    );
+
+    if (result == null) return;
+
+    setState(() {
+      _restaurantLocation = result.location;
+      _locationPreview = result.fullAddress;
+      _locationErrorText = null;
+    });
+  }
+
   Future<void> _saveProfile() async {
     final nameError = Validators.validateRestaurantName(_nameController.text);
-    if (nameError != null) {
-      setState(() => _nameErrorText = nameError);
+    if (nameError != null || _restaurantLocation == null) {
+      setState(() {
+        _nameErrorText = nameError;
+        _locationErrorText = _restaurantLocation == null
+            ? 'Please choose restaurant location on the map.'
+            : null;
+      });
       return;
     }
 
@@ -243,15 +291,19 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
         'phone': _phoneController.text.trim(),
         'deliveryFee': deliveryFee,
         'tags': tags,
+        'location': _restaurantLocation,
         'isOpen': _isOpen,
         'hasOffer': _hasOffer,
         'imageUrl': uploadedImageUrl ?? _imageUrl ?? '',
       });
 
+      if (!mounted) return;
+
       setState(() {
         _imageUrl = uploadedImageUrl;
         _selectedImageFile = null;
         _nameErrorText = null;
+        _locationErrorText = null;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -413,6 +465,53 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
               }).toList(),
             ),
           ),
+          const SizedBox(height: 20),
+
+          OutlinedButton.icon(
+            onPressed: _pickLocation,
+            icon: Icon(
+              _restaurantLocation != null
+                  ? Icons.location_on
+                  : Icons.map_outlined,
+              color: _restaurantLocation != null ? Colors.green : null,
+            ),
+            label: Text(
+              _restaurantLocation != null
+                  ? 'Location Selected'
+                  : 'Choose Location on Map',
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _restaurantLocation != null
+                  ? Colors.green
+                  : null,
+            ),
+          ),
+          if (_restaurantLocation != null) ...[
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.place_outlined),
+                title: const Text('Restaurant location'),
+                subtitle: Text(
+                  _locationPreview ?? 'Restaurant location selected',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: _pickLocation,
+                ),
+              ),
+            ),
+          ],
+          if (_locationErrorText != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _locationErrorText!,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
           const SizedBox(height: 20),
 
           Card(

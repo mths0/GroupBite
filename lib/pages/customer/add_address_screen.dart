@@ -9,9 +9,19 @@ class AddAddressScreen extends StatefulWidget {
   const AddAddressScreen({
     super.key,
     this.existing,
+    this.title,
+    this.showLabelField = true,
+    this.showBuildingDetailsField = true,
+    this.showDefaultToggle = true,
+    this.saveButtonText = 'Save Address',
   });
 
   final CustomerAddress? existing;
+  final String? title;
+  final bool showLabelField;
+  final bool showBuildingDetailsField;
+  final bool showDefaultToggle;
+  final String saveButtonText;
 
   @override
   State<AddAddressScreen> createState() => _AddAddressScreenState();
@@ -50,7 +60,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         widget.existing!.location!.latitude,
         widget.existing!.location!.longitude,
       );
-      _resolvedAddress = widget.existing!.fullAddress;
+      _resolvedAddress = widget.existing!.fullAddress.trim().isEmpty
+          ? 'Selected location'
+          : widget.existing!.fullAddress;
     }
   }
 
@@ -181,14 +193,18 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       id:
           widget.existing?.id ??
           FirebaseFirestore.instance.collection('tmp').doc().id,
-      label: _labelController.text.trim(),
-      fullAddress: _resolvedAddress,
-      buildingDetails: _detailsController.text.trim(),
+      label: widget.showLabelField ? _labelController.text.trim() : '',
+      fullAddress: _resolvedAddress.trim().isEmpty
+          ? 'Selected location'
+          : _resolvedAddress,
+      buildingDetails: widget.showBuildingDetailsField
+          ? _detailsController.text.trim()
+          : '',
       location: GeoPoint(
         _selectedLatLng!.latitude,
         _selectedLatLng!.longitude,
       ),
-      isDefault: _isDefault,
+      isDefault: widget.showDefaultToggle ? _isDefault : false,
     );
 
     Navigator.pop(context, address);
@@ -200,7 +216,10 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existing == null ? 'Add Address' : 'Edit Address'),
+        title: Text(
+          widget.title ??
+              (widget.existing == null ? 'Add Address' : 'Edit Address'),
+        ),
       ),
       body: SafeArea(
         top: false,
@@ -260,25 +279,30 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      TextFormField(
-                        controller: _labelController,
-                        decoration: const InputDecoration(
-                          labelText: 'Label',
-                          hintText: 'Home / Work / University',
-                          border: OutlineInputBorder(),
+                      if (widget.showLabelField) ...[
+                        TextFormField(
+                          controller: _labelController,
+                          decoration: const InputDecoration(
+                            labelText: 'Label',
+                            hintText: 'Home / Work / University',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Required'
+                              : null,
                         ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _detailsController,
-                        decoration: const InputDecoration(
-                          labelText: 'Home number / floor / apartment',
-                          border: OutlineInputBorder(),
+                        const SizedBox(height: 12),
+                      ],
+                      if (widget.showBuildingDetailsField) ...[
+                        TextFormField(
+                          controller: _detailsController,
+                          decoration: const InputDecoration(
+                            labelText: 'Home number / floor / apartment',
+                            border: OutlineInputBorder(),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
+                        const SizedBox(height: 12),
+                      ],
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
@@ -306,20 +330,22 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                                     : _resolvedAddress,
                               ),
                       ),
-                      const SizedBox(height: 12),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: _isDefault,
-                        onChanged: (v) => setState(() => _isDefault = v),
-                        title: const Text('Set as default'),
-                      ),
+                      if (widget.showDefaultToggle) ...[
+                        const SizedBox(height: 12),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: _isDefault,
+                          onChanged: (v) => setState(() => _isDefault = v),
+                          title: const Text('Set as default'),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
                           onPressed: _save,
-                          child: const Text('Save Address'),
+                          child: Text(widget.saveButtonText),
                         ),
                       ),
                     ],

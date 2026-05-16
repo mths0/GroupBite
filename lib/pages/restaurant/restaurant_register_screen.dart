@@ -1,15 +1,15 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/abstract_user.dart';
+import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
+import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'package:food_delivery_platform/utils/validators.dart';
-import 'package:geolocator/geolocator.dart';
 
 class RestaurantRegisterScreen extends StatefulWidget {
   const RestaurantRegisterScreen({super.key, required this.email});
@@ -27,14 +27,14 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
   String? phoneErrorText;
   String? errorText;
 
-  Set<RestaurantTag> _selectedTags = {};
+  final Set<RestaurantTag> _selectedTags = {};
   String? tagsErrorText;
 
   final _phoneCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
 
   bool isLoading = false;
-  GeoPoint? _currentGeoPoint;
+  CustomerAddress? _selectedLocation;
   String? _locationError;
 
   @override
@@ -62,13 +62,13 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
     if (nameError != null ||
         phoneError != null ||
         tagsError != null ||
-        _currentGeoPoint == null) {
+        _selectedLocation?.location == null) {
       setState(() {
         nameErrorText = nameError;
         phoneErrorText = phoneError;
         tagsErrorText = tagsError;
-        _locationError = _currentGeoPoint == null
-            ? "Please capture location"
+        _locationError = _selectedLocation?.location == null
+            ? "Please choose restaurant location on the map."
             : null;
       });
       return;
@@ -77,59 +77,27 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
     await _submit();
   }
 
-  Future<void> _getLocation() async {
-    if (!mounted) return;
-    setState(() => isLoading = true);
+  Future<void> _pickLocation() async {
+    final result = await Navigator.push<CustomerAddress>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddAddressScreen(
+          existing: _selectedLocation,
+          title: 'Restaurant Location',
+          showLabelField: false,
+          showBuildingDetailsField: false,
+          showDefaultToggle: false,
+          saveButtonText: 'Save Location',
+        ),
+      ),
+    );
 
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!mounted) return;
-        setState(() => _locationError = "Location services are disabled.");
-        return;
-      }
+    if (result == null) return;
 
-      LocationPermission permission = await Geolocator.checkPermission();
-
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.denied) {
-        if (!mounted) return;
-        setState(() => _locationError = "Location permission denied.");
-        return;
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        setState(() {
-          _locationError =
-              "Location permissions are permanently denied. Please enable them from settings.";
-        });
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _currentGeoPoint = GeoPoint(position.latitude, position.longitude);
-        _locationError = null;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Location captured successfully!")),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _locationError = "Could not get location.");
-    } finally {
-      if (!mounted) return;
-      setState(() => isLoading = false);
-    }
+    setState(() {
+      _selectedLocation = result;
+      _locationError = null;
+    });
   }
 
   Future<void> _submit() async {
@@ -158,7 +126,7 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
         email: widget.email,
         name: _nameCtrl.text.trim(),
         tags: _selectedTags.toList(),
-        location: _currentGeoPoint,
+        location: _selectedLocation!.location,
         createdAt: DateTime.now().toIso8601String(),
         imageUrl:
             'https://images.unsplash.com/photo-1579027989536-b7b1f875659b?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
@@ -304,24 +272,44 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
                 const SizedBox(height: 12),
 
                 OutlinedButton.icon(
-                  onPressed: _getLocation,
+                  onPressed: _pickLocation,
                   icon: Icon(
-                    _currentGeoPoint != null
+                    _selectedLocation?.location != null
                         ? Icons.location_on
-                        : Icons.my_location,
-                    color: _currentGeoPoint != null ? Colors.green : null,
+                        : Icons.map_outlined,
+                    color: _selectedLocation?.location != null
+                        ? Colors.green
+                        : null,
                   ),
                   label: Text(
-                    _currentGeoPoint != null
-                        ? "Location Captured"
-                        : "Get Current Location",
+                    _selectedLocation?.location != null
+                        ? "Location Selected"
+                        : "Choose Location on Map",
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: _currentGeoPoint != null
+                    foregroundColor: _selectedLocation?.location != null
                         ? Colors.green
                         : null,
                   ),
                 ),
+                if (_selectedLocation?.location != null) ...[
+                  const SizedBox(height: 8),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.place_outlined),
+                      title: const Text('Restaurant location'),
+                      subtitle: Text(
+                        _selectedLocation!.fullAddress,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: _pickLocation,
+                      ),
+                    ),
+                  ),
+                ],
                 if (_locationError != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8.0),
