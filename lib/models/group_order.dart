@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:food_delivery_platform/models/cart_models.dart';
 import 'package:food_delivery_platform/models/selected_option_choice.dart';
 
 enum GroupOrderStatus {
@@ -29,7 +28,6 @@ class GroupOrder {
     this.totalSplitStrategy = 'individual', // 'individual' or 'equal'
     this.timerExtensions = 0,
     this.cancelledReason,
-    this.coupon,
   });
 
   final String id;
@@ -44,15 +42,12 @@ class GroupOrder {
   final String totalSplitStrategy;
   final int timerExtensions;
   final String? cancelledReason;
-  final Coupon? coupon;
 
   factory GroupOrder.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
 
     final createdAt =
         (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-
-    final couponMap = data['coupon'];
 
     return GroupOrder(
       id: doc.id,
@@ -72,9 +67,6 @@ class GroupOrder {
       totalSplitStrategy: data['totalSplitStrategy'] ?? 'individual',
       timerExtensions: (data['timerExtensions'] as num?)?.toInt() ?? 0,
       cancelledReason: data['cancelledReason']?.toString(),
-      coupon: couponMap is Map<String, dynamic>
-          ? Coupon.fromMap(couponMap)
-          : null,
     );
   }
 

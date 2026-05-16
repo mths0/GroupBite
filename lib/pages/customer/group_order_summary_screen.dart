@@ -65,7 +65,23 @@ class GroupOrderSummaryScreen extends StatelessWidget {
               (m) => m.customerId == customer.id,
             );
             if (membersSnapshot.hasData && !isStillMember) {
-              return const _KickedScreen();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!context.mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('You were removed from the group order.'),
+                  ),
+                );
+
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              });
+
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
             }
 
             return StreamBuilder<List<GroupOrderItem>>(
@@ -80,18 +96,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                 );
                 final tax = subtotal * kTaxRate;
                 final deliveryFee = restaurant.deliveryFee;
-                final coupon = groupOrder.coupon;
-                double discount = 0;
-                if (coupon != null) {
-                  if (coupon.discountType ==
-                      cart_models.CouponDiscountType.percentage) {
-                    discount = (subtotal + tax) * (coupon.discountValue / 100);
-                  } else {
-                    discount = coupon.discountValue;
-                  }
-                  discount = discount.clamp(0, subtotal + tax).toDouble();
-                }
-                final grandTotal = subtotal + tax + deliveryFee - discount;
+                final grandTotal = subtotal + tax + deliveryFee;
 
                 // Per-member items totals (used by all strategies).
                 final Map<String, double> mSubtotalById = {};
@@ -297,13 +302,6 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                 memberCount: members.length,
                                 enabled: isHost && !hostReady,
                               ),
-                              const SizedBox(height: 12),
-                              _CouponCard(
-                                groupOrderId: groupOrderId,
-                                restaurantId: restaurant.id,
-                                currentCoupon: groupOrder.coupon,
-                                enabled: !hostReady,
-                              ),
                             ],
                           ),
                         ),
@@ -492,94 +490,134 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                   suffix:
                                       '(${groupOrder.deliveryFeeSplit.toUpperCase()} SPLIT)',
                                 ),
-                                if (coupon != null && discount > 0)
-                                  _BillRow(
-                                    label: 'Discount',
-                                    value: -discount,
-                                    suffix: '(${coupon.code})',
-                                  ),
                                 const Divider(height: 24),
                                 _BillRow(
                                   label: 'Grand Total',
                                   value: grandTotal,
                                   isTotal: true,
                                 ),
-                                if (members.any(
-                                  (m) => m.status == GroupMemberStatus.paid,
-                                )) ...[
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'Paid by',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: scheme.onSurfaceVariant,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  ...members
-                                      .where(
-                                        (m) =>
-                                            m.status ==
-                                            GroupMemberStatus.paid,
-                                      )
-                                      .map((m) {
-                                        final amount =
-                                            memberDetails[m
-                                                .customerId]?['baseShare'] ??
-                                            0.0;
-                                        final coverer = m.paidBy == null
-                                            ? null
-                                            : (members
-                                                  .where(
-                                                    (x) =>
-                                                        x.customerId ==
-                                                        m.paidBy,
-                                                  )
-                                                  .isEmpty
-                                                  ? null
-                                                  : members
-                                                        .firstWhere(
-                                                          (x) =>
-                                                              x.customerId ==
-                                                              m.paidBy,
-                                                        )
-                                                        .name);
-                                        return Padding(
+                                Builder(
+                                  builder: (context) {
+                                    final paidMembers = members
+                                        .where(
+                                          (m) =>
+                                              m.status ==
+                                              GroupMemberStatus.paid,
+                                        )
+                                        .toList();
+                                    if (paidMembers.isEmpty) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    double paidTotal = 0;
+                                    final rows = <Widget>[];
+                                    for (final m in paidMembers) {
+                                      final own =
+                                          memberDetails[m
+                                                  .customerId]?['baseShare'] ??
+                                              0;
+                                      final coveredAmt = members
+                                          .where(
+                                            (o) =>
+                                                o.paidBy == m.customerId,
+                                          )
+                                          .fold<double>(
+                                            0,
+                                            (s, o) =>
+                                                s +
+                                                (memberDetails[o
+                                                            .customerId]?['baseShare'] ??
+                                                        0),
+                                          );
+                                      final paid = m.paidBy == null
+                                          ? own + coveredAmt
+                                          : 0.0;
+                                      if (paid <= 0) continue;
+                                      paidTotal += paid;
+                                      rows.add(
+                                        Padding(
                                           padding: const EdgeInsets.symmetric(
-                                            vertical: 2,
+                                            vertical: 4,
                                           ),
                                           child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment
-                                                    .spaceBetween,
                                             children: [
+                                              const Icon(
+                                                Icons.check_circle,
+                                                color: Colors.green,
+                                                size: 16,
+                                              ),
+                                              const SizedBox(width: 8),
                                               Expanded(
                                                 child: Text(
-                                                  coverer != null
-                                                      ? '${m.name} (covered by $coverer)'
+                                                  coveredAmt > 0
+                                                      ? '${m.name} (incl. covered)'
                                                       : m.name,
                                                   style: theme
                                                       .textTheme
-                                                      .bodySmall,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
+                                                      .bodyMedium,
                                                 ),
                                               ),
                                               Text(
-                                                '${amount.toStringAsFixed(2)} SAR',
-                                                style: theme
-                                                    .textTheme
-                                                    .bodySmall
+                                                '${paid.toStringAsFixed(2)} SAR',
+                                                style: theme.textTheme
+                                                    .titleSmall
                                                     ?.copyWith(
+                                                      color: Colors.green[700],
                                                       fontWeight:
-                                                          FontWeight.w600,
+                                                          FontWeight.w700,
                                                     ),
                                               ),
                                             ],
                                           ),
-                                        );
-                                      }),
-                                ],
+                                        ),
+                                      );
+                                    }
+                                    final remaining = (grandTotal - paidTotal)
+                                        .clamp(0.0, double.infinity);
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Divider(height: 24),
+                                        Text(
+                                          'Paid',
+                                          style: theme.textTheme.titleSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        ...rows,
+                                        if (remaining > 0.005) ...[
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                'Remaining',
+                                                style: theme.textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      color: scheme.outline,
+                                                    ),
+                                              ),
+                                              Text(
+                                                '${remaining.toStringAsFixed(2)} SAR',
+                                                style: theme.textTheme
+                                                    .titleSmall
+                                                    ?.copyWith(
+                                                      color: scheme.outline,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ],
+                                    );
+                                  },
+                                ),
                               ],
                             ),
                           ),
@@ -605,6 +643,14 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                     totalSplitStrategy: groupOrder.totalSplitStrategy,
                     myStatus: myMember.status,
                     myPaidBy: myMember.paidBy,
+                    myCoveredByName: myMember.paidBy == null
+                        ? null
+                        : members
+                              .firstWhere(
+                                (m) => m.customerId == myMember.paidBy,
+                                orElse: () => myMember,
+                              )
+                              .name,
                     perUserOvercommitted: perUserOvercommitted,
                     onPlaceOrder: () {
                       if (isHost && myMember.status == GroupMemberStatus.paid) {
@@ -1978,51 +2024,99 @@ class _MemberTile extends StatelessWidget {
             ),
           ],
           if (totalSplitStrategy == 'individual' && !isHost) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  Icons.payments_outlined,
-                  size: 16,
-                  color: scheme.outline,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    _paymentDeclarationLabel(),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
+            const SizedBox(height: 12),
+            if (canEditPayment)
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () async {
+                    await showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      showDragHandle: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(20),
+                        ),
+                      ),
+                      builder: (_) => _PaymentModeSheet(
+                        groupOrderId: groupOrderId,
+                        memberId: member.customerId,
+                        currentMode: member.paymentMode,
+                        currentValue: member.paymentValue,
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
                     ),
-                  ),
-                ),
-                if (canEditPayment)
-                  TextButton.icon(
-                    onPressed: () async {
-                      await showModalBottomSheet<void>(
-                        context: context,
-                        isScrollControlled: true,
-                        showDragHandle: true,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(20),
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: scheme.primary, width: 1.5),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.account_balance_wallet_outlined,
+                          color: scheme.onPrimaryContainer,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Your contribution',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: scheme.onPrimaryContainer
+                                      .withOpacity(0.75),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                _paymentDeclarationLabel(),
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: scheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        builder: (_) => _PaymentModeSheet(
-                          groupOrderId: groupOrderId,
-                          memberId: member.customerId,
-                          currentMode: member.paymentMode,
-                          currentValue: member.paymentValue,
+                        Icon(
+                          Icons.edit_outlined,
+                          color: scheme.onPrimaryContainer,
+                          size: 18,
                         ),
-                      );
-                    },
-                    icon: const Icon(Icons.edit_outlined, size: 16),
-                    label: const Text(
-                      'Edit',
-                      style: TextStyle(fontSize: 12),
+                      ],
                     ),
                   ),
-              ],
-            ),
+                ),
+              )
+            else
+              Row(
+                children: [
+                  Icon(
+                    Icons.payments_outlined,
+                    size: 16,
+                    color: scheme.outline,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _paymentDeclarationLabel(),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ],
       ),
@@ -2117,83 +2211,73 @@ class _PaymentModeSheetState extends State<_PaymentModeSheet> {
       padding: EdgeInsets.only(
         left: 16,
         right: 16,
-        top: 4,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + 12,
+        top: 8,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'How will you pay?',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'How will you pay?',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
             ),
-            const SizedBox(height: 2),
-            Text(
-              'Declarations are applied in order. Host covers the rest.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: scheme.outline,
-                fontSize: 11,
-              ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Declarations are applied in order. Host covers the rest.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.outline,
             ),
-            const SizedBox(height: 10),
-            _ModeChoice(
-              label: 'My own share',
-              description: 'Pay for the items I ordered.',
-              selected: _mode == 'own',
-              onTap: () => setState(() => _mode = 'own'),
-            ),
-            const SizedBox(height: 6),
-            _ModeChoice(
-              label: 'Fixed amount',
-              description: 'I will pay a specific SAR amount.',
-              selected: _mode == 'fixed',
-              onTap: () => setState(() => _mode = 'fixed'),
-            ),
-            const SizedBox(height: 6),
-            _ModeChoice(
-              label: 'Percentage',
-              description: 'I will pay a % of the remaining balance.',
-              selected: _mode == 'percent',
-              onTap: () => setState(() => _mode = 'percent'),
-            ),
-            if (needsValue) ...[
-              const SizedBox(height: 10),
-              TextField(
-                controller: _valueCtrl,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: InputDecoration(
-                  isDense: true,
-                  labelText: _mode == 'percent'
-                      ? 'Percentage (0-100)'
-                      : 'SAR',
-                  suffixText: _mode == 'percent' ? '%' : 'SAR',
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-            ],
+          ),
+          const SizedBox(height: 12),
+          _ModeChoice(
+            label: 'My own share',
+            description: 'Pay for the items you ordered (plus tax).',
+            selected: _mode == 'own',
+            onTap: () => setState(() => _mode = 'own'),
+          ),
+          const SizedBox(height: 8),
+          _ModeChoice(
+            label: 'Fixed amount',
+            description: 'I will pay a specific number of SAR.',
+            selected: _mode == 'fixed',
+            onTap: () => setState(() => _mode = 'fixed'),
+          ),
+          const SizedBox(height: 8),
+          _ModeChoice(
+            label: 'Percentage',
+            description: 'I will pay a % of the remaining balance.',
+            selected: _mode == 'percent',
+            onTap: () => setState(() => _mode = 'percent'),
+          ),
+          if (needsValue) ...[
             const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(44),
+            TextField(
+              controller: _valueCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
               ),
-              child: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Save'),
+              decoration: InputDecoration(
+                labelText: _mode == 'percent' ? 'Percentage (0-100)' : 'SAR',
+                suffixText: _mode == 'percent' ? '%' : 'SAR',
+                border: const OutlineInputBorder(),
+              ),
             ),
           ],
-        ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Save'),
+          ),
+        ],
       ),
     );
   }
@@ -2217,13 +2301,13 @@ class _ModeChoice extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return InkWell(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: selected ? scheme.primary : scheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: selected ? scheme.primary : scheme.outlineVariant,
             width: selected ? 2 : 1,
@@ -2236,16 +2320,15 @@ class _ModeChoice extends StatelessWidget {
                   ? Icons.check_circle_rounded
                   : Icons.radio_button_unchecked,
               color: selected ? scheme.onPrimary : scheme.outline,
-              size: 18,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     label,
-                    style: theme.textTheme.bodySmall?.copyWith(
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       color: selected ? scheme.onPrimary : scheme.onSurface,
                       fontWeight: FontWeight.w700,
                     ),
@@ -2256,7 +2339,6 @@ class _ModeChoice extends StatelessWidget {
                       color: selected
                           ? scheme.onPrimary.withOpacity(0.78)
                           : scheme.outline,
-                      fontSize: 11,
                     ),
                   ),
                 ],
@@ -2409,8 +2491,9 @@ class _BottomActions extends StatelessWidget {
     required this.myStatus,
     required this.onPlaceOrder,
     required this.hostCustomerId,
-    required this.myPaidBy,
     this.perUserOvercommitted = false,
+    this.myPaidBy,
+    this.myCoveredByName,
   });
 
   final bool isHost;
@@ -2424,38 +2507,9 @@ class _BottomActions extends StatelessWidget {
   final GroupMemberStatus myStatus;
   final VoidCallback onPlaceOrder;
   final String hostCustomerId;
-  final String? myPaidBy;
   final bool perUserOvercommitted;
-
-  String? _payerName() {
-    if (myPaidBy == null) return null;
-    final match = members.where((m) => m.customerId == myPaidBy);
-    return match.isEmpty ? null : match.first.name;
-  }
-
-  Future<void> _showCompletedDialog(BuildContext context) async {
-    final payer = _payerName();
-    final body = payer != null
-        ? 'Your share has been paid for by $payer.'
-        : 'Your payment was successful.';
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('All done'),
-        content: Text(body),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.of(dialogCtx).pop();
-              Navigator.of(context).popUntil((r) => r.isFirst);
-            },
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  final String? myPaidBy;
+  final String? myCoveredByName;
 
   @override
   Widget build(BuildContext context) {
@@ -2463,6 +2517,34 @@ class _BottomActions extends StatelessWidget {
     final scheme = theme.colorScheme;
 
     final isPaid = myStatus == GroupMemberStatus.paid;
+    final iAmCovered = !isHost && isPaid && myPaidBy != null;
+
+    Future<void> acknowledgeCovered(BuildContext ctx) async {
+      await showDialog<void>(
+        context: ctx,
+        builder: (dialogCtx) => AlertDialog(
+          icon: const Icon(
+            Icons.volunteer_activism_outlined,
+            color: Colors.green,
+            size: 40,
+          ),
+          title: const Text('Your share is covered'),
+          content: Text(
+            myCoveredByName == null
+                ? 'Another member has paid for your share. You\'re all set — the order will arrive with the rest of the group.'
+                : '$myCoveredByName has paid for your share. You\'re all set — the order will arrive with the rest of the group.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      if (!ctx.mounted) return;
+      Navigator.of(ctx).popUntil((route) => route.isFirst);
+    }
     final hostMember =
         members.where((m) => m.customerId == hostCustomerId).isNotEmpty
         ? members.firstWhere((m) => m.customerId == hostCustomerId)
@@ -2478,16 +2560,16 @@ class _BottomActions extends StatelessWidget {
         hasItems &&
         allReady &&
         (hostPaysAll || allNonHostPaid);
-    final memberDoneAcknowledge = !isHost && isPaid;
-    final isButtonDisabled = memberDoneAcknowledge
-        ? false
-        : !hasItems ||
+    final isButtonDisabled =
+        !iAmCovered &&
+        (!hasItems ||
             !currentMemberHasItems ||
             !hostReady ||
             !allReady ||
             (!isHost && hostPaysAll) ||
+            (!isHost && isPaid) ||
             (isHost && !canHostFinalize) ||
-            perUserOvercommitted;
+            perUserOvercommitted);
     final statusMessage = !hasItems
         ? 'Add items before continuing.'
         : !allMembersHaveItems
@@ -2553,18 +2635,16 @@ class _BottomActions extends StatelessWidget {
             child: ElevatedButton(
               onPressed: isButtonDisabled
                   ? null
-                  : memberDoneAcknowledge
-                  ? () => _showCompletedDialog(context)
+                  : iAmCovered
+                  ? () => acknowledgeCovered(context)
                   : onPlaceOrder,
               style: ElevatedButton.styleFrom(
                 backgroundColor: scheme.primary,
                 foregroundColor: scheme.onPrimary,
               ),
               child: Text(
-                memberDoneAcknowledge
-                    ? (myPaidBy != null
-                          ? 'Your share is covered — Tap to finish'
-                          : 'Payment Completed — Tap to finish')
+                iAmCovered
+                    ? 'Your Share is Covered — Tap to Finish'
                     : isPaid
                     ? isHost
                           ? 'Place Order'
@@ -2581,237 +2661,6 @@ class _BottomActions extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _CouponCard extends StatefulWidget {
-  const _CouponCard({
-    required this.groupOrderId,
-    required this.restaurantId,
-    required this.currentCoupon,
-    required this.enabled,
-  });
-
-  final String groupOrderId;
-  final String restaurantId;
-  final cart_models.Coupon? currentCoupon;
-  final bool enabled;
-
-  @override
-  State<_CouponCard> createState() => _CouponCardState();
-}
-
-class _CouponCardState extends State<_CouponCard> {
-  final TextEditingController _controller = TextEditingController();
-  bool _validating = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _apply() async {
-    final code = _controller.text.trim();
-    if (code.isEmpty) return;
-    setState(() => _validating = true);
-    try {
-      final coupon = await DatabaseService().validateCoupon(
-        restaurantId: widget.restaurantId,
-        code: code,
-      );
-      if (coupon == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid or expired code.')),
-        );
-        return;
-      }
-      await DatabaseService().setGroupOrderCoupon(
-        groupOrderId: widget.groupOrderId,
-        coupon: coupon,
-      );
-      _controller.clear();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${coupon.label} applied.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
-    } finally {
-      if (mounted) setState(() => _validating = false);
-    }
-  }
-
-  Future<void> _remove() async {
-    try {
-      await DatabaseService().setGroupOrderCoupon(
-        groupOrderId: widget.groupOrderId,
-        coupon: null,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final applied = widget.currentCoupon;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.local_offer_outlined,
-                color: scheme.primary,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Promo Code',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              _LockPill(locked: !widget.enabled),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (applied != null)
-            Chip(
-              avatar: Icon(
-                Icons.check_circle_outline,
-                color: scheme.onPrimaryContainer,
-                size: 18,
-              ),
-              label: Text(
-                '${applied.code} · ${applied.label}',
-                style: TextStyle(
-                  color: scheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              backgroundColor: scheme.primaryContainer,
-              deleteIcon: Icon(
-                Icons.close,
-                size: 16,
-                color: scheme.onPrimaryContainer,
-              ),
-              onDeleted: widget.enabled ? _remove : null,
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    enabled: widget.enabled,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: InputDecoration(
-                      hintText: 'Enter code',
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 13,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                FilledButton(
-                  onPressed: widget.enabled && !_validating ? _apply : null,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 13,
-                    ),
-                  ),
-                  child: _validating
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Apply'),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _KickedScreen extends StatefulWidget {
-  const _KickedScreen();
-
-  @override
-  State<_KickedScreen> createState() => _KickedScreenState();
-}
-
-class _KickedScreenState extends State<_KickedScreen> {
-  bool _shown = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShow());
-  }
-
-  Future<void> _maybeShow() async {
-    if (_shown) return;
-    _shown = true;
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Removed from group'),
-        content: const Text(
-          'The host removed you from this group order.',
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              Navigator.of(dialogCtx).pop();
-              Navigator.of(
-                context,
-              ).popUntil((r) => r.isFirst);
-            },
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
     );
   }
 }

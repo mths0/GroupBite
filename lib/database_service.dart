@@ -1052,17 +1052,6 @@ class DatabaseService {
     });
   }
 
-  Future<void> setGroupOrderCoupon({
-    required String groupOrderId,
-    required cart_models.Coupon? coupon,
-  }) async {
-    await _ensureGroupOrderActive(groupOrderId);
-    await _groupOrders.doc(groupOrderId).update({
-      'coupon': coupon?.toMap(),
-      'updatedAt': firestore.FieldValue.serverTimestamp(),
-    });
-  }
-
   Future<void> setGroupMemberPayment({
     required String groupOrderId,
     required String memberId,
