@@ -31,6 +31,10 @@ class CheckoutScreen extends StatefulWidget {
     this.groupOrderId,
     this.isGroupHost = false,
     this.onOrderPlaced,
+    this.groupContributionNote,
+    this.groupOthersPaid,
+    this.groupOwnSubtotal,
+    this.groupOwnTax,
   });
 
   /// Immutable snapshot of cart items for display/confirmation.
@@ -49,6 +53,19 @@ class CheckoutScreen extends StatefulWidget {
   final double tax;
   final double discount;
   final double total;
+
+  /// Group-order context: a one-line note explaining how the total was derived
+  /// (e.g. "You declared a fixed contribution of 5.00 SAR").
+  final String? groupContributionNote;
+
+  /// Group-order context (host view): per-member amounts already paid by
+  /// others, shown as a section in the summary.
+  final List<MapEntry<String, double>>? groupOthersPaid;
+
+  /// Group-order context: the value of this user's own items if it differs
+  /// from [subtotal] (used for host checkouts where [subtotal] gets repurposed).
+  final double? groupOwnSubtotal;
+  final double? groupOwnTax;
 
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
@@ -651,6 +668,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             walletCredit: _split.wallet,
             familyCredit: _split.family,
             cardCharge: _split.card,
+            contributionNote: widget.groupContributionNote,
+            othersPaid: widget.groupOthersPaid,
+            ownSubtotal: widget.groupOwnSubtotal,
+            ownTax: widget.groupOwnTax,
           ),
         ),
 
@@ -1078,6 +1099,10 @@ class _CheckoutSummary extends StatelessWidget {
     required this.familyCredit,
     required this.cardCharge,
     this.appliedCoupon,
+    this.contributionNote,
+    this.othersPaid,
+    this.ownSubtotal,
+    this.ownTax,
   });
 
   final double subtotal;
@@ -1089,18 +1114,122 @@ class _CheckoutSummary extends StatelessWidget {
   final double familyCredit;
   final double cardCharge;
   final Coupon? appliedCoupon;
+  final String? contributionNote;
+  final List<MapEntry<String, double>>? othersPaid;
+  final double? ownSubtotal;
+  final double? ownTax;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final displaySubtotal = ownSubtotal ?? subtotal;
+    final displayTax = ownTax ?? tax;
+    final lineItemsTotal = displaySubtotal + displayTax + deliveryFee;
+    final adjustment = total - lineItemsTotal;
+    final showAdjustment = adjustment.abs() > 0.005;
+    final paidByOthersTotal = othersPaid == null
+        ? 0.0
+        : othersPaid!.fold<double>(0, (s, e) => s + e.value);
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SummaryRow(label: 'Subtotal', value: subtotal),
+        if (contributionNote != null) ...[
+          Container(
+            padding: const EdgeInsets.all(10),
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: colorScheme.primary.withOpacity(0.4),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: colorScheme.primary,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    contributionNote!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        _SummaryRow(label: 'Subtotal', value: displaySubtotal),
         const SizedBox(height: 8),
-        _SummaryRow(label: 'Tax (15%)', value: tax),
+        _SummaryRow(label: 'Tax (15%)', value: displayTax),
         const SizedBox(height: 8),
         _SummaryRow(label: 'Delivery Fee', value: deliveryFee),
+        if (othersPaid != null && othersPaid!.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Divider(height: 1),
+          ),
+          Text(
+            'Paid by other members',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...othersPaid!.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: 14,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      entry.key,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                  Text(
+                    '-${entry.value.toStringAsFixed(2)} SAR',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.green[700],
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          _SummaryRow(
+            label: 'Total paid by others',
+            value: -paidByOthersTotal,
+            valueColor: Colors.green,
+          ),
+        ],
+        if (showAdjustment && othersPaid == null) ...[
+          const SizedBox(height: 8),
+          _SummaryRow(
+            label: adjustment < 0
+                ? 'Host covers the rest'
+                : 'Additional contribution',
+            value: adjustment,
+            valueColor: adjustment < 0 ? Colors.green : null,
+          ),
+        ],
         if (appliedCoupon != null) ...[
           const SizedBox(height: 8),
           _SummaryRow(
@@ -1134,13 +1263,13 @@ class _CheckoutSummary extends StatelessWidget {
           children: [
             Text(
               'Total',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
             ),
             Text(
               '${cardCharge.toStringAsFixed(2)} SAR',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: colorScheme.primary,
               ),

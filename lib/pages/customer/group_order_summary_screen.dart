@@ -353,46 +353,6 @@ class GroupOrderSummaryScreen extends StatelessWidget {
 
                               return Column(
                                 children: [
-                                  Builder(
-                                    builder: (context) {
-                                      final isCurrentMember =
-                                          member.customerId == customer.id;
-                                      final memberHasItems = allItems.any(
-                                        (i) => i.memberId == member.customerId,
-                                      );
-                                      final isMemberHost =
-                                          member.customerId ==
-                                          groupOrder.hostCustomerId;
-                                      final canMarkReady =
-                                          isCurrentMember &&
-                                          member.status ==
-                                              GroupMemberStatus.ordering &&
-                                          memberHasItems &&
-                                          (isMemberHost ? true : hostReady);
-                                      final disabledMessage = memberHasItems
-                                          ? 'Waiting for host to lock the split.'
-                                          : 'Add at least one item before marking ready.';
-
-                                      return _MemberReadyAction(
-                                        visible:
-                                            isCurrentMember &&
-                                            member.status ==
-                                                GroupMemberStatus.ordering,
-                                        enabled: canMarkReady,
-                                        label: isMemberHost
-                                            ? 'Lock Split & Ready'
-                                            : 'Agree & Ready',
-                                        disabledMessage: disabledMessage,
-                                        onReady: () async {
-                                          await DatabaseService()
-                                              .markGroupMemberReady(
-                                                groupOrderId: groupOrderId,
-                                                customerId: customer.id,
-                                              );
-                                        },
-                                      );
-                                    },
-                                  ),
                                   _MemberTile(
                                     member: member,
                                     items: allItems
@@ -446,6 +406,46 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                     onCover: () =>
                                         _coverMember(context, member),
                                   ),
+                                  Builder(
+                                    builder: (context) {
+                                      final isCurrentMember =
+                                          member.customerId == customer.id;
+                                      final memberHasItems = allItems.any(
+                                        (i) => i.memberId == member.customerId,
+                                      );
+                                      final isMemberHost =
+                                          member.customerId ==
+                                          groupOrder.hostCustomerId;
+                                      final canMarkReady =
+                                          isCurrentMember &&
+                                          member.status ==
+                                              GroupMemberStatus.ordering &&
+                                          memberHasItems &&
+                                          (isMemberHost ? true : hostReady);
+                                      final disabledMessage = memberHasItems
+                                          ? 'Waiting for host to lock the split.'
+                                          : 'Add at least one item before marking ready.';
+
+                                      return _MemberReadyAction(
+                                        visible:
+                                            isCurrentMember &&
+                                            member.status ==
+                                                GroupMemberStatus.ordering,
+                                        enabled: canMarkReady,
+                                        label: isMemberHost
+                                            ? 'Lock Split & Ready'
+                                            : 'Agree & Ready',
+                                        disabledMessage: disabledMessage,
+                                        onReady: () async {
+                                          await DatabaseService()
+                                              .markGroupMemberReady(
+                                                groupOrderId: groupOrderId,
+                                                customerId: customer.id,
+                                              );
+                                        },
+                                      );
+                                    },
+                                  ),
                                 ],
                               );
                             },
@@ -487,8 +487,9 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                 _BillRow(
                                   label: 'Delivery Fee',
                                   value: deliveryFee,
-                                  suffix:
-                                      '(${groupOrder.deliveryFeeSplit.toUpperCase()} SPLIT)',
+                                  suffix: groupOrder.deliveryFeeSplit == 'host'
+                                      ? '(HOST PAYS)'
+                                      : '(SPLIT EQUALLY)',
                                 ),
                                 const Divider(height: 24),
                                 _BillRow(
@@ -496,127 +497,11 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                   value: grandTotal,
                                   isTotal: true,
                                 ),
-                                Builder(
-                                  builder: (context) {
-                                    final paidMembers = members
-                                        .where(
-                                          (m) =>
-                                              m.status ==
-                                              GroupMemberStatus.paid,
-                                        )
-                                        .toList();
-                                    if (paidMembers.isEmpty) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    double paidTotal = 0;
-                                    final rows = <Widget>[];
-                                    for (final m in paidMembers) {
-                                      final own =
-                                          memberDetails[m
-                                                  .customerId]?['baseShare'] ??
-                                              0;
-                                      final coveredAmt = members
-                                          .where(
-                                            (o) =>
-                                                o.paidBy == m.customerId,
-                                          )
-                                          .fold<double>(
-                                            0,
-                                            (s, o) =>
-                                                s +
-                                                (memberDetails[o
-                                                            .customerId]?['baseShare'] ??
-                                                        0),
-                                          );
-                                      final paid = m.paidBy == null
-                                          ? own + coveredAmt
-                                          : 0.0;
-                                      if (paid <= 0) continue;
-                                      paidTotal += paid;
-                                      rows.add(
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 4,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.check_circle,
-                                                color: Colors.green,
-                                                size: 16,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  coveredAmt > 0
-                                                      ? '${m.name} (incl. covered)'
-                                                      : m.name,
-                                                  style: theme
-                                                      .textTheme
-                                                      .bodyMedium,
-                                                ),
-                                              ),
-                                              Text(
-                                                '${paid.toStringAsFixed(2)} SAR',
-                                                style: theme.textTheme
-                                                    .titleSmall
-                                                    ?.copyWith(
-                                                      color: Colors.green[700],
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                    final remaining = (grandTotal - paidTotal)
-                                        .clamp(0.0, double.infinity);
-                                    return Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const Divider(height: 24),
-                                        Text(
-                                          'Paid',
-                                          style: theme.textTheme.titleSmall
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        ...rows,
-                                        if (remaining > 0.005) ...[
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(
-                                                'Remaining',
-                                                style: theme.textTheme
-                                                    .bodyMedium
-                                                    ?.copyWith(
-                                                      color: scheme.outline,
-                                                    ),
-                                              ),
-                                              Text(
-                                                '${remaining.toStringAsFixed(2)} SAR',
-                                                style: theme.textTheme
-                                                    .titleSmall
-                                                    ?.copyWith(
-                                                      color: scheme.outline,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ],
-                                    );
-                                  },
+                                _PaymentPlanSection(
+                                  members: members,
+                                  memberDetails: memberDetails,
+                                  hostCustomerId: groupOrder.hostCustomerId,
+                                  grandTotal: grandTotal,
                                 ),
                               ],
                             ),
@@ -713,6 +598,8 @@ class GroupOrderSummaryScreen extends StatelessWidget {
     double payTax = 0;
     double payDelivery = 0;
     double payTotal = 0;
+    String? contributionNote;
+    List<MapEntry<String, double>>? othersPaid;
 
     // If strategy is equal split, and user is NOT covered by someone else
     final myMember = members.firstWhere((m) => m.customerId == me);
@@ -728,35 +615,92 @@ class GroupOrderSummaryScreen extends StatelessWidget {
         );
         payDelivery = restaurant.deliveryFee;
         payTotal = grandTotal;
+        contributionNote =
+            'Host Covers All — you are paying for everyone\'s share.';
       }
     } else if (groupOrder.totalSplitStrategy == 'equal' &&
         myMember.paidBy == null) {
       payTotal = grandTotal / members.length;
-      // For equal split, we can't easily break down subtotal/tax/delivery per person
-      // but we'll approximate it for display in CheckoutScreen
       paySubtotal = payTotal / (1 + kTaxRate);
       payTax = payTotal - paySubtotal;
+      contributionNote =
+          'Split Equally — your share is 1/${members.length} of the group total.';
     } else {
-      // Individual items or host pays all
-      // Add user's own share if not covered
-      if (myMember.paidBy == null) {
+      // Per-User mode: show GROUP totals for the host (since they cover the
+      // leftover for everyone), but the member's own totals for non-host.
+      if (isHost) {
+        paySubtotal = memberDetails.values.fold<double>(
+          0,
+          (sum, d) => sum + (d['subtotal'] ?? 0),
+        );
+        payTax = memberDetails.values.fold<double>(
+          0,
+          (sum, d) => sum + (d['tax'] ?? 0),
+        );
+        payDelivery = restaurant.deliveryFee;
+        payTotal = memberDetails[me]?['baseShare'] ?? 0;
+        contributionNote =
+            'Per-User split — you cover whatever members didn\'t declare.';
+      } else if (myMember.paidBy == null) {
         final mine = memberDetails[me]!;
         paySubtotal += mine['subtotal']!;
         payTax += mine['tax']!;
         payDelivery += mine['delivery']!;
         payTotal += mine['baseShare']!;
+
+        switch (myMember.paymentMode) {
+          case 'fixed':
+            contributionNote =
+                'You declared a fixed contribution of ${(myMember.paymentValue ?? 0).toStringAsFixed(2)} SAR. The host covers the rest.';
+            break;
+          case 'percent':
+            contributionNote =
+                'You declared ${(myMember.paymentValue ?? 0).toStringAsFixed(0)}% of the remaining group total.';
+            break;
+          case 'own':
+          default:
+            contributionNote =
+                'Paying your own items + tax. Delivery is handled by the group rule.';
+            break;
+        }
       }
     }
 
-    // Add shares of anyone this user is covering
-    for (final m in members) {
-      if (m.paidBy == me) {
-        final theirs = memberDetails[m.customerId]!;
-        paySubtotal += theirs['subtotal']!;
-        payTax += theirs['tax']!;
-        payDelivery += theirs['delivery']!;
-        payTotal += theirs['baseShare']!;
+    // Add shares of anyone this user is covering (does not apply to host in
+    // per-user mode since their baseShare already absorbs the leftover).
+    if (!(isHost && groupOrder.totalSplitStrategy == 'individual')) {
+      for (final m in members) {
+        if (m.paidBy == me) {
+          final theirs = memberDetails[m.customerId]!;
+          paySubtotal += theirs['subtotal']!;
+          payTax += theirs['tax']!;
+          payDelivery += theirs['delivery']!;
+          payTotal += theirs['baseShare']!;
+        }
       }
+    }
+
+    // Build the list of "paid by others" for host checkout view.
+    if (isHost &&
+        (groupOrder.totalSplitStrategy == 'individual' ||
+            groupOrder.totalSplitStrategy == 'equal')) {
+      final paid = <MapEntry<String, double>>[];
+      for (final m in members) {
+        if (m.customerId == me) continue;
+        if (m.status != GroupMemberStatus.paid) continue;
+        if (m.paidBy != null) continue;
+        final own = memberDetails[m.customerId]?['baseShare'] ?? 0;
+        final coveredAmt = members
+            .where((o) => o.paidBy == m.customerId)
+            .fold<double>(
+              0,
+              (s, o) => s + (memberDetails[o.customerId]?['baseShare'] ?? 0),
+            );
+        final amt = own + coveredAmt;
+        if (amt <= 0.005) continue;
+        paid.add(MapEntry(m.name, amt));
+      }
+      if (paid.isNotEmpty) othersPaid = paid;
     }
 
     if (payTotal <= 0 && myMember.paidBy != null) {
@@ -798,6 +742,8 @@ class GroupOrderSummaryScreen extends StatelessWidget {
           restaurantId: restaurant.id,
           groupOrderId: groupOrderId,
           isGroupHost: isHost,
+          groupContributionNote: contributionNote,
+          groupOthersPaid: othersPaid,
         ),
       ),
     );
@@ -1308,41 +1254,35 @@ class _DeliverySplitControl extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Column(
-            children: [
-              _SplitOption(
-                label: 'Equal',
-                icon: Icons.people_outline,
-                description: 'Everyone pays the same delivery share.',
-                preview: '${perPerson.toStringAsFixed(2)} SAR each',
-                isSelected: currentSplit == 'equal',
-                onTap: enabled && !hostPaysAll
-                    ? () => _updateSplit('equal')
-                    : null,
-              ),
-              const SizedBox(height: 8),
-              _SplitOption(
-                label: 'By item total',
-                icon: Icons.pie_chart_outline,
-                description: 'Higher item subtotal pays more of delivery.',
-                preview: 'Weighted by subtotal',
-                isSelected: currentSplit == 'proportional',
-                onTap: enabled && !hostPaysAll
-                    ? () => _updateSplit('proportional')
-                    : null,
-              ),
-              const SizedBox(height: 8),
-              _SplitOption(
-                label: 'Host Pays',
-                icon: Icons.person_outline,
-                description: 'Only the host pays the delivery fee.',
-                preview: '${deliveryFee.toStringAsFixed(2)} SAR by host',
-                isSelected: currentSplit == 'host',
-                onTap: enabled && !hostPaysAll
-                    ? () => _updateSplit('host')
-                    : null,
-              ),
-            ],
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _CompactSplitOption(
+                    label: 'Split Equally',
+                    icon: Icons.people_outline,
+                    preview: '${perPerson.toStringAsFixed(2)} SAR each',
+                    isSelected: currentSplit == 'equal',
+                    onTap: enabled && !hostPaysAll
+                        ? () => _updateSplit('equal')
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _CompactSplitOption(
+                    label: 'Host Pays',
+                    icon: Icons.person_outline,
+                    preview: '${deliveryFee.toStringAsFixed(2)} SAR',
+                    isSelected: currentSplit == 'host',
+                    onTap: enabled && !hostPaysAll
+                        ? () => _updateSplit('host')
+                        : null,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1540,6 +1480,247 @@ class _SplitOption extends StatelessWidget {
                   size: 18,
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentPlanSection extends StatelessWidget {
+  const _PaymentPlanSection({
+    required this.members,
+    required this.memberDetails,
+    required this.hostCustomerId,
+    required this.grandTotal,
+  });
+
+  final List<GroupOrderMember> members;
+  final Map<String, Map<String, double>> memberDetails;
+  final String hostCustomerId;
+  final double grandTotal;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    if (members.isEmpty) return const SizedBox.shrink();
+
+    final rows = <Widget>[];
+    double paidTotal = 0;
+
+    for (final m in members) {
+      if (m.paidBy != null) continue;
+
+      final own = memberDetails[m.customerId]?['baseShare'] ?? 0;
+      final coveredFor = members
+          .where((o) => o.paidBy == m.customerId)
+          .toList();
+      final coveredAmt = coveredFor.fold<double>(
+        0,
+        (s, o) => s + (memberDetails[o.customerId]?['baseShare'] ?? 0),
+      );
+      final amount = own + coveredAmt;
+      if (amount <= 0.005) continue;
+
+      final hasPaid = m.status == GroupMemberStatus.paid;
+      if (hasPaid) paidTotal += amount;
+
+      final isHostMember = m.customerId == hostCustomerId;
+      final coveredNames = coveredFor.map((o) => o.name).join(', ');
+
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                hasPaid
+                    ? Icons.check_circle
+                    : Icons.account_balance_wallet_outlined,
+                color: hasPaid ? Colors.green : scheme.primary,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            m.name,
+                            style: theme.textTheme.bodyMedium,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isHostMember)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: Text(
+                              '(host)',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: scheme.outline,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (coveredAmt > 0)
+                      Text(
+                        'incl. cover for $coveredNames',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: scheme.outline,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Text(
+                '${amount.toStringAsFixed(2)} SAR',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: hasPaid ? Colors.green[700] : scheme.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    final remaining = (grandTotal - paidTotal).clamp(0.0, double.infinity);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Payment Plan',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (paidTotal > 0.005)
+              Text(
+                '${paidTotal.toStringAsFixed(2)} / ${grandTotal.toStringAsFixed(2)} paid',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: scheme.outline,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ...rows,
+        if (paidTotal > 0.005 && remaining > 0.005) ...[
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Remaining',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.outline,
+                ),
+              ),
+              Text(
+                '${remaining.toStringAsFixed(2)} SAR',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: scheme.outline,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _CompactSplitOption extends StatelessWidget {
+  const _CompactSplitOption({
+    required this.label,
+    required this.icon,
+    required this.preview,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final String preview;
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final foreground = isSelected ? scheme.onPrimary : scheme.onSurface;
+    final muted = isSelected
+        ? scheme.onPrimary.withOpacity(0.78)
+        : scheme.outline;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? scheme.primary : scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? scheme.primary : scheme.outlineVariant,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? scheme.onPrimary : scheme.primary,
+                  size: 20,
+                ),
+                const Spacer(),
+                Icon(
+                  isSelected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked,
+                  color: isSelected ? scheme.onPrimary : scheme.outline,
+                  size: 18,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              preview,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: muted,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
