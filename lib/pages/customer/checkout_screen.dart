@@ -334,7 +334,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // GROUP CHECKOUT:
       // Member only pays their part. Do NOT create order yet.
       if (widget.groupOrderId != null) {
-        final result = await _db.payGroupMemberAndMaybePlaceOrder(
+        final placed = await _db.payGroupMemberAndMaybePlaceOrder(
           groupOrderId: widget.groupOrderId!,
           customerId: widget.customerId,
           restaurantId: widget.restaurantId,
@@ -346,30 +346,109 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
         setState(() => _isPlacingOrder = false);
 
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => AlertDialog(
-            title: Text(
-              result ? 'Group Order Placed 🎉' : 'Payment Done',
-            ),
-            content: Text(
-              result
-                  ? 'Everyone has paid. The final group order has been placed successfully.'
-                  : 'Your part of ${widget.total.toStringAsFixed(2)} SAR has been paid successfully.\n\n'
-                        'You will now return to the home page.',
-            ),
-            actions: [
-              FilledButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // close dialog
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-                child: const Text('Done'),
+        if (placed == null) {
+          // Member-only payment: no final order yet — return to home.
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => AlertDialog(
+              title: const Text('Payment Done'),
+              content: Text(
+                'Your part of ${widget.total.toStringAsFixed(2)} SAR has been paid successfully.\n\n'
+                'You will now return to the home page.',
               ),
-            ],
+              actions: [
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                  child: const Text('Done'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+
+        // Final group order was placed — mirror the normal-checkout success
+        // flow (bottom sheet "Order Placed!" then push to OrderDetailScreen).
+        final user = await _db.getUserById(widget.customerId);
+        final customer = user is Customer ? user : null;
+
+        if (!mounted) return;
+
+        widget.onOrderPlaced?.call();
+
+        final theme = Theme.of(context);
+        await showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          isDismissible: false,
+          enableDrag: false,
+          showDragHandle: true,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (sheetCtx) => SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Group Order Placed!',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Everyone has paid. The final group order has been placed successfully.',
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(sheetCtx),
+                      child: const Text('View order'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         );
+
+        if (!mounted) return;
+
+        if (customer != null) {
+          Navigator.popUntil(context, (route) => route.isFirst);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => OrderDetailScreen(
+                order: placed,
+                customer: customer,
+              ),
+            ),
+          );
+        } else {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
 
         return;
       }
@@ -548,21 +627,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
-        if (_isGroupCheckout)
+        if (_isGroupCheckout && !widget.isGroupHost) ...[
           _SectionCard(
-            title: widget.isGroupHost
-                ? 'Host Checkout'
-                : 'Group Member Checkout',
+            title: 'Group Member Checkout',
             icon: Icons.groups_outlined,
             child: Text(
-              widget.isGroupHost
-                  ? 'You are the host. After you pay, the final group order will be placed.'
-                  : 'You are paying only your part of the group order.',
+              'You are paying only your part of the group order.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
-
-        if (_isGroupCheckout) const SizedBox(height: 12),
+          const SizedBox(height: 12),
+        ],
 
         if (_shouldShowDeliveryTime) ...[
           _SectionCard(

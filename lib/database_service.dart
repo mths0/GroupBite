@@ -1380,7 +1380,7 @@ class DatabaseService {
     }
   }
 
-  Future<void> placeFinalGroupOrder({
+  Future<Order?> placeFinalGroupOrder({
     required String groupOrderId,
     required String customerId,
     required String restaurantId,
@@ -1402,7 +1402,7 @@ class DatabaseService {
 
     final groupStatus = groupData['status'];
     if (groupStatus == GroupOrderStatus.completed.name) {
-      return;
+      return null;
     }
     if (groupStatus == GroupOrderStatus.cancelled.name) {
       throw Exception('This group order has been cancelled.');
@@ -1451,7 +1451,7 @@ class DatabaseService {
     final tax = subtotal * kTaxRate;
     final total = subtotal + tax + deliveryFee;
 
-    await addOrder(
+    final placedOrder = await addOrder(
       customerId: customerId,
       restaurantId: restaurantId,
       totalPrice: total,
@@ -1472,9 +1472,11 @@ class DatabaseService {
       'cancelledAt': null,
       'cancelledBy': null,
     });
+
+    return placedOrder;
   }
 
-  Future<bool> payGroupMemberAndMaybePlaceOrder({
+  Future<Order?> payGroupMemberAndMaybePlaceOrder({
     required String groupOrderId,
     required String customerId,
     required String restaurantId,
@@ -1545,7 +1547,7 @@ class DatabaseService {
     }
 
     if (!isHost) {
-      return false;
+      return null;
     }
 
     if (hostPaysAll) {
@@ -1577,16 +1579,14 @@ class DatabaseService {
     });
 
     if (!allPaid) {
-      return false;
+      return null;
     }
 
-    await placeFinalGroupOrder(
+    return await placeFinalGroupOrder(
       groupOrderId: groupOrderId,
       customerId: hostCustomerId,
       restaurantId: restaurantId,
     );
-
-    return true;
   }
 
   Stream<GroupOrder?> watchGroupOrder(String groupOrderId) {

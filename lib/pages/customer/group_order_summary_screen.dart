@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
 import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/group_order.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
+import 'package:food_delivery_platform/pages/customer/order_detail_screen.dart';
 import 'package:food_delivery_platform/utils/tax.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -308,10 +308,6 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                   body: CustomScrollView(
                     slivers: [
                       SliverToBoxAdapter(
-                        child: _JoinCodeHeader(joinCode: groupOrder.joinCode),
-                      ),
-
-                      SliverToBoxAdapter(
                         child: RepaintBoundary(
                           child: _GroupOrderTimerCard(
                             key: ValueKey(groupOrder.expiresAt),
@@ -547,7 +543,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                 ),
                                 const Divider(height: 24),
                                 _BillRow(
-                                  label: 'Grand Total',
+                                  label: 'Order Total',
                                   value: grandTotal,
                                   isTotal: true,
                                 ),
@@ -948,7 +944,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
     GroupOrder groupOrder,
   ) async {
     try {
-      await DatabaseService().placeFinalGroupOrder(
+      final placed = await DatabaseService().placeFinalGroupOrder(
         groupOrderId: groupOrder.id,
         customerId: customer.id,
         restaurantId: restaurant.id,
@@ -956,25 +952,74 @@ class GroupOrderSummaryScreen extends StatelessWidget {
 
       if (!context.mounted) return;
 
-      await showDialog<void>(
+      final theme = Theme.of(context);
+      await showModalBottomSheet<void>(
         context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text('Group Order Placed'),
-          content: const Text(
-            'Everyone has paid. The final group order has been placed successfully.',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).popUntil((route) => route.isFirst);
-              },
-              child: const Text('Done'),
+        isScrollControlled: true,
+        isDismissible: false,
+        enableDrag: false,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (sheetCtx) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Group Order Placed!',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Everyone has paid. The final group order has been placed successfully.',
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(sheetCtx),
+                    child: const Text('View order'),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       );
+
+      if (!context.mounted) return;
+
+      if (placed != null) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OrderDetailScreen(
+              order: placed,
+              customer: customer,
+            ),
+          ),
+        );
+      } else {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1298,15 +1343,15 @@ class _DeliverySplitControl extends StatelessWidget {
               _LockPill(locked: !enabled),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            hostPaysAll
-                ? 'Delivery follows Host Covers All.'
-                : 'Choose how the delivery fee is divided before locking the split.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
+          if (hostPaysAll) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Delivery follows Host Covers All.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 12),
           IntrinsicHeight(
             child: Row(
@@ -1396,44 +1441,44 @@ class _TotalSplitControl extends StatelessWidget {
               _LockPill(locked: !enabled),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Choose how item subtotal, tax, and delivery are assigned.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
           const SizedBox(height: 12),
-          Column(
-            children: [
-              _SplitOption(
-                label: 'Per User',
-                icon: Icons.person_outline,
-                description:
-                    'Each member declares their share (fixed, percent, or own items). Host covers the rest.',
-                preview: 'Members choose',
-                isSelected: currentStrategy == 'individual',
-                onTap: enabled ? () => _updateStrategy('individual') : null,
-              ),
-              const SizedBox(height: 8),
-              _SplitOption(
-                label: 'Split Equally',
-                icon: Icons.groups_outlined,
-                description: 'Everyone pays the same grand-total share.',
-                preview: '${equalShare.toStringAsFixed(2)} SAR each',
-                isSelected: currentStrategy == 'equal',
-                onTap: enabled ? () => _updateStrategy('equal') : null,
-              ),
-              const SizedBox(height: 8),
-              _SplitOption(
-                label: 'Host Covers All',
-                icon: Icons.workspace_premium_outlined,
-                description: 'Members only agree. Host pays the full order.',
-                preview: '${grandTotal.toStringAsFixed(2)} SAR by host',
-                isSelected: currentStrategy == 'host',
-                onTap: enabled ? () => _updateStrategy('host') : null,
-              ),
-            ],
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _CompactSplitOption(
+                    label: 'Per User',
+                    icon: Icons.person_outline,
+                    preview: 'Members choose',
+                    isSelected: currentStrategy == 'individual',
+                    onTap: enabled
+                        ? () => _updateStrategy('individual')
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _CompactSplitOption(
+                    label: 'Equal',
+                    icon: Icons.groups_outlined,
+                    preview: '${equalShare.toStringAsFixed(2)} each',
+                    isSelected: currentStrategy == 'equal',
+                    onTap: enabled ? () => _updateStrategy('equal') : null,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _CompactSplitOption(
+                    label: 'Host All',
+                    icon: Icons.workspace_premium_outlined,
+                    preview: '${grandTotal.toStringAsFixed(2)} by host',
+                    isSelected: currentStrategy == 'host',
+                    onTap: enabled ? () => _updateStrategy('host') : null,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1444,101 +1489,6 @@ class _TotalSplitControl extends StatelessWidget {
     DatabaseService().updateGroupOrder(groupOrderId, {
       'totalSplitStrategy': strategy,
     });
-  }
-}
-
-class _SplitOption extends StatelessWidget {
-  const _SplitOption({
-    required this.label,
-    required this.icon,
-    required this.description,
-    required this.preview,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final String description;
-  final String preview;
-  final bool isSelected;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final foreground = isSelected ? scheme.onPrimary : scheme.onSurface;
-    final muted = isSelected
-        ? scheme.onPrimary.withOpacity(0.78)
-        : scheme.outline;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected ? scheme.primary : scheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? scheme.primary : scheme.outlineVariant,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? scheme.onPrimary : scheme.primary,
-              size: 22,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: foreground,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    description,
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  preview,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: foreground,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Icon(
-                  isSelected
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked,
-                  color: isSelected ? scheme.onPrimary : scheme.outline,
-                  size: 18,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -1563,7 +1513,8 @@ class _PaymentPlanSection extends StatelessWidget {
     if (members.isEmpty) return const SizedBox.shrink();
 
     final rows = <Widget>[];
-    double paidTotal = 0;
+    double memberDeductions = 0;
+    double hostShare = 0;
 
     for (final m in members) {
       if (m.paidBy != null) continue;
@@ -1577,12 +1528,17 @@ class _PaymentPlanSection extends StatelessWidget {
         (s, o) => s + (memberDetails[o.customerId]?['baseShare'] ?? 0),
       );
       final amount = own + coveredAmt;
+      final isHostMember = m.customerId == hostCustomerId;
+
+      if (isHostMember) {
+        hostShare = amount;
+        continue;
+      }
+
       if (amount <= 0.005) continue;
+      memberDeductions += amount;
 
       final hasPaid = m.status == GroupMemberStatus.paid;
-      if (hasPaid) paidTotal += amount;
-
-      final isHostMember = m.customerId == hostCustomerId;
       final coveredNames = coveredFor.map((o) => o.name).join(', ');
 
       rows.add(
@@ -1595,7 +1551,7 @@ class _PaymentPlanSection extends StatelessWidget {
                 hasPaid
                     ? Icons.check_circle
                     : Icons.account_balance_wallet_outlined,
-                color: hasPaid ? Colors.green : scheme.primary,
+                color: hasPaid ? Colors.green : scheme.outline,
                 size: 16,
               ),
               const SizedBox(width: 8),
@@ -1603,26 +1559,10 @@ class _PaymentPlanSection extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            m.name,
-                            style: theme.textTheme.bodyMedium,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isHostMember)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: Text(
-                              '(host)',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: scheme.outline,
-                              ),
-                            ),
-                          ),
-                      ],
+                    Text(
+                      m.name,
+                      style: theme.textTheme.bodyMedium,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     if (coveredAmt > 0)
                       Text(
@@ -1635,9 +1575,9 @@ class _PaymentPlanSection extends StatelessWidget {
                 ),
               ),
               Text(
-                '${amount.toStringAsFixed(2)} SAR',
+                '-${amount.toStringAsFixed(2)} SAR',
                 style: theme.textTheme.titleSmall?.copyWith(
-                  color: hasPaid ? Colors.green[700] : scheme.onSurface,
+                  color: Colors.green[700],
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1647,55 +1587,96 @@ class _PaymentPlanSection extends StatelessWidget {
       );
     }
 
-    if (rows.isEmpty) return const SizedBox.shrink();
+    // Always render the host's row so the host can see what they need to pay.
+    final hostMember = members
+        .where((m) => m.customerId == hostCustomerId)
+        .toList();
+    if (hostMember.isNotEmpty) {
+      final host = hostMember.first;
+      final hostPaid = host.status == GroupMemberStatus.paid;
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                hostPaid ? Icons.check_circle : Icons.person_outline,
+                color: hostPaid ? Colors.green : scheme.primary,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        host.name,
+                        style: theme.textTheme.bodyMedium,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Text(
+                        '(host pays)',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: scheme.outline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '${hostShare.toStringAsFixed(2)} SAR',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: scheme.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-    final remaining = (grandTotal - paidTotal).clamp(0.0, double.infinity);
+    final totalLeft = (grandTotal - memberDeductions).clamp(
+      0.0,
+      double.infinity,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: 12),
+        Text(
+          'Payment Plan',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 6),
+        ...rows,
         const Divider(height: 24),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Payment Plan',
+              'Total Left',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (paidTotal > 0.005)
-              Text(
-                '${paidTotal.toStringAsFixed(2)} / ${grandTotal.toStringAsFixed(2)} paid',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: scheme.outline,
-                ),
+            Text(
+              '${totalLeft.toStringAsFixed(2)} SAR',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: scheme.primary,
               ),
+            ),
           ],
         ),
-        const SizedBox(height: 6),
-        ...rows,
-        if (paidTotal > 0.005 && remaining > 0.005) ...[
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Remaining',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: scheme.outline,
-                ),
-              ),
-              Text(
-                '${remaining.toStringAsFixed(2)} SAR',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: scheme.outline,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ],
       ],
     );
   }
@@ -1864,77 +1845,6 @@ class _MemberReadyAction extends StatelessWidget {
             onPressed: enabled ? onReady : null,
             icon: const Icon(Icons.check_circle_outline),
             label: Text(label),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _JoinCodeHeader extends StatelessWidget {
-  const _JoinCodeHeader({required this.joinCode});
-
-  final String joinCode;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [scheme.primary, scheme.primaryContainer],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: scheme.primary.withOpacity(0.2),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'JOIN CODE',
-            style: TextStyle(
-              color: Colors.white70,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                joinCode,
-                style: const TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 12,
-                  color: Colors.white,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.copy_all_rounded, color: Colors.white70),
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: joinCode));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Join code copied!')),
-                  );
-                },
-              ),
-            ],
-          ),
-          const Text(
-            'Invite friends to start eating together',
-            style: TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ],
       ),
@@ -2408,20 +2318,45 @@ class _PaymentModeSheetState extends State<_PaymentModeSheet> {
   Future<void> _save() async {
     double? value;
     if (_mode != 'own') {
-      value = double.tryParse(_valueCtrl.text.trim());
-      if (value == null || value <= 0) {
+      final raw = _valueCtrl.text.trim();
+      value = double.tryParse(raw);
+      if (value == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter a positive amount.')),
+          const SnackBar(content: Text('Enter a valid number.')),
         );
         return;
       }
-      if (_mode == 'percent' && value > 100) {
+      if (value < 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Percentage cannot exceed 100.')),
+          SnackBar(
+            content: Text(
+              _mode == 'percent'
+                  ? 'Percentage cannot be negative.'
+                  : 'Amount cannot be negative.',
+            ),
+          ),
         );
         return;
       }
       if (_mode == 'percent') {
+        if (value > 100) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Percentage cannot exceed 100.')),
+          );
+          return;
+        }
+        // Whole-number percentages only — flag decimals up front instead
+        // of silently truncating.
+        if ((value - value.roundToDouble()).abs() > 0.0001) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Use a whole-number percentage (e.g. 10, not 10.3).',
+              ),
+            ),
+          );
+          return;
+        }
         final allowed = (100 - widget.otherMembersPercentSum).clamp(0, 100);
         if (value > allowed + 0.005) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2509,13 +2444,17 @@ class _PaymentModeSheetState extends State<_PaymentModeSheet> {
             const SizedBox(height: 12),
             TextField(
               controller: _valueCtrl,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+              keyboardType: TextInputType.numberWithOptions(
+                decimal: _mode != 'percent',
+                signed: false,
               ),
               decoration: InputDecoration(
                 labelText: _mode == 'percent' ? 'Percentage (0-100)' : 'SAR',
                 suffixText: _mode == 'percent' ? '%' : 'SAR',
                 border: const OutlineInputBorder(),
+                helperText: _mode == 'percent'
+                    ? 'Whole numbers only.'
+                    : null,
               ),
             ),
           ],
