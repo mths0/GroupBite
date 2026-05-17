@@ -1686,12 +1686,17 @@ class DatabaseService {
     required String customerId,
     required String addressId,
   }) async {
-    await _db
+    final col = _db
         .collection('users')
         .doc(customerId)
-        .collection('addresses')
-        .doc(addressId)
-        .delete();
+        .collection('addresses');
+
+    final snapshot = await col.get();
+    if (snapshot.docs.length <= 1) {
+      throw Exception('You must keep at least one delivery address.');
+    }
+
+    await col.doc(addressId).delete();
   }
 
   Future<void> setDefaultCustomerAddress({
