@@ -2349,6 +2349,7 @@ class DatabaseService {
     required String message,
     String? orderId,
     String? orderStatus,
+    Map<String, dynamic>? deviceInfo,
   }) async {
     final doc = _db.collection('support_tickets').doc();
 
@@ -2363,6 +2364,7 @@ class DatabaseService {
       'message': message.trim(),
       'orderId': orderId,
       'orderStatus': orderStatus,
+      'deviceInfo': deviceInfo,
       'status': 'open',
       'createdAt': firestore.FieldValue.serverTimestamp(),
     });

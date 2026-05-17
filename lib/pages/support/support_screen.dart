@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/order.dart';
+import 'package:food_delivery_platform/pages/support/support_device_info_collector.dart';
 import 'package:intl/intl.dart';
 
 class SupportScreen extends StatefulWidget {
@@ -27,6 +28,8 @@ class _SupportScreenState extends State<SupportScreen> {
   final _messageController = TextEditingController();
 
   final DatabaseService _db = DatabaseService();
+  final SupportDeviceInfoCollector _deviceInfoCollector =
+      SupportDeviceInfoCollector();
 
   bool _isSending = false;
 
@@ -86,6 +89,8 @@ class _SupportScreenState extends State<SupportScreen> {
     setState(() => _isSending = true);
 
     try {
+      final deviceInfo = await _deviceInfoCollector.collect(context);
+
       await _db.createSupportTicket(
         userId: widget.userId,
         userRole: widget.userRole,
@@ -96,6 +101,7 @@ class _SupportScreenState extends State<SupportScreen> {
         message: _messageController.text.trim(),
         orderId: _selectedOrder?.id,
         orderStatus: _selectedOrder?.status.name,
+        deviceInfo: deviceInfo,
       );
 
       if (!mounted) return;
@@ -236,7 +242,7 @@ class _SupportScreenState extends State<SupportScreen> {
 
             // Issue Category Dropdown
             DropdownButtonFormField<String>(
-              value: _selectedType,
+              initialValue: _selectedType,
               decoration: InputDecoration(
                 labelText: 'Issue Category',
                 prefixIcon: Icon(
