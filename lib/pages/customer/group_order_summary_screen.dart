@@ -138,9 +138,12 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                     };
                   }
                 } else {
-                  // Per-User: sequential declarations against a running
-                  // remaining balance. When delivery is on the host the
-                  // distributable total excludes delivery.
+                  // Per-User in phases:
+                  //   1. Subtract all fixed declarations from the distributable
+                  //   2. Subtract all "own share" declarations
+                  //   3. Each percent declaration takes its % of what remains
+                  //      after phases 1+2 (a SHARED base, not sequential)
+                  //   4. Host pays whatever's still left
                   final hostCoversDelivery =
                       groupOrder.deliveryFeeSplit == 'host';
                   final distributable = hostCoversDelivery
@@ -149,54 +152,92 @@ class GroupOrderSummaryScreen extends StatelessWidget {
 
                   final nonHostMembers = members
                       .where((m) => m.customerId != groupOrder.hostCustomerId)
-                      .toList()
-                    ..sort((a, b) {
-                      final ad =
-                          a.paymentDeclaredAt ??
-                          DateTime.fromMillisecondsSinceEpoch(
-                            8640000000000000,
-                          );
-                      final bd =
-                          b.paymentDeclaredAt ??
-                          DateTime.fromMillisecondsSinceEpoch(
-                            8640000000000000,
-                          );
-                      return ad.compareTo(bd);
-                    });
+                      .toList();
 
-                  double remaining = distributable;
-                  for (final member in nonHostMembers) {
+                  double sumFixed = 0;
+                  double sumPercent = 0;
+                  for (final m in nonHostMembers) {
+                    if (m.paymentMode == 'fixed') {
+                      sumFixed += (m.paymentValue ?? 0);
+                    } else if (m.paymentMode == 'percent') {
+                      sumPercent += (m.paymentValue ?? 0);
+                    }
+                  }
+
+                  if (sumFixed > distributable + 0.005) {
+                    perUserOvercommitted = true;
+                  }
+                  if (sumPercent > 100 + 0.005) {
+                    perUserOvercommitted = true;
+                  }
+
+                  final remainingAfterFixed =
+                      (distributable - sumFixed).clamp(0, double.infinity)
+                          as double;
+
+                  // Phase 2: assign "own share" up to the remainingAfterFixed
+                  // pot, first-come first-served by declaredAt timestamp.
+                  final ownMembers = nonHostMembers
+                      .where((m) => m.paymentMode == 'own')
+                      .toList()
+                    ..sort(
+                      (a, b) => (a.paymentDeclaredAt ?? a.joinedAt).compareTo(
+                        b.paymentDeclaredAt ?? b.joinedAt,
+                      ),
+                    );
+                  final Map<String, double> ownShareById = {};
+                  double sumOwn = 0;
+                  for (final m in ownMembers) {
+                    final wanted =
+                        (mSubtotalById[m.customerId] ?? 0) +
+                        (mTaxById[m.customerId] ?? 0);
+                    final pool = (remainingAfterFixed - sumOwn).clamp(
+                      0,
+                      double.infinity,
+                    );
+                    final share = wanted.clamp(0, pool).toDouble();
+                    ownShareById[m.customerId] = share;
+                    sumOwn += share;
+                  }
+
+                  final percentBase =
+                      (remainingAfterFixed - sumOwn).clamp(0, double.infinity)
+                          as double;
+
+                  for (final m in nonHostMembers) {
                     double share;
-                    switch (member.paymentMode) {
+                    switch (m.paymentMode) {
                       case 'fixed':
-                        final v = member.paymentValue ?? 0;
-                        share = v.clamp(0, remaining).toDouble();
-                        if (v > remaining + 0.005) perUserOvercommitted = true;
+                        share = (m.paymentValue ?? 0)
+                            .clamp(0, distributable)
+                            .toDouble();
                         break;
                       case 'percent':
-                        final v = (member.paymentValue ?? 0).clamp(0, 100);
-                        share = remaining * v / 100;
+                        final v = (m.paymentValue ?? 0).clamp(0, 100);
+                        share = percentBase * v / 100;
                         break;
                       case 'own':
                       default:
-                        share =
-                            (mSubtotalById[member.customerId] ?? 0) +
-                            (mTaxById[member.customerId] ?? 0);
-                        share = share.clamp(0, remaining).toDouble();
+                        share = ownShareById[m.customerId] ?? 0.0;
                         break;
                     }
-                    memberDetails[member.customerId] = {
-                      'subtotal': mSubtotalById[member.customerId] ?? 0,
-                      'tax': mTaxById[member.customerId] ?? 0,
+                    memberDetails[m.customerId] = {
+                      'subtotal': mSubtotalById[m.customerId] ?? 0,
+                      'tax': mTaxById[m.customerId] ?? 0,
                       'delivery': 0.0,
                       'baseShare': share,
                     };
-                    remaining -= share;
                   }
 
+                  final declaredTotal =
+                      sumFixed +
+                      sumOwn +
+                      (percentBase * sumPercent.clamp(0, 100) / 100);
+                  final hostLeftover =
+                      (distributable - declaredTotal).clamp(0, double.infinity)
+                          as double;
                   final hostShare =
-                      (remaining < 0 ? 0.0 : remaining) +
-                      (hostCoversDelivery ? deliveryFee : 0.0);
+                      hostLeftover + (hostCoversDelivery ? deliveryFee : 0.0);
                   memberDetails[groupOrder.hostCustomerId] = {
                     'subtotal':
                         mSubtotalById[groupOrder.hostCustomerId] ?? 0,
@@ -405,6 +446,19 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                         _removeMember(context, member),
                                     onCover: () =>
                                         _coverMember(context, member),
+                                    otherMembersPercentSum: members
+                                        .where(
+                                          (m) =>
+                                              m.customerId != member.customerId &&
+                                              m.customerId !=
+                                                  groupOrder.hostCustomerId &&
+                                              m.paymentMode == 'percent',
+                                        )
+                                        .fold<double>(
+                                          0,
+                                          (s, m) =>
+                                              s + (m.paymentValue ?? 0),
+                                        ),
                                   ),
                                   Builder(
                                     builder: (context) {
@@ -1905,6 +1959,7 @@ class _MemberTile extends StatelessWidget {
     required this.canCover,
     required this.onRemove,
     required this.onCover,
+    this.otherMembersPercentSum = 0,
   });
 
   final GroupOrderMember member;
@@ -1922,6 +1977,7 @@ class _MemberTile extends StatelessWidget {
   final bool canCover;
   final VoidCallback onRemove;
   final VoidCallback onCover;
+  final double otherMembersPercentSum;
 
   String _customizationSummary(GroupOrderItem item) {
     if (item.selectedOptions.isEmpty) return '';
@@ -2226,6 +2282,7 @@ class _MemberTile extends StatelessWidget {
                         memberId: member.customerId,
                         currentMode: member.paymentMode,
                         currentValue: member.paymentValue,
+                        otherMembersPercentSum: otherMembersPercentSum,
                       ),
                     );
                   },
@@ -2311,12 +2368,14 @@ class _PaymentModeSheet extends StatefulWidget {
     required this.memberId,
     required this.currentMode,
     required this.currentValue,
+    this.otherMembersPercentSum = 0,
   });
 
   final String groupOrderId;
   final String memberId;
   final String currentMode;
   final double? currentValue;
+  final double otherMembersPercentSum;
 
   @override
   State<_PaymentModeSheet> createState() => _PaymentModeSheetState();
@@ -2361,6 +2420,19 @@ class _PaymentModeSheetState extends State<_PaymentModeSheet> {
           const SnackBar(content: Text('Percentage cannot exceed 100.')),
         );
         return;
+      }
+      if (_mode == 'percent') {
+        final allowed = (100 - widget.otherMembersPercentSum).clamp(0, 100);
+        if (value > allowed + 0.005) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'The total % would exceed 100%. Remaining is ${allowed.toStringAsFixed(0)}%.',
+              ),
+            ),
+          );
+          return;
+        }
       }
     }
     setState(() => _saving = true);
