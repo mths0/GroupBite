@@ -6,6 +6,7 @@ import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/customer_address.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/pages/customer/add_funds_sheet.dart';
+import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 import 'package:food_delivery_platform/pages/customer/address_widgets.dart';
 import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
 import 'package:food_delivery_platform/pages/customer/family_wallet_tab.dart';
@@ -211,29 +212,272 @@ class _AccountTabState extends State<_AccountTab>
   late final Stream<List<CustomerAddress>> _addressesStream = widget.db
       .streamCustomerAddresses(widget.customer.id);
 
-  Future<void> _pickDefaultAddress() async {
-    final picked = await showModalBottomSheet<CustomerAddress>(
+  Future<void> _manageAddresses() async {
+    await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => AddressPickerSheet(
+      builder: (sheetCtx) {
+        final theme = Theme.of(sheetCtx);
+        final scheme = theme.colorScheme;
+        final maxHeight = MediaQuery.of(sheetCtx).size.height * 0.7;
+        return SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your delivery addresses',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tap an address to make it the default.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.outline,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: StreamBuilder<List<CustomerAddress>>(
+                      stream: widget.db.streamCustomerAddresses(
+                        widget.customer.id,
+                      ),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        final addresses =
+                            snapshot.data ?? const <CustomerAddress>[];
+                        if (addresses.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Center(
+                              child: Text(
+                                'No addresses yet. Add one below.',
+                              ),
+                            ),
+                          );
+                        }
+                        return ListView(
+                          shrinkWrap: true,
+                          children: addresses
+                              .map(
+                                (a) => _AddressRow(
+                                  address: a,
+                                  onTapRow: a.isDefault
+                                      ? null
+                                      : () async {
+                                          await widget.db
+                                              .setDefaultCustomerAddress(
+                                                customerId: widget.customer.id,
+                                                addressId: a.id,
+                                              );
+                                          widget.onDefaultAddressChanged
+                                              ?.call();
+                                        },
+                                  onEdit: () => _editAddress(a),
+                                  onDelete: () => _deleteAddress(a, addresses),
+                                ),
+                              )
+                              .toList(),
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheetCtx);
+                        _addNewAddress();
+                      },
+                      icon: const Icon(Icons.add_location_alt_outlined),
+                      label: const Text('Add new address'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _addNewAddress() async {
+    final result = await Navigator.push<CustomerAddress>(
+      context,
+      MaterialPageRoute(builder: (_) => const AddAddressScreen()),
+    );
+    if (result == null || !mounted) return;
+    await widget.db.addCustomerAddress(
+      customerId: widget.customer.id,
+      address: result,
+    );
+    if (result.isDefault) {
+      await widget.db.setDefaultCustomerAddress(
         customerId: widget.customer.id,
-        title: 'Set default delivery address',
-        subtitle: 'This is the address used when you sign in.',
+        addressId: result.id,
+      );
+      widget.onDefaultAddressChanged?.call();
+    }
+  }
+
+  Future<void> _editAddress(CustomerAddress address) async {
+    final updated = await Navigator.push<CustomerAddress>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddAddressScreen(existing: address),
       ),
     );
-
-    if (picked == null || !mounted) return;
-
-    await widget.db.setDefaultCustomerAddress(
+    if (updated == null || !mounted) return;
+    await widget.db.updateCustomerAddress(
       customerId: widget.customer.id,
-      addressId: picked.id,
+      address: updated,
     );
+    if (updated.isDefault && !address.isDefault) {
+      await widget.db.setDefaultCustomerAddress(
+        customerId: widget.customer.id,
+        addressId: updated.id,
+      );
+      widget.onDefaultAddressChanged?.call();
+    }
+  }
 
-    widget.onDefaultAddressChanged?.call();
+  Future<void> _deleteAddress(
+    CustomerAddress address,
+    List<CustomerAddress> all,
+  ) async {
+    if (all.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You must keep at least one delivery address.'),
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete address?'),
+        content: Text('Remove "${address.label}" from your addresses?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final wasDefault = address.isDefault;
+    String? newDefaultId;
+
+    if (wasDefault) {
+      final remaining = all.where((a) => a.id != address.id).toList();
+      newDefaultId = await _pickReplacementDefault(remaining);
+      if (newDefaultId == null) return; // user cancelled
+    }
+
+    try {
+      await widget.db.deleteCustomerAddress(
+        customerId: widget.customer.id,
+        addressId: address.id,
+      );
+      if (newDefaultId != null) {
+        await widget.db.setDefaultCustomerAddress(
+          customerId: widget.customer.id,
+          addressId: newDefaultId,
+        );
+        widget.onDefaultAddressChanged?.call();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
+  }
+
+  Future<String?> _pickReplacementDefault(
+    List<CustomerAddress> options,
+  ) async {
+    return showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) {
+        final theme = Theme.of(sheetCtx);
+        final scheme = theme.colorScheme;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pick a new default',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'The address you are deleting is your current default. Choose another address to use as the default.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.outline,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...options.map(
+                  (a) => Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      onTap: () => Navigator.pop(sheetCtx, a.id),
+                      leading: const Icon(Icons.location_on_outlined),
+                      title: Text(a.label),
+                      subtitle: Text(
+                        a.fullAddress,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -284,7 +528,7 @@ class _AccountTabState extends State<_AccountTab>
         const SizedBox(height: 24),
 
         Text(
-          'Default delivery address',
+          'Delivery addresses',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w700,
           ),
@@ -305,7 +549,7 @@ class _AccountTabState extends State<_AccountTab>
               label: defaultAddress?.label,
               fullAddress: defaultAddress?.fullAddress,
               isLoading: snapshot.connectionState == ConnectionState.waiting,
-              onTap: () => _pickDefaultAddress(),
+              onTap: _manageAddresses,
             );
           },
         ),
@@ -356,6 +600,108 @@ class _AccountTabState extends State<_AccountTab>
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AddressRow extends StatelessWidget {
+  const _AddressRow({
+    required this.address,
+    required this.onTapRow,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final CustomerAddress address;
+  final VoidCallback? onTapRow;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        onTap: onTapRow,
+        leading: Icon(
+          address.isDefault ? Icons.location_on : Icons.location_on_outlined,
+          color: address.isDefault ? scheme.primary : null,
+        ),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                address.label,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            if (address.isDefault) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Default',
+                  style: TextStyle(
+                    color: scheme.onPrimaryContainer,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        subtitle: Text(
+          address.fullAddress,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: PopupMenuButton<String>(
+          onSelected: (action) {
+            switch (action) {
+              case 'edit':
+                onEdit();
+                break;
+              case 'delete':
+                onDelete();
+                break;
+            }
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'edit',
+              child: ListTile(
+                leading: Icon(Icons.edit_outlined),
+                title: Text('Edit'),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: ListTile(
+                leading: Icon(Icons.delete_outline, color: Colors.red),
+                title: Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
