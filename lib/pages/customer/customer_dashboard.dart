@@ -19,6 +19,7 @@ class CustomerDashboard extends StatefulWidget {
 class _CustomerDashboardState extends State<CustomerDashboard> {
   int _navIndex = 0;
   final PageController _pageController = PageController();
+  bool _isProgrammaticNav = false;
 
   GeoPoint? _deliveryLocation;
   String? _addressId;
@@ -110,19 +111,23 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     });
   }
 
-  void _goToPage(int index) {
+  void _goToPage(int index) async {
     setState(() {
       _navIndex = index;
+      _isProgrammaticNav = true;
     });
-    _pageController.animateToPage(
+    await _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+    if (!mounted) return;
+    setState(() => _isProgrammaticNav = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final screens = <Widget>[
       CustomerHomeScreen(
         customer: widget.customer,
@@ -142,27 +147,36 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     return Scaffold(
       body: PageView(
         controller: _pageController,
-        onPageChanged: (index) => setState(() => _navIndex = index),
+        onPageChanged: (index) {
+          if (_isProgrammaticNav) return;
+          setState(() => _navIndex = index);
+        },
         children: screens,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _navIndex,
-        onDestinationSelected: _goToPage,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Orders',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Account',
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Divider(height: 1, color: scheme.outlineVariant),
+          NavigationBar(
+            selectedIndex: _navIndex,
+            onDestinationSelected: _goToPage,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long),
+                label: 'Orders',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: 'Account',
+              ),
+            ],
           ),
         ],
       ),

@@ -24,10 +24,16 @@ class CustomerOrdersScreen extends StatefulWidget {
 
 class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   final DatabaseService _db = DatabaseService();
-  late final Stream<List<Order>> _ordersStream =
-      _db.getOrdersForCustomer(widget.customer.id);
-  late final Stream<FamilyWallet?> _walletStream =
-      _db.streamFamilyWalletForUser(widget.customer.id);
+
+  List<Order>? _orders;
+  FamilyWallet? _wallet;
+  List<Order>? _familyOrders;
+  bool _walletLoaded = false;
+
+  StreamSubscription<List<Order>>? _ordersSub;
+  StreamSubscription<FamilyWallet?>? _walletSub;
+  StreamSubscription<List<Order>>? _familyOrdersSub;
+  String? _subscribedFamilyWalletId;
 
   final Map<String, Future<Restaurant?>> _restaurantFutures = {};
   final Map<String, Future<String>> _memberNameFutures = {};
@@ -37,13 +43,47 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   @override
   void initState() {
     super.initState();
+    _ordersSub = _db.getOrdersForCustomer(widget.customer.id).listen((data) {
+      if (!mounted) return;
+      setState(() => _orders = data);
+      _autoCancelStale(data);
+    });
+    _walletSub = _db.streamFamilyWalletForUser(widget.customer.id).listen((
+      wallet,
+    ) {
+      if (!mounted) return;
+      _bindFamilyOrders(wallet?.id);
+      setState(() {
+        _wallet = wallet;
+        _walletLoaded = true;
+      });
+    });
     _tick = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) setState(() {});
     });
   }
 
+  void _bindFamilyOrders(String? walletId) {
+    if (walletId == _subscribedFamilyWalletId) return;
+    _familyOrdersSub?.cancel();
+    _familyOrdersSub = null;
+    _familyOrders = null;
+    _subscribedFamilyWalletId = walletId;
+    if (walletId != null) {
+      _familyOrdersSub = _db.streamOrdersForFamilyWallet(walletId).listen((
+        data,
+      ) {
+        if (!mounted) return;
+        setState(() => _familyOrders = data);
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _ordersSub?.cancel();
+    _walletSub?.cancel();
+    _familyOrdersSub?.cancel();
     _tick?.cancel();
     super.dispose();
   }
@@ -81,54 +121,71 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isOwner =
+        _wallet != null && _wallet!.isOwner(widget.customer.id);
     return SafeArea(
       bottom: false,
-      child: StreamBuilder<FamilyWallet?>(
-        stream: _walletStream,
-        builder: (context, walletSnap) {
-          if (walletSnap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final wallet = walletSnap.data;
-          final isOwner =
-              wallet != null && wallet.isOwner(widget.customer.id);
-
-          if (!isOwner) {
-            return Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: _myOrdersList(),
-            );
-          }
-
-          return DefaultTabController(
-            length: 2,
-            child: Column(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            child: Row(
               children: [
-                const SizedBox(height: 12),
-                Material(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  child: TabBar(
-                    labelColor: Theme.of(context).colorScheme.primary,
-                    indicatorColor: Theme.of(context).colorScheme.primary,
-                    tabs: const [
-                      Tab(text: 'My Orders'),
-                      Tab(text: 'Family'),
-                    ],
+                Text(
+                  'Orders',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: scheme.onSurface,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _myOrdersList(),
-                      _familyOrdersList(wallet.id),
-                    ],
+                const Spacer(),
+                Text(
+                  'GroupBite',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
                   ),
                 ),
               ],
             ),
-          );
-        },
+          ),
+          Divider(height: 1, color: scheme.outlineVariant),
+          Expanded(
+            child: !_walletLoaded
+                ? const Center(child: CircularProgressIndicator())
+                : !isOwner
+                    ? _myOrdersList()
+                    : DefaultTabController(
+                        length: 2,
+                        child: Column(
+                          children: [
+                            Material(
+                              color: theme.scaffoldBackgroundColor,
+                              child: TabBar(
+                                labelColor: scheme.primary,
+                                indicatorColor: scheme.primary,
+                                tabs: const [
+                                  Tab(text: 'My Orders'),
+                                  Tab(text: 'Family'),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: TabBarView(
+                                children: [
+                                  _myOrdersList(),
+                                  _familyOrdersList(),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+          ),
+        ],
       ),
     );
   }
@@ -187,94 +244,73 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   }
 
   Widget _myOrdersList() {
-    return StreamBuilder<List<Order>>(
-      stream: _ordersStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        final orders = snapshot.data ?? [];
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _autoCancelStale(orders);
-        });
-        return _ordersBody(
-          orders: orders,
-          nameForOrder: (_) => widget.customer.name,
-        );
-      },
+    final orders = _orders;
+    if (orders == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return _ordersBody(
+      orders: orders,
+      nameForOrder: (_) => widget.customer.name,
     );
   }
 
-  Widget _familyOrdersList(String walletId) {
-    return StreamBuilder<List<Order>>(
-      stream: _db.streamOrdersForFamilyWallet(walletId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        final orders = snapshot.data ?? [];
-        if (orders.isEmpty) {
-          return const Center(
-            child: Text('No family wallet orders yet'),
-          );
-        }
+  Widget _familyOrdersList() {
+    final orders = _familyOrders;
+    if (orders == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (orders.isEmpty) {
+      return const Center(child: Text('No family wallet orders yet'));
+    }
 
-        final active = orders.where((o) => !_isPastOrder(o.status)).toList();
-        final past = orders.where((o) => _isPastOrder(o.status)).toList();
+    final active = orders.where((o) => !_isPastOrder(o.status)).toList();
+    final past = orders.where((o) => _isPastOrder(o.status)).toList();
 
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          children: [
-            if (active.isNotEmpty) ...[
-              _OrdersSectionHeader(title: 'Active Orders'),
-              const SizedBox(height: 12),
-              for (final order in active) ...[
-                FutureBuilder<String>(
-                  future: _memberNameFuture(order.customerId),
-                  builder: (context, nameSnap) {
-                    final name = nameSnap.data ?? '…';
-                    return _OrderCard(
-                      order: order,
-                      customerName: name,
-                      restaurantFuture: _restaurantFuture(order.restaurantId),
-                      isPast: false,
-                      onTap: () => _openDetail(order, name),
-                    );
-                  },
-                ),
-                const SizedBox(height: 14),
-              ],
-              const SizedBox(height: 16),
-            ],
-            if (past.isNotEmpty) ...[
-              _OrdersSectionHeader(title: 'Past Orders'),
-              const SizedBox(height: 12),
-              for (final order in past) ...[
-                FutureBuilder<String>(
-                  future: _memberNameFuture(order.customerId),
-                  builder: (context, nameSnap) {
-                    final name = nameSnap.data ?? '…';
-                    return _OrderCard(
-                      order: order,
-                      customerName: name,
-                      restaurantFuture: _restaurantFuture(order.restaurantId),
-                      isPast: true,
-                      onTap: () => _openDetail(order, name),
-                    );
-                  },
-                ),
-                const SizedBox(height: 14),
-              ],
-            ],
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        if (active.isNotEmpty) ...[
+          _OrdersSectionHeader(title: 'Active Orders'),
+          const SizedBox(height: 12),
+          for (final order in active) ...[
+            FutureBuilder<String>(
+              future: _memberNameFuture(order.customerId),
+              builder: (context, nameSnap) {
+                final name = nameSnap.data ?? '…';
+                return _OrderCard(
+                  order: order,
+                  customerName: name,
+                  restaurantFuture: _restaurantFuture(order.restaurantId),
+                  isPast: false,
+                  onTap: () => _openDetail(order, name),
+                );
+              },
+            ),
+            const SizedBox(height: 14),
           ],
-        );
-      },
+          const SizedBox(height: 16),
+        ],
+        if (past.isNotEmpty) ...[
+          _OrdersSectionHeader(title: 'Past Orders'),
+          const SizedBox(height: 12),
+          for (final order in past) ...[
+            FutureBuilder<String>(
+              future: _memberNameFuture(order.customerId),
+              builder: (context, nameSnap) {
+                final name = nameSnap.data ?? '…';
+                return _OrderCard(
+                  order: order,
+                  customerName: name,
+                  restaurantFuture: _restaurantFuture(order.restaurantId),
+                  isPast: true,
+                  onTap: () => _openDetail(order, name),
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+          ],
+        ],
+      ],
     );
   }
 

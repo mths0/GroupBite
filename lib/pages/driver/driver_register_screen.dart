@@ -3,6 +3,7 @@ import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
+import 'package:food_delivery_platform/themes/app_theme.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:food_delivery_platform/components/loading_indicator.dart';
@@ -224,37 +225,60 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final brand = theme.extension<BrandColors>()!;
+    final hasLocation = currentPosition != null;
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Driver Registration"),
+        title: Text(
+          'Driver Registration',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: scheme.primary,
+          ),
+        ),
+        centerTitle: true,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
               child: Column(
                 children: [
                   Text(
-                    "Register as Driver",
-                    style: Theme.of(context).textTheme.titleLarge,
+                    'Register as Driver',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     widget.email,
-                    style: TextStyle(color: Colors.grey[700]),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
                   TextField(
                     controller: phoneController,
                     keyboardType: TextInputType.phone,
                     maxLength: 9,
                     decoration: InputDecoration(
-                      labelText: "Phone Number",
+                      labelText: 'Phone Number',
                       hintText: '5X XXX XXXX',
-                      prefixIcon: const Icon(Icons.phone),
+                      prefixIcon: const Icon(Icons.phone_outlined),
                       errorText: phoneErrorText,
                     ),
                   ),
@@ -266,7 +290,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
                     keyboardType: TextInputType.number,
                     maxLength: 10,
                     decoration: InputDecoration(
-                      labelText: "National ID",
+                      labelText: 'National ID',
                       errorText: nationalIdErrorText,
                       prefixIcon: const Icon(Icons.badge_outlined),
                     ),
@@ -278,7 +302,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
                     controller: nameController,
                     keyboardType: TextInputType.text,
                     decoration: InputDecoration(
-                      labelText: "Full Name",
+                      labelText: 'Full Name',
                       hintText: 'Cristiano Ronaldo',
                       errorText: nameErrorText,
                       prefixIcon: const Icon(Icons.person_outline),
@@ -287,56 +311,80 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
 
                   const SizedBox(height: 24),
 
-                  OutlinedButton.icon(
-                    onPressed: isLoading ? null : _getLocation,
-                    icon: Icon(
-                      currentPosition != null
-                          ? Icons.location_on
-                          : Icons.my_location,
-                      color: currentPosition != null ? Colors.green : null,
-                    ),
-                    label: Text(
-                      currentPosition != null
-                          ? "Location Captured"
-                          : "Get Current Location",
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: currentPosition != null
-                          ? Colors.green
-                          : null,
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: isLoading ? null : _getLocation,
+                      icon: Icon(
+                        hasLocation ? Icons.location_on : Icons.my_location,
+                        size: 18,
+                        color: hasLocation ? brand.success : null,
+                      ),
+                      label: Text(
+                        hasLocation
+                            ? 'Location Captured'
+                            : 'Get Current Location',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: scheme.surfaceContainerLowest,
+                        foregroundColor: hasLocation
+                            ? brand.success
+                            : scheme.onSurface,
+                        side: BorderSide(
+                          color: hasLocation
+                              ? brand.success.withValues(alpha: 0.4)
+                              : scheme.outlineVariant,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
                     ),
                   ),
 
                   if (locationError != null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
+                      padding: const EdgeInsets.only(top: 8),
                       child: Text(
                         locationError!,
-                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                        style: TextStyle(color: scheme.error, fontSize: 12),
                       ),
                     ),
 
                   if (generalErrorText != null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 12.0),
+                      padding: const EdgeInsets.only(top: 12),
                       child: Text(
                         generalErrorText!,
-                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                        style: TextStyle(color: scheme.error, fontSize: 12),
                       ),
                     ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
 
                   SizedBox(
                     width: double.infinity,
-                    height: 50,
+                    height: 54,
                     child: isLoading
                         ? const LoadingIndicator()
-                        : ElevatedButton(
+                        : FilledButton(
                             onPressed: validateData,
+                            style: FilledButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
                             child: const Text(
                               'Register',
-                              style: TextStyle(fontSize: 16),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                   ),

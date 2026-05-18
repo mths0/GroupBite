@@ -8,6 +8,7 @@ import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/driver/driver_active_order_card.dart';
 import 'package:food_delivery_platform/pages/driver/driver_profile_screen.dart';
+import 'package:food_delivery_platform/themes/app_theme.dart';
 import 'package:food_delivery_platform/utils/location_service.dart';
 
 class DriverDashboard extends StatefulWidget {
@@ -177,13 +178,19 @@ class _DriverDashboardState extends State<DriverDashboard>
   }
 
   Widget _buildAvailableOrdersSection() {
+    final theme = Theme.of(context);
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Text(
-            "Available Orders",
-            style: Theme.of(context).textTheme.titleMedium,
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Available Orders',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ),
         Expanded(
@@ -269,14 +276,19 @@ class _DriverDashboardState extends State<DriverDashboard>
     DatabaseService().updateDriverStatus(widget.driver.id, status);
   }
 
-  Color statusColorBasedOnStatus(DriverStatus status) {
+  ({Color background, Color foreground}) _statusColors(
+    BuildContext context,
+    DriverStatus status,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final brand = Theme.of(context).extension<BrandColors>()!;
     switch (status) {
       case DriverStatus.available:
-        return Colors.green;
+        return (background: brand.success, foreground: brand.onSuccess);
       case DriverStatus.busy:
-        return Colors.orange;
+        return (background: brand.offer, foreground: brand.onOffer);
       case DriverStatus.offline:
-        return Colors.red;
+        return (background: scheme.errorContainer, foreground: scheme.error);
     }
   }
 
@@ -344,48 +356,82 @@ class _DriverDashboardState extends State<DriverDashboard>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final status = _statusColors(context, widget.driver.status);
+    final statusLabel = widget.driver.status.name;
+    final statusText = statusLabel.isEmpty
+        ? statusLabel
+        : statusLabel[0].toUpperCase() + statusLabel.substring(1);
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        titleSpacing: 16,
         title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(widget.driver.name),
             Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(5),
-                color: statusColorBasedOnStatus(widget.driver.status),
+                color: status.background,
+                borderRadius: BorderRadius.circular(999),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  widget.driver.status.name,
-                  style: const TextStyle(color: Colors.white),
+              alignment: Alignment.center,
+              child: Text(
+                statusText,
+                style: TextStyle(
+                  color: status.foreground,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
                 ),
               ),
             ),
+            const Spacer(),
+            Text(
+              'GroupBite',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: scheme.primary,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+              ),
+            ),
           ],
+        ),
+        centerTitle: false,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
         ),
       ),
       body: _selectedIndex == 0
           ? _buildOrdersBody()
           : DriverProfileTab(driver: widget.driver),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Orders',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Divider(height: 1, color: scheme.outlineVariant),
+          NavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (index) {
+              setState(() {
+                _selectedIndex = index;
+              });
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long),
+                label: 'Orders',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: 'Account',
+              ),
+            ],
           ),
         ],
       ),
@@ -418,99 +464,99 @@ class _AvailableOrderTile extends StatelessWidget {
         final restaurantName = restaurant?.name ?? 'Restaurant';
         final imageUrl = restaurant?.imageUrl ?? '';
 
-        return Material(
-          color: scheme.surface,
-          borderRadius: BorderRadius.circular(18),
-          child: Ink(
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: scheme.outlineVariant),
-              boxShadow: [
-                BoxShadow(
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
-                  color: Colors.black.withValues(alpha: 0.06),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: imageUrl.isNotEmpty
-                            ? Image.network(
-                                imageUrl,
-                                width: 64,
-                                height: 64,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => _ImageFallback(
-                                  scheme: scheme,
-                                ),
-                              )
-                            : _ImageFallback(scheme: scheme),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              restaurantName,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
+        return Container(
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: scheme.outlineVariant, width: 1),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: imageUrl.isNotEmpty
+                          ? Image.network(
+                              imageUrl,
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => _ImageFallback(
+                                scheme: scheme,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            )
+                          : _ImageFallback(scheme: scheme),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            restaurantName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Order #${order.id}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: scheme.outline,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Order #${order.id}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on_outlined,
+                                size: 14,
+                                color: scheme.onSurfaceVariant,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.location_on_outlined,
-                                  size: 14,
-                                  color: scheme.outline,
-                                ),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    distanceLabel,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: scheme.outline,
-                                    ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  distanceLabel,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ],
-                        ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 44,
-                    child: FilledButton(
-                      onPressed: () async => onAccept(),
-                      child: const Text('Accept'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: () async => onAccept(),
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Accept',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );

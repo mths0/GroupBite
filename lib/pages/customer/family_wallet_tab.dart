@@ -592,8 +592,6 @@ class _WalletView extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _MemberAvatar(name: wallet.ownerName),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -727,8 +725,6 @@ class _MemberTile extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _MemberAvatar(name: name),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -828,50 +824,6 @@ class _MemberTile extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _MemberAvatar extends StatelessWidget {
-  const _MemberAvatar({required this.name});
-
-  final String name;
-
-  String get _initials {
-    final parts = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((p) => p.isNotEmpty)
-        .toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) {
-      final p = parts[0];
-      return (p.length >= 2 ? p.substring(0, 2) : p).toUpperCase();
-    }
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: Text(
-          _initials,
-          style: TextStyle(
-            color: scheme.onSecondaryContainer,
-            fontWeight: FontWeight.w800,
-            fontSize: 14,
-            letterSpacing: 0.4,
-          ),
-        ),
-      ),
     );
   }
 }
