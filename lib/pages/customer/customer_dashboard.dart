@@ -19,11 +19,14 @@ class CustomerDashboard extends StatefulWidget {
 class _CustomerDashboardState extends State<CustomerDashboard> {
   int _navIndex = 0;
   final PageController _pageController = PageController();
+  bool _isProgrammaticNav = false;
 
   GeoPoint? _deliveryLocation;
+  String? _addressId;
   String? _addressLabel;
   String? _addressFullText;
   bool _isLoadingAddress = true;
+  bool _hasAutoPromptedForAddress = false;
 
   @override
   void initState() {
@@ -47,29 +50,41 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       );
       if (!mounted) return;
       setState(() {
-        _deliveryLocation =
-            defaultAddress?.location ?? widget.customer.location;
         if (defaultAddress != null) {
+          _deliveryLocation = defaultAddress.location;
+          _addressId = defaultAddress.id;
           _addressLabel = defaultAddress.label;
           _addressFullText = defaultAddress.fullAddress;
-        } else if (widget.customer.location != null) {
-          _addressLabel = 'your saved location';
-          _addressFullText = null;
         } else {
+          _deliveryLocation = null;
+          _addressId = null;
           _addressLabel = null;
           _addressFullText = null;
         }
         _isLoadingAddress = false;
       });
+      _maybeAutoPromptForAddress();
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _deliveryLocation = widget.customer.location;
+        _deliveryLocation = null;
+        _addressId = null;
         _addressLabel = null;
         _addressFullText = null;
         _isLoadingAddress = false;
       });
+      _maybeAutoPromptForAddress();
     }
+  }
+
+  void _maybeAutoPromptForAddress() {
+    if (_hasAutoPromptedForAddress) return;
+    if (_deliveryLocation != null) return;
+    _hasAutoPromptedForAddress = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _openSessionAddressPicker();
+    });
   }
 
   Future<void> _openSessionAddressPicker() async {
@@ -82,9 +97,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       ),
       builder: (_) => AddressPickerSheet(
         customerId: widget.customer.id,
-        title: 'Deliver to',
-        subtitle:
-            'Pick an address for this session. Your default stays the same.',
+        selectedAddressId: _addressId,
       ),
     );
 
@@ -92,24 +105,29 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
     setState(() {
       _deliveryLocation = picked.location;
+      _addressId = picked.id;
       _addressLabel = picked.label;
       _addressFullText = picked.fullAddress;
     });
   }
 
-  void _goToPage(int index) {
+  void _goToPage(int index) async {
     setState(() {
       _navIndex = index;
+      _isProgrammaticNav = true;
     });
-    _pageController.animateToPage(
+    await _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+    if (!mounted) return;
+    setState(() => _isProgrammaticNav = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final screens = <Widget>[
       CustomerHomeScreen(
         customer: widget.customer,
@@ -126,40 +144,39 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       ),
     ];
 
-    final theme = Theme.of(context);
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Welcome, ${widget.customer.name}',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
       body: PageView(
         controller: _pageController,
-        onPageChanged: (index) => setState(() => _navIndex = index),
+        onPageChanged: (index) {
+          if (_isProgrammaticNav) return;
+          setState(() => _navIndex = index);
+        },
         children: screens,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _navIndex,
-        onDestinationSelected: _goToPage,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Orders',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Divider(height: 1, color: scheme.outlineVariant),
+          NavigationBar(
+            selectedIndex: _navIndex,
+            onDestinationSelected: _goToPage,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long),
+                label: 'Orders',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: 'Account',
+              ),
+            ],
           ),
         ],
       ),

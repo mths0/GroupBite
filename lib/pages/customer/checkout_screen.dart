@@ -253,7 +253,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         customerId: widget.customerId,
         card: SavedCard(
           id: IdGenerator.generateCardId(),
-          brand: SavedCard.brandFromNumber(input.number),
           last4: SavedCard.last4FromNumber(input.number),
           expiry: input.expiry,
           holderName: input.holderName,
@@ -348,26 +347,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
         if (placed == null) {
           // Member-only payment: no final order yet — return to home.
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => AlertDialog(
-              title: const Text('Payment Done'),
-              content: Text(
+          await _showOrderPlacedSheet(
+            title: 'Payment Done',
+            message:
                 'Your part of ${widget.total.toStringAsFixed(2)} SAR has been paid successfully.\n\n'
                 'You will now return to the home page.',
-              ),
-              actions: [
-                FilledButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  },
-                  child: const Text('Done'),
-                ),
-              ],
-            ),
+            buttonLabel: 'Done',
           );
+          if (!mounted) return;
+          Navigator.of(context).popUntil((route) => route.isFirst);
           return;
         }
 
@@ -380,57 +368,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
         widget.onOrderPlaced?.call();
 
-        final theme = Theme.of(context);
-        await showModalBottomSheet<void>(
-          context: context,
-          isScrollControlled: true,
-          isDismissible: false,
-          enableDrag: false,
-          showDragHandle: true,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          builder: (sheetCtx) => SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.check_circle,
-                        color: Colors.green,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Group Order Placed!',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Everyone has paid. The final group order has been placed successfully.',
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(sheetCtx),
-                      child: const Text('View order'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        await _showOrderPlacedSheet(
+          title: 'Group Order Placed!',
+          message: 'Everyone has paid. The group order is on its way.',
         );
 
         if (!mounted) return;
@@ -487,60 +427,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       setState(() => _isPlacingOrder = false);
 
-      final theme = Theme.of(context);
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        isDismissible: false,
-        enableDrag: false,
-        showDragHandle: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (sheetCtx) => SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.check_circle,
-                      color: Colors.green,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Order Placed!',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _deliveryTimeOption == _DeliveryTimeOption.asap
-                      ? 'Your order of ${widget.total.toStringAsFixed(2)} SAR has been placed.'
-                      : 'Your order of ${widget.total.toStringAsFixed(2)} SAR has been placed.\n'
-                            'Scheduled for: ${_formatScheduled()}',
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: FilledButton(
-                    onPressed: () => Navigator.pop(sheetCtx),
-                    child: const Text('View order'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      await _showOrderPlacedSheet(
+        title: 'Order Placed!',
+        message: _deliveryTimeOption == _DeliveryTimeOption.asap
+            ? 'Your order of ${widget.total.toStringAsFixed(2)} SAR has been placed.'
+            : 'Your order of ${widget.total.toStringAsFixed(2)} SAR has been placed.\nScheduled for ${_formatScheduled()}.',
       );
 
       if (!mounted) return;
@@ -589,6 +480,96 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // Helpers
   // ---------------------------------------------------------------------------
 
+  Future<void> _showOrderPlacedSheet({
+    required String title,
+    required String message,
+    String buttonLabel = 'View order',
+    VoidCallback? onPressed,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        final theme = Theme.of(sheetCtx);
+        final scheme = theme.colorScheme;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 96,
+                    height: 96,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFD7F0DC),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.check_rounded,
+                      color: Color(0xFF1A5E2A),
+                      size: 56,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: FilledButton(
+                    onPressed: () {
+                      Navigator.pop(sheetCtx);
+                      onPressed?.call();
+                    },
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      buttonLabel,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   String _formatScheduled() {
     if (_scheduledDateTime == null) return '';
     final dt = _scheduledDateTime!;
@@ -603,8 +584,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
+      backgroundColor: scheme.surfaceContainerLow,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new),
@@ -617,6 +599,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     : 'Pay Your Part'
               : 'Checkout',
         ),
+        scrolledUnderElevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: scheme.outlineVariant,
+          ),
+        ),
       ),
       body: _buildBody(),
       bottomNavigationBar: _buildPlaceOrderBar(),
@@ -624,21 +615,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildBody() {
+    final scheme = Theme.of(context).colorScheme;
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       children: [
-        if (_isGroupCheckout && !widget.isGroupHost) ...[
-          _SectionCard(
-            title: 'Group Member Checkout',
-            icon: Icons.groups_outlined,
-            child: Text(
-              'You are paying only your part of the group order.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-
         if (_shouldShowDeliveryTime) ...[
           _SectionCard(
             title: 'Delivery Time',
@@ -649,104 +629,151 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               onTap: _onDeliveryTimeTapped,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 28),
         ],
 
-        _SectionCard(
+        _BorderlessSectionHeader(
           title: 'Payment Method',
           icon: Icons.credit_card_outlined,
-          child: StreamBuilder<List<SavedCard>>(
-            stream: _db.streamCustomerCards(widget.customerId),
-            builder: (context, cardsSnap) {
-              final cards = cardsSnap.data ?? [];
-              final card = cards.isEmpty ? null : cards.first;
-              _syncAfterBuild(hasCard: card != null);
+        ),
+        const SizedBox(height: 12),
+        StreamBuilder<List<SavedCard>>(
+          stream: _db.streamCustomerCards(widget.customerId),
+          builder: (context, cardsSnap) {
+            final cards = cardsSnap.data ?? [];
+            final card = cards.isEmpty ? null : cards.first;
+            _syncAfterBuild(hasCard: card != null);
 
-              return StreamBuilder<double>(
-                stream: _db.streamWalletBalance(widget.customerId),
-                builder: (context, balanceSnap) {
-                  final balance = balanceSnap.data ?? 0.0;
-                  _syncAfterBuild(walletBalance: balance);
+            return StreamBuilder<double>(
+              stream: _db.streamWalletBalance(widget.customerId),
+              builder: (context, balanceSnap) {
+                final balance = balanceSnap.data ?? 0.0;
+                _syncAfterBuild(walletBalance: balance);
 
-                  return StreamBuilder<FamilyWallet?>(
-                    stream: _db.streamFamilyWalletForUser(widget.customerId),
-                    builder: (context, familySnap) {
-                      final family = familySnap.data;
-                      _syncFamilyAfterBuild(family);
+                return StreamBuilder<FamilyWallet?>(
+                  stream: _db.streamFamilyWalletForUser(widget.customerId),
+                  builder: (context, familySnap) {
+                    final family = familySnap.data;
+                    _syncFamilyAfterBuild(family);
 
-                      return Column(
-                        children: [
-                          if (card == null)
-                            _PaymentTile(
-                              label: 'Add Card',
-                              subtitle: 'No card on file — tap to add one',
-                              icon: Icons.add_card,
-                              isSelected: false,
-                              onTap: _openAddCardSheet,
-                            )
-                          else
-                            _PaymentTile(
-                              label: card.brand,
-                              subtitle: '•••• ${card.last4}',
-                              icon: Icons.credit_card_rounded,
-                              isSelected: true,
-                              onTap: null,
-                            ),
-                          const SizedBox(height: 8),
-                          _PaymentTile(
-                            label: 'Wallet',
-                            subtitle: balance > 0
-                                ? 'Balance: ${balance.toStringAsFixed(2)} SAR'
-                                : 'No balance',
-                            icon: Icons.account_balance_wallet_outlined,
-                            isSelected: _useWallet,
-                            isToggle: true,
-                            disabled: balance <= 0,
-                            onTap: () =>
-                                setState(() => _useWallet = !_useWallet),
-                          ),
-                          if (family != null) ...[
-                            const SizedBox(height: 8),
-                            _FamilyWalletTile(
-                              family: family,
-                              currentUserId: widget.customerId,
-                              isOn: _useFamilyWallet,
-                              onToggle: () => setState(
-                                () => _useFamilyWallet = !_useFamilyWallet,
-                              ),
-                              onAvailableChanged: (v) =>
-                                  _syncAfterBuild(familyAvailable: v),
-                            ),
-                          ],
-                        ],
+                    final rows = <Widget>[];
+                    if (card == null) {
+                      rows.add(
+                        _PaymentRow(
+                          icon: Icons.add_card,
+                          label: 'Add Card',
+                          subtitle: 'No card on file — tap to add one',
+                          isSelected: false,
+                          onTap: _openAddCardSheet,
+                        ),
                       );
-                    },
-                  );
-                },
-              );
-            },
-          ),
+                    } else {
+                      rows.add(
+                        _PaymentRow(
+                          icon: Icons.credit_card_rounded,
+                          label: '•••• ${card.last4}',
+                          subtitle: card.holderName,
+                          isSelected: true,
+                          onTap: null,
+                        ),
+                      );
+                    }
+                    rows.add(
+                      _PaymentRow(
+                        icon: Icons.account_balance_wallet_outlined,
+                        label: 'Personal Wallet',
+                        subtitle: balance > 0
+                            ? 'Balance: ${balance.toStringAsFixed(2)} SAR'
+                            : 'No balance',
+                        isSelected: _useWallet,
+                        isToggle: true,
+                        disabled: balance <= 0,
+                        onTap: () => setState(() => _useWallet = !_useWallet),
+                      ),
+                    );
+                    if (family != null) {
+                      rows.add(
+                        _FamilyWalletRow(
+                          family: family,
+                          currentUserId: widget.customerId,
+                          isOn: _useFamilyWallet,
+                          onToggle: () => setState(
+                            () => _useFamilyWallet = !_useFamilyWallet,
+                          ),
+                          onAvailableChanged: (v) =>
+                              _syncAfterBuild(familyAvailable: v),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      children: [
+                        for (var i = 0; i < rows.length; i++) ...[
+                          rows[i],
+                          if (i < rows.length - 1) const SizedBox(height: 10),
+                        ],
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: 28),
 
-        _SectionCard(
-          title: _isGroupCheckout ? 'Your Part Summary' : 'Order Summary',
-          icon: Icons.receipt_long_outlined,
-          child: _CheckoutSummary(
-            subtotal: widget.subtotal,
-            deliveryFee: widget.deliveryFee,
-            tax: widget.tax,
-            discount: widget.discount,
-            total: widget.total,
-            appliedCoupon: widget.appliedCoupon,
-            walletCredit: _split.wallet,
-            familyCredit: _split.family,
-            cardCharge: _split.card,
-            contributionNote: widget.groupContributionNote,
-            othersPaid: widget.groupOthersPaid,
-            ownSubtotal: widget.groupOwnSubtotal,
-            ownTax: widget.groupOwnTax,
+        Container(
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: scheme.outlineVariant, width: 1),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.receipt_long_outlined,
+                    color: scheme.primary,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    _isGroupCheckout && !widget.isGroupHost
+                        ? 'Your Part Summary'
+                        : 'Order Summary',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: scheme.outlineVariant,
+              ),
+              _CheckoutSummary(
+                cartItems: widget.cartItems,
+                subtotal: widget.subtotal,
+                deliveryFee: widget.deliveryFee,
+                tax: widget.tax,
+                discount: widget.discount,
+                total: widget.total,
+                appliedCoupon: widget.appliedCoupon,
+                walletCredit: _split.wallet,
+                familyCredit: _split.family,
+                cardCharge: _split.card,
+                contributionNote: widget.groupContributionNote,
+                othersPaid: widget.groupOthersPaid,
+                ownSubtotal: widget.groupOwnSubtotal,
+                ownTax: widget.groupOwnTax,
+              ),
+            ],
           ),
         ),
 
@@ -764,38 +791,47 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         : !_isGroupCheckout
         ? 'Place Order  •  $amount SAR'
         : widget.isGroupHost
-        ? 'Pay Last & Place Order  •  $amount SAR'
+        ? (widget.total <= 0.005
+              ? 'Place Order'
+              : 'Pay Last & Place Order  •  $amount SAR')
         : 'Pay My Part  •  $amount SAR';
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: FilledButton(
-          onPressed: disabled ? null : _placeOrder,
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: FilledButton(
+              onPressed: disabled ? null : _placeOrder,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: _isPlacingOrder
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
             ),
           ),
-          child: _isPlacingOrder
-              ? const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white,
-                  ),
-                )
-              : Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -856,7 +892,7 @@ class _SectionCard extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-/// Two-button selector for ASAP vs. Schedule delivery time.
+/// Pill-style segmented selector for Immediate vs. Schedule delivery time.
 class _DeliveryTimeSelector extends StatelessWidget {
   const _DeliveryTimeSelector({
     required this.selected,
@@ -870,34 +906,59 @@ class _DeliveryTimeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isImmediate = selected == _DeliveryTimeOption.asap;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            // ASAP tile
-            Expanded(
-              child: _DeliveryOptionTile(
-                label: 'ASAP',
-                isSelected: selected == _DeliveryTimeOption.asap,
-                onTap: () => onTap(_DeliveryTimeOption.asap),
+        Container(
+          height: 56,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _DeliveryOptionTile(
+                  label: 'Immediate',
+                  isSelected: isImmediate,
+                  onTap: () => onTap(_DeliveryTimeOption.asap),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            // Schedule tile
-            Expanded(
-              child: _DeliveryOptionTile(
-                label: 'Schedule',
-                subtitle:
-                    selected == _DeliveryTimeOption.schedule &&
-                        scheduledDateTime != null
-                    ? _formatDate(scheduledDateTime!)
-                    : 'Choose time',
-                isSelected: selected == _DeliveryTimeOption.schedule,
-                onTap: () => onTap(_DeliveryTimeOption.schedule),
+              Expanded(
+                child: _DeliveryOptionTile(
+                  label: 'Scheduled',
+                  isSelected: !isImmediate,
+                  onTap: () => onTap(_DeliveryTimeOption.schedule),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        if (!isImmediate && scheduledDateTime != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 10, left: 4),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.event_outlined,
+                  color: scheme.onSurfaceVariant,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _formatDate(scheduledDateTime!),
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -905,65 +966,57 @@ class _DeliveryTimeSelector extends StatelessWidget {
   String _formatDate(DateTime dt) {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day}/${dt.month} $h:$m';
+    return '${dt.day}/${dt.month}/${dt.year} at $h:$m';
   }
 }
 
-/// A single tile option inside the delivery time selector.
+/// A single segment inside the delivery time pill.
 class _DeliveryOptionTile extends StatelessWidget {
   const _DeliveryOptionTile({
     required this.label,
-    this.subtitle,
     required this.isSelected,
     required this.onTap,
   });
 
   final String label;
-  final String? subtitle;
   final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return GestureDetector(
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? colorScheme.primary
-                : colorScheme.outlineVariant,
-            width: isSelected ? 1.8 : 0.8,
-          ),
           color: isSelected
-              ? colorScheme.primaryContainer.withOpacity(0.25)
+              ? scheme.surfaceContainerLowest
               : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: scheme.shadow.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
         ),
-        child: Column(
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: isSelected ? colorScheme.primary : colorScheme.onSurface,
-              ),
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                subtitle!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ],
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: isSelected ? scheme.onSurface : scheme.onSurfaceVariant,
+          ),
         ),
       ),
     );
@@ -972,23 +1025,51 @@ class _DeliveryOptionTile extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-/// A payment-method tile. Renders a checkbox when [isToggle] is true (used for
-/// the wallet/family-wallet apply-toggles); otherwise renders a check icon
-/// indicating the implicit primary method.
-class _PaymentTile extends StatelessWidget {
-  const _PaymentTile({
+/// A clean, borderless section header (icon + title) used for sections that
+/// shouldn't be wrapped in a card (Payment Method, Order Summary).
+class _BorderlessSectionHeader extends StatelessWidget {
+  const _BorderlessSectionHeader({required this.title, required this.icon});
+
+  final String title;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          Icon(icon, color: scheme.primary, size: 22),
+          const SizedBox(width: 10),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Borderless payment-method row with icon, label, subtitle, and a radio/check
+/// on the right. Sits in a list separated by 1px dividers — no per-tile box.
+class _PaymentRow extends StatelessWidget {
+  const _PaymentRow({
+    required this.icon,
     required this.label,
     required this.subtitle,
-    required this.icon,
     required this.isSelected,
     required this.onTap,
     this.disabled = false,
     this.isToggle = false,
   });
 
+  final IconData icon;
   final String label;
   final String subtitle;
-  final IconData icon;
   final bool isSelected;
   final bool disabled;
   final bool isToggle;
@@ -996,68 +1077,54 @@ class _PaymentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final scheme = Theme.of(context).colorScheme;
+    final trailing = isToggle
+        ? Icon(
+            isSelected
+                ? Icons.check_box_rounded
+                : Icons.check_box_outline_blank_rounded,
+            color: isSelected ? scheme.primary : scheme.outline,
+          )
+        : Icon(
+            isSelected
+                ? Icons.radio_button_checked
+                : Icons.radio_button_unchecked,
+            color: isSelected ? scheme.primary : scheme.outline,
+          );
 
-    final Widget trailing;
-    if (isToggle) {
-      trailing = Checkbox(
-        value: isSelected,
-        onChanged: disabled || onTap == null ? null : (_) => onTap!(),
-        activeColor: colorScheme.primary,
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      );
-    } else {
-      trailing = Icon(
-        isSelected ? Icons.check_circle : Icons.circle_outlined,
-        color: isSelected ? colorScheme.primary : colorScheme.outline,
-      );
-    }
-
-    final tile = AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+    final row = AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
-          width: isSelected ? 1.8 : 0.8,
-        ),
         color: isSelected
-            ? colorScheme.primaryContainer.withOpacity(0.25)
-            : Colors.transparent,
+            ? scheme.primaryContainer.withValues(alpha: 0.15)
+            : scheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isSelected ? scheme.primary : scheme.outlineVariant,
+          width: isSelected ? 1.5 : 1,
+        ),
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: isSelected
-                ? colorScheme.primary
-                : colorScheme.surfaceContainerHigh,
-            child: Icon(
-              icon,
-              color: isSelected
-                  ? colorScheme.onPrimary
-                  : colorScheme.onSurfaceVariant,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
+          Icon(icon, color: scheme.primary, size: 24),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w700,
+                    fontSize: 15,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: disabled
-                        ? colorScheme.error
-                        : colorScheme.onSurfaceVariant,
+                    color: disabled ? scheme.error : scheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -1069,14 +1136,14 @@ class _PaymentTile extends StatelessWidget {
     );
 
     if (disabled) {
-      return Opacity(
-        opacity: 0.5,
-        child: AbsorbPointer(child: tile),
-      );
+      return Opacity(opacity: 0.5, child: AbsorbPointer(child: row));
     }
-
-    if (onTap == null) return tile;
-    return GestureDetector(onTap: onTap, child: tile);
+    if (onTap == null) return row;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: row,
+    );
   }
 }
 
@@ -1086,8 +1153,8 @@ class _PaymentTile extends StatelessWidget {
 /// (`min(remainingLimit, balance)` for members; `balance` for the owner)
 /// and reports it via [onAvailableChanged] so the checkout state can compute
 /// the payment split. Tapping toggles whether the credit is applied.
-class _FamilyWalletTile extends StatelessWidget {
-  const _FamilyWalletTile({
+class _FamilyWalletRow extends StatelessWidget {
+  const _FamilyWalletRow({
     required this.family,
     required this.currentUserId,
     required this.isOn,
@@ -1107,7 +1174,7 @@ class _FamilyWalletTile extends StatelessWidget {
 
     if (isOwner) {
       onAvailableChanged(family.balance);
-      return _PaymentTile(
+      return _PaymentRow(
         label: 'Family Wallet',
         subtitle: family.balance > 0
             ? 'Available: ${family.balance.toStringAsFixed(2)} SAR'
@@ -1146,7 +1213,7 @@ class _FamilyWalletTile extends StatelessWidget {
             ? 'Available: ${available.toStringAsFixed(2)} SAR'
             : 'No balance';
 
-        return _PaymentTile(
+        return _PaymentRow(
           label: 'Family Wallet',
           subtitle: subtitle,
           icon: Icons.family_restroom,
@@ -1165,6 +1232,7 @@ class _FamilyWalletTile extends StatelessWidget {
 /// Read-only order summary displayed at the bottom of the Checkout screen.
 class _CheckoutSummary extends StatelessWidget {
   const _CheckoutSummary({
+    required this.cartItems,
     required this.subtotal,
     required this.deliveryFee,
     required this.tax,
@@ -1180,6 +1248,7 @@ class _CheckoutSummary extends StatelessWidget {
     this.ownTax,
   });
 
+  final List<CartItem> cartItems;
   final double subtotal;
   final double deliveryFee;
   final double tax;
@@ -1197,10 +1266,11 @@ class _CheckoutSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final scheme = theme.colorScheme;
     final displaySubtotal = ownSubtotal ?? subtotal;
     final displayTax = ownTax ?? tax;
-    final lineItemsTotal = displaySubtotal + displayTax + deliveryFee;
+    final lineItemsTotal =
+        displaySubtotal + displayTax + deliveryFee - discount;
     final adjustment = total - lineItemsTotal;
     final showAdjustment = adjustment.abs() > 0.005;
     final paidByOthersTotal = othersPaid == null
@@ -1210,53 +1280,27 @@ class _CheckoutSummary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (contributionNote != null) ...[
-          Container(
-            padding: const EdgeInsets.all(10),
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: colorScheme.primary.withOpacity(0.4),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: colorScheme.primary,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    contributionNote!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        if (cartItems.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          for (final item in cartItems) _CheckoutItemRow(item: item),
+          const SizedBox(height: 14),
+          Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
         ],
+        const SizedBox(height: 14),
         _SummaryRow(label: 'Subtotal', value: displaySubtotal),
-        const SizedBox(height: 8),
-        _SummaryRow(label: 'Tax (15%)', value: displayTax),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
+        _SummaryRow(label: 'Taxes (15%)', value: displayTax),
+        const SizedBox(height: 10),
         _SummaryRow(label: 'Delivery Fee', value: deliveryFee),
         if (othersPaid != null && othersPaid!.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: Divider(height: 1),
-          ),
+          const SizedBox(height: 14),
+          Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+          const SizedBox(height: 12),
           Text(
             'Paid by other members',
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w700,
-              color: colorScheme.onSurfaceVariant,
+              color: scheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 6),
@@ -1296,7 +1340,7 @@ class _CheckoutSummary extends StatelessWidget {
           ),
         ],
         if (showAdjustment && othersPaid == null) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _SummaryRow(
             label: adjustment < 0
                 ? 'Host covers the rest'
@@ -1306,7 +1350,7 @@ class _CheckoutSummary extends StatelessWidget {
           ),
         ],
         if (appliedCoupon != null) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _SummaryRow(
             label: 'Discount (${appliedCoupon!.label})',
             value: -discount,
@@ -1314,44 +1358,116 @@ class _CheckoutSummary extends StatelessWidget {
           ),
         ],
         if (walletCredit > 0) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _SummaryRow(
-            label: 'Wallet credit',
+            label: 'Personal Wallet applied',
             value: -walletCredit,
-            valueColor: Colors.green,
+            valueColor: Colors.green.shade700,
           ),
         ],
         if (familyCredit > 0) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _SummaryRow(
-            label: 'Family Wallet credit',
+            label: 'Family Wallet applied',
             value: -familyCredit,
-            valueColor: Colors.green,
+            valueColor: Colors.green.shade700,
           ),
         ],
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 10),
-          child: Divider(height: 1),
-        ),
+        const SizedBox(height: 14),
+        Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+        const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               'Total',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
               ),
             ),
             Text(
-              '${cardCharge.toStringAsFixed(2)} SAR',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: colorScheme.primary,
+              '${total.toStringAsFixed(2)} SAR',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: scheme.primary,
               ),
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class _CheckoutItemRow extends StatelessWidget {
+  const _CheckoutItemRow({required this.item});
+
+  final CartItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  '${item.quantity}x  ${item.name}',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${item.lineTotal.toStringAsFixed(2)} SAR',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          if (item.selectedOptions.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            for (final opt in item.selectedOptions)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '· ${opt.choiceName}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    if (opt.extraPrice > 0) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '+${(opt.extraPrice * item.quantity).toStringAsFixed(2)} SAR',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -1369,7 +1485,7 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final display = value < 0
         ? '-${(-value).toStringAsFixed(2)} SAR'
         : '${value.toStringAsFixed(2)} SAR';
@@ -1379,15 +1495,18 @@ class _SummaryRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
+          style: TextStyle(
+            fontSize: 15,
+            color: scheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
           ),
         ),
         Text(
           display,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: valueColor ?? colorScheme.onSurface,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: valueColor ?? scheme.onSurface,
           ),
         ),
       ],

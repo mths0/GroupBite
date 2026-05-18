@@ -20,21 +20,15 @@ class ItemCustomizationScreen extends StatefulWidget {
 class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
   final Map<String, String> _singleSelections = {};
   final Map<String, Set<String>> _multiSelections = {};
-  String? _errorMessage;
+  final Set<String> _invalidGroupIds = {};
 
-  bool _isValid() {
-    for (final group in widget.item.optionGroups) {
-      if (!group.isRequired) continue;
-
-      if (group.multiSelect) {
-        final selected = _multiSelections[group.id] ?? <String>{};
-        if (selected.isEmpty) return false;
-      } else {
-        final selected = _singleSelections[group.id];
-        if (selected == null || selected.isEmpty) return false;
-      }
+  bool _groupHasSelection(MenuItemOptionGroup group) {
+    if (group.multiSelect) {
+      final selected = _multiSelections[group.id] ?? <String>{};
+      return selected.isNotEmpty;
     }
-    return true;
+    final selected = _singleSelections[group.id];
+    return selected != null && selected.isNotEmpty;
   }
 
   List<SelectedOptionChoice> _buildSelectedOptions() {
@@ -89,15 +83,19 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
     return widget.item.price + extras;
   }
 
-  String _choiceLabel(MenuItemOptionChoice choice) {
-    if (choice.extraPrice <= 0) return choice.name;
-    return '${choice.name} (+${choice.extraPrice.toStringAsFixed(2)} SAR)';
-  }
-
   void _confirm() {
-    if (!_isValid()) {
+    final missing = <String>{};
+    for (final group in widget.item.optionGroups) {
+      if (group.isRequired && !_groupHasSelection(group)) {
+        missing.add(group.id);
+      }
+    }
+
+    if (missing.isNotEmpty) {
       setState(() {
-        _errorMessage = 'Please complete all required options.';
+        _invalidGroupIds
+          ..clear()
+          ..addAll(missing);
       });
       return;
     }
@@ -118,209 +116,361 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
     final viewInsets = MediaQuery.of(context).viewInsets.bottom;
     final maxHeight = MediaQuery.of(context).size.height * 0.85;
 
-    return SafeArea(
-      top: false,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: Padding(
-          padding: EdgeInsets.only(bottom: viewInsets),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    AspectRatio(
-                      aspectRatio: 16 / 10,
-                      child: widget.item.imageUrl.isNotEmpty
-                          ? Image.network(
-                              widget.item.imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
-                                color: scheme.surfaceContainerHighest,
-                                child: const Center(
-                                  child: Icon(Icons.image_not_supported),
-                                ),
-                              ),
-                            )
-                          : Container(
-                              color: scheme.surfaceContainerHighest,
-                              child: const Center(
-                                child: Icon(Icons.fastfood, size: 48),
-                              ),
-                            ),
-                    ),
-                    if (_errorMessage != null)
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: scheme.errorContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              color: scheme.onErrorContainer,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: scheme.onErrorContainer,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              widget.item.name,
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: viewInsets),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 16 / 10,
+                  child: widget.item.imageUrl.isNotEmpty
+                      ? Image.network(
+                          widget.item.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                            color: scheme.surfaceContainerHighest,
+                            child: Center(
+                              child: Icon(
+                                Icons.image_not_supported_outlined,
+                                color: scheme.outline,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '${widget.item.price.toStringAsFixed(2)} SAR',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: scheme.primary,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              Text(
-                                'Incl. 15% tax',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: scheme.outline,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (widget.item.description.trim().isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: Text(
-                          widget.item.description,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: scheme.outline,
+                        )
+                      : Container(
+                          color: scheme.surfaceContainerHighest,
+                          child: Center(
+                            child: Icon(
+                              Icons.restaurant_menu,
+                              color: scheme.outline,
+                              size: 48,
+                            ),
                           ),
                         ),
-                      ),
-                    const SizedBox(height: 16),
-                    ...widget.item.optionGroups.map((group) {
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      group.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      group.isRequired ? 'Required' : 'Optional',
-                      style: TextStyle(
-                        color: group.isRequired ? Colors.red : Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    if (!group.multiSelect)
-                      ...group.choices.map((choice) {
-                        return RadioListTile<String>(
-                          value: choice.id,
-                          groupValue: _singleSelections[group.id],
-                          title: Text(_choiceLabel(choice)),
-                          onChanged: (value) {
-                            setState(() {
-                              if (value != null) {
-                                _singleSelections[group.id] = value;
-                              }
-                              _errorMessage = null;
-                            });
-                          },
-                        );
-                      }),
-
-                    if (group.multiSelect)
-                      ...group.choices.map((choice) {
-                        final selected =
-                            _multiSelections[group.id]?.contains(choice.id) ??
-                            false;
-
-                        return CheckboxListTile(
-                          value: selected,
-                          title: Text(_choiceLabel(choice)),
-                          onChanged: (value) {
-                            setState(() {
-                              final set =
-                                  _multiSelections[group.id] ?? <String>{};
-
-                              if (value == true) {
-                                set.add(choice.id);
-                              } else {
-                                set.remove(choice.id);
-                              }
-
-                              _multiSelections[group.id] = set;
-                              _errorMessage = null;
-                            });
-                          },
-                        );
-                      }),
-                  ],
                 ),
-              ),
-            );
-                    }),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: _confirm,
-                    child: Text(
-                      'Add • ${finalPrice.toStringAsFixed(2)} SAR',
+                Positioned(
+                  top: 10,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: scheme.primary,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
                     ),
                   ),
+                ),
+              ],
+            ),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    child: Text(
+                      widget.item.name,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (widget.item.description.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                      child: Text(
+                        widget.item.description,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  if (widget.item.optionGroups.isNotEmpty)
+                    Divider(
+                      height: 1,
+                      color: scheme.outlineVariant,
+                      indent: 20,
+                      endIndent: 20,
+                    ),
+                  for (var i = 0; i < widget.item.optionGroups.length; i++) ...[
+                    _OptionGroupSection(
+                      group: widget.item.optionGroups[i],
+                      invalid: _invalidGroupIds.contains(
+                        widget.item.optionGroups[i].id,
+                      ),
+                      singleSelection:
+                          _singleSelections[widget.item.optionGroups[i].id],
+                      multiSelection:
+                          _multiSelections[widget.item.optionGroups[i].id] ??
+                          const <String>{},
+                      onSingleChanged: (choiceId) {
+                        final groupId = widget.item.optionGroups[i].id;
+                        setState(() {
+                          _singleSelections[groupId] = choiceId;
+                          _invalidGroupIds.remove(groupId);
+                        });
+                      },
+                      onMultiChanged: (choiceId, selected) {
+                        final groupId = widget.item.optionGroups[i].id;
+                        setState(() {
+                          final set = _multiSelections[groupId] ?? <String>{};
+                          if (selected) {
+                            set.add(choiceId);
+                          } else {
+                            set.remove(choiceId);
+                          }
+                          _multiSelections[groupId] = set;
+                          if (set.isNotEmpty) {
+                            _invalidGroupIds.remove(groupId);
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+            SafeArea(
+              top: false,
+              minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: _confirm,
+                  child: Text(
+                    'Add  •  ${finalPrice.toStringAsFixed(2)} SAR',
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OptionGroupSection extends StatelessWidget {
+  const _OptionGroupSection({
+    required this.group,
+    required this.invalid,
+    required this.singleSelection,
+    required this.multiSelection,
+    required this.onSingleChanged,
+    required this.onMultiChanged,
+  });
+
+  final MenuItemOptionGroup group;
+  final bool invalid;
+  final String? singleSelection;
+  final Set<String> multiSelection;
+  final ValueChanged<String> onSingleChanged;
+  final void Function(String choiceId, bool selected) onMultiChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final labelColor = group.isRequired
+        ? (invalid ? scheme.error : scheme.error)
+        : scheme.onSurfaceVariant;
+    final radioColor = invalid ? scheme.error : null;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+      decoration: BoxDecoration(
+        color: invalid
+            ? scheme.errorContainer.withValues(alpha: 0.3)
+            : scheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: invalid ? scheme.error : scheme.outlineVariant,
+          width: invalid ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  group.title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                group.isRequired ? 'Required' : 'Optional',
+                style: TextStyle(
+                  color: labelColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
             ],
           ),
+          if (invalid) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Please select an option to continue',
+              style: TextStyle(
+                color: scheme.error,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          if (!group.multiSelect)
+            ...group.choices.map((choice) {
+              return _ChoiceRow(
+                label: choice.name,
+                extraPrice: choice.extraPrice,
+                selected: singleSelection == choice.id,
+                accentColor: radioColor,
+                onTap: () => onSingleChanged(choice.id),
+                multi: false,
+              );
+            }),
+          if (group.multiSelect)
+            ...group.choices.map((choice) {
+              final selected = multiSelection.contains(choice.id);
+              return _ChoiceRow(
+                label: choice.name,
+                extraPrice: choice.extraPrice,
+                selected: selected,
+                accentColor: radioColor,
+                onTap: () => onMultiChanged(choice.id, !selected),
+                multi: true,
+              );
+            }),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChoiceRow extends StatelessWidget {
+  const _ChoiceRow({
+    required this.label,
+    required this.extraPrice,
+    required this.selected,
+    required this.accentColor,
+    required this.onTap,
+    required this.multi,
+  });
+
+  final String label;
+  final double extraPrice;
+  final bool selected;
+  final Color? accentColor;
+  final VoidCallback onTap;
+  final bool multi;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final indicatorColor = accentColor ?? scheme.primary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            _Indicator(
+              selected: selected,
+              color: indicatorColor,
+              multi: multi,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            if (extraPrice > 0)
+              Text(
+                '+${extraPrice.toStringAsFixed(2)} SAR',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _Indicator extends StatelessWidget {
+  const _Indicator({
+    required this.selected,
+    required this.color,
+    required this.multi,
+  });
+
+  final bool selected;
+  final Color color;
+  final bool multi;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final borderColor = selected ? color : scheme.outline;
+    if (multi) {
+      return Container(
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: borderColor, width: 2),
+        ),
+        child: selected
+            ? Icon(Icons.check, size: 14, color: scheme.onPrimary)
+            : null,
+      );
+    }
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: borderColor, width: 2),
+      ),
+      child: selected
+          ? Center(
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color,
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

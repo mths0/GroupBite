@@ -28,6 +28,10 @@ class GroupOrder {
     this.totalSplitStrategy = 'individual', // 'individual' or 'equal'
     this.timerExtensions = 0,
     this.cancelledReason,
+    this.promoCode,
+    this.promoLabel,
+    this.promoDiscountType,
+    this.promoDiscountValue,
   });
 
   final String id;
@@ -42,6 +46,10 @@ class GroupOrder {
   final String totalSplitStrategy;
   final int timerExtensions;
   final String? cancelledReason;
+  final String? promoCode;
+  final String? promoLabel;
+  final String? promoDiscountType; // 'percentage' | 'fixed'
+  final double? promoDiscountValue;
 
   factory GroupOrder.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
@@ -67,6 +75,10 @@ class GroupOrder {
       totalSplitStrategy: data['totalSplitStrategy'] ?? 'individual',
       timerExtensions: (data['timerExtensions'] as num?)?.toInt() ?? 0,
       cancelledReason: data['cancelledReason']?.toString(),
+      promoCode: data['promoCode']?.toString(),
+      promoLabel: data['promoLabel']?.toString(),
+      promoDiscountType: data['promoDiscountType']?.toString(),
+      promoDiscountValue: (data['promoDiscountValue'] as num?)?.toDouble(),
     );
   }
 

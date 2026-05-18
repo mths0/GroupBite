@@ -14,6 +14,7 @@ class AddAddressScreen extends StatefulWidget {
     this.showBuildingDetailsField = true,
     this.showDefaultToggle = true,
     this.saveButtonText = 'Save Address',
+    this.onSubmit,
   });
 
   final CustomerAddress? existing;
@@ -23,6 +24,11 @@ class AddAddressScreen extends StatefulWidget {
   final bool showDefaultToggle;
   final String saveButtonText;
 
+  /// Optional async callback that persists the address before the screen
+  /// pops. When provided, the Save button waits for this to complete so
+  /// the caller's UI is already in sync by the time we return.
+  final Future<void> Function(CustomerAddress)? onSubmit;
+
   @override
   State<AddAddressScreen> createState() => _AddAddressScreenState();
 }
@@ -31,10 +37,24 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _labelController;
   late final TextEditingController _detailsController;
-  final loc.Location _locationController = loc.Location();
-  bool _isGettingCurrentLocation = false;
+  bool _isSaving = false;
 
-  GoogleMapController? _mapController;
+  Future<void> _openFullScreenMap() async {
+    final initialTarget = _selectedLatLng ?? _initialRiyadh;
+    final picked = await Navigator.push<LatLng>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            _LocationPickerScreen(
+              initialTarget: initialTarget,
+              initialSelection: _selectedLatLng,
+            ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    await _onMapTap(picked);
+  }
+
 
   LatLng? _selectedLatLng;
   String _resolvedAddress = '';
@@ -70,68 +90,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   void dispose() {
     _labelController.dispose();
     _detailsController.dispose();
-    _mapController?.dispose();
     super.dispose();
-  }
-
-  Future<void> _goToCurrentLocation() async {
-    setState(() => _isGettingCurrentLocation = true);
-
-    try {
-      bool serviceEnabled = await _locationController.serviceEnabled();
-      if (!serviceEnabled) {
-        serviceEnabled = await _locationController.requestService();
-        if (!serviceEnabled) {
-          setState(() => _isGettingCurrentLocation = false);
-          return;
-        }
-      }
-
-      loc.PermissionStatus permissionGranted = await _locationController
-          .hasPermission();
-
-      if (permissionGranted == loc.PermissionStatus.denied) {
-        permissionGranted = await _locationController.requestPermission();
-        if (permissionGranted != loc.PermissionStatus.granted) {
-          setState(() => _isGettingCurrentLocation = false);
-          return;
-        }
-      }
-
-      final currentLocation = await _locationController.getLocation();
-
-      if (currentLocation.latitude == null ||
-          currentLocation.longitude == null) {
-        setState(() => _isGettingCurrentLocation = false);
-        return;
-      }
-
-      final latLng = LatLng(
-        currentLocation.latitude!,
-        currentLocation.longitude!,
-      );
-
-      setState(() {
-        _selectedLatLng = latLng;
-      });
-
-      await _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: latLng, zoom: 16),
-        ),
-      );
-
-      await _onMapTap(latLng);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not get current location: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isGettingCurrentLocation = false);
-      }
-    }
   }
 
   Future<void> _onMapTap(LatLng position) async {
@@ -180,7 +139,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedLatLng == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -207,6 +166,22 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       isDefault: widget.showDefaultToggle ? _isDefault : false,
     );
 
+    final onSubmit = widget.onSubmit;
+    if (onSubmit != null) {
+      setState(() => _isSaving = true);
+      try {
+        await onSubmit(address);
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save address: $e')),
+        );
+        return;
+      }
+      if (!mounted) return;
+    }
+
     Navigator.pop(context, address);
   }
 
@@ -214,11 +189,27 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   Widget build(BuildContext context) {
     final initialTarget = _selectedLatLng ?? _initialRiyadh;
 
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Text(
           widget.title ??
               (widget.existing == null ? 'Add Address' : 'Edit Address'),
+          style: Theme
+              .of(context)
+              .textTheme
+              .titleLarge
+              ?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: scheme.primary,
+          ),
+        ),
+        centerTitle: true,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
         ),
       ),
       body: SafeArea(
@@ -227,87 +218,51 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
           key: _formKey,
           child: Column(
             children: [
-              Expanded(
-                child: Stack(
-                  children: [
-                    GoogleMap(
-                      initialCameraPosition: CameraPosition(
-                        target: initialTarget,
-                        zoom: 14,
-                      ),
-                      onMapCreated: (controller) {
-                        _mapController = controller;
-                        if (widget.existing == null &&
-                            _selectedLatLng == null) {
-                          _goToCurrentLocation();
-                        }
-                      },
-                      onTap: _onMapTap,
-                      markers: _selectedLatLng == null
-                          ? {}
-                          : {
-                              Marker(
-                                markerId: const MarkerId('selected_location'),
-                                position: _selectedLatLng!,
-                              ),
-                            },
-                    ),
-                    Positioned(
-                      right: 16,
-                      top: 16,
-                      child: FloatingActionButton.small(
-                        onPressed: _isGettingCurrentLocation
-                            ? null
-                            : _goToCurrentLocation,
-                        child: _isGettingCurrentLocation
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.my_location),
-                      ),
-                    ),
-                  ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                child: _MapPreviewCard(
+                  initialTarget: initialTarget,
+                  selected: _selectedLatLng,
+                  onTap: _openFullScreenMap,
                 ),
               ),
-              Flexible(
-                fit: FlexFit.loose,
+              Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (widget.showLabelField) ...[
+                        _FieldLabel(text: 'Label'),
+                        const SizedBox(height: 8),
                         TextFormField(
                           controller: _labelController,
                           decoration: const InputDecoration(
-                            labelText: 'Label',
                             hintText: 'Home / Work / University',
-                            border: OutlineInputBorder(),
                           ),
                           validator: (v) => (v == null || v.trim().isEmpty)
                               ? 'Required'
                               : null,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 20),
                       ],
                       if (widget.showBuildingDetailsField) ...[
+                        _FieldLabel(text: 'Home number / floor / apartment'),
+                        const SizedBox(height: 8),
                         TextFormField(
                           controller: _detailsController,
-                          decoration: const InputDecoration(
-                            labelText: 'Home number / floor / apartment',
-                            border: OutlineInputBorder(),
-                          ),
+                          decoration: const InputDecoration(),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 20),
                       ],
+                      _FieldLabel(text: 'Address'),
+                      const SizedBox(height: 8),
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
+                          color: scheme.surfaceContainer,
+                          border: Border.all(color: scheme.outlineVariant),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: _isLoadingAddress
@@ -328,24 +283,137 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                                 _resolvedAddress.isEmpty
                                     ? 'Tap on the map to choose location'
                                     : _resolvedAddress,
-                              ),
-                      ),
-                      if (widget.showDefaultToggle) ...[
-                        const SizedBox(height: 12),
-                        SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          value: _isDefault,
-                          onChanged: (v) => setState(() => _isDefault = v),
-                          title: const Text('Set as default'),
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 14,
+                            height: 1.4,
+                          ),
                         ),
-                      ],
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: _save,
-                          child: Text(widget.saveButtonText),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SafeArea(
+                top: false,
+                minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                child: Row(
+                  children: [
+                    if (widget.showDefaultToggle) ...[
+                      _DefaultToggleButton(
+                        active: _isDefault,
+                        onTap: () =>
+                            setState(() => _isDefault = !_isDefault),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: SizedBox(
+                        height: 52,
+                        child: FilledButton(
+                          onPressed: _isSaving ? null : _save,
+                          child: _isSaving
+                              ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
+                            ),
+                          )
+                              : Text(
+                            widget.saveButtonText,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapPreviewCard extends StatelessWidget {
+  const _MapPreviewCard({
+    required this.initialTarget,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final LatLng initialTarget;
+  final LatLng? selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          height: 220,
+          width: double.infinity,
+          child: Stack(
+            children: [
+              AbsorbPointer(
+                child: GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: selected ?? initialTarget,
+                    zoom: 14,
+                  ),
+                  zoomControlsEnabled: false,
+                  myLocationButtonEnabled: false,
+                  liteModeEnabled: true,
+                  markers: selected == null
+                      ? {}
+                      : {
+                    Marker(
+                      markerId: const MarkerId('selected_location'),
+                      position: selected!,
+                    ),
+                  },
+                ),
+              ),
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 14,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.primary,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.map_outlined,
+                        size: 18,
+                        color: scheme.onPrimary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Show more of the map',
+                        style: TextStyle(
+                          color: scheme.onPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -353,6 +421,229 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LocationPickerScreen extends StatefulWidget {
+  const _LocationPickerScreen({
+    required this.initialTarget,
+    required this.initialSelection,
+  });
+
+  final LatLng initialTarget;
+  final LatLng? initialSelection;
+
+  @override
+  State<_LocationPickerScreen> createState() => _LocationPickerScreenState();
+}
+
+class _LocationPickerScreenState extends State<_LocationPickerScreen> {
+  GoogleMapController? _controller;
+  late LatLng? _selected;
+  final loc.Location _locationService = loc.Location();
+  bool _isGettingCurrentLocation = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialSelection;
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _goToCurrentLocation() async {
+    setState(() => _isGettingCurrentLocation = true);
+    try {
+      var enabled = await _locationService.serviceEnabled();
+      if (!enabled) {
+        enabled = await _locationService.requestService();
+        if (!enabled) return;
+      }
+      var perm = await _locationService.hasPermission();
+      if (perm == loc.PermissionStatus.denied) {
+        perm = await _locationService.requestPermission();
+        if (perm != loc.PermissionStatus.granted) return;
+      }
+      final current = await _locationService.getLocation();
+      if (current.latitude == null || current.longitude == null) return;
+      final latLng = LatLng(current.latitude!, current.longitude!);
+      if (!mounted) return;
+      setState(() => _selected = latLng);
+      await _controller?.animateCamera(
+        CameraUpdate.newCameraPosition(
+            CameraPosition(target: latLng, zoom: 16)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not get current location: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isGettingCurrentLocation = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
+    final topInset = MediaQuery
+        .of(context)
+        .padding
+        .top;
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: _selected ?? widget.initialTarget,
+              zoom: 14,
+            ),
+            zoomControlsEnabled: false,
+            myLocationButtonEnabled: false,
+            onMapCreated: (controller) {
+              _controller = controller;
+            },
+            onTap: (pos) => setState(() => _selected = pos),
+            markers: _selected == null
+                ? {}
+                : {
+              Marker(
+                markerId: const MarkerId('selected_location'),
+                position: _selected!,
+              ),
+            },
+          ),
+          Positioned(
+            top: topInset + 8,
+            left: 16,
+            child: Material(
+              color: Colors.white.withValues(alpha: 0.95),
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.maybePop(context),
+                child: const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(Icons.arrow_back, color: Colors.black87),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 16,
+            top: topInset + 8,
+            child: FloatingActionButton.small(
+              backgroundColor: Colors.white,
+              foregroundColor: scheme.primary,
+              onPressed:
+              _isGettingCurrentLocation ? null : _goToCurrentLocation,
+              child: _isGettingCurrentLocation
+                  ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+                  : const Icon(Icons.my_location),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              minimum: const EdgeInsets.only(bottom: 12),
+              child: SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: _selected == null
+                      ? null
+                      : () => Navigator.pop(context, _selected),
+                  icon: const Icon(Icons.check_rounded),
+                  label: const Text(
+                    'Confirm Location',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _DefaultToggleButton extends StatelessWidget {
+  const _DefaultToggleButton({required this.active, required this.onTap});
+
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
+    return Material(
+      color: active ? scheme.primary : scheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: active ? scheme.primary : scheme.outlineVariant,
+          width: 1,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Tooltip(
+          message: active ? 'Default address' : 'Set as default',
+          child: SizedBox(
+            width: 52,
+            height: 52,
+            child: Icon(
+              active ? Icons.star_rounded : Icons.star_border_rounded,
+              color: active ? scheme.onPrimary : scheme.onSurfaceVariant,
+              size: 24,
+            ),
           ),
         ),
       ),

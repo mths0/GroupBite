@@ -43,40 +43,43 @@ class _MapScreenState extends State<MapScreen> {
         }
 
         final initialTarget = _customerLocationFromOrder(liveOrder);
+        final topInset = MediaQuery.of(context).padding.top;
 
         return Scaffold(
-          appBar: AppBar(
-            title: const Text("Track Order"),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Center(child: Text("Order #${liveOrder.id}")),
-              ),
-            ],
-          ),
-          body: Column(
+          extendBodyBehindAppBar: true,
+          body: Stack(
             children: [
-              Expanded(
-                child: GoogleMap(
-                  zoomControlsEnabled: false,
-                  initialCameraPosition: CameraPosition(
-                    target: initialTarget,
-                    zoom: 12,
-                  ),
-                  markers: _buildMarkers(
-                    liveOrder: liveOrder,
-                    liveDriverLocation: liveDriverLocation,
-                  ),
-                  // removed for now since it requires a proper routing solution to look good
-                  // polylines: _buildPolylines(
-                  //   liveOrder: liveOrder,
-                  //   liveDriverLocation: liveDriverLocation,
-                  // ),
+              GoogleMap(
+                zoomControlsEnabled: false,
+                myLocationButtonEnabled: false,
+                initialCameraPosition: CameraPosition(
+                  target: initialTarget,
+                  zoom: 12,
+                ),
+                markers: _buildMarkers(
+                  liveOrder: liveOrder,
+                  liveDriverLocation: liveDriverLocation,
                 ),
               ),
-              _buildBottomCard(
-                liveOrder: liveOrder,
-                driver: driver,
+              Positioned(
+                top: topInset + 8,
+                left: 16,
+                child: Material(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => Navigator.maybePop(context),
+                    child: const SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Icon(
+                        Icons.arrow_back,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

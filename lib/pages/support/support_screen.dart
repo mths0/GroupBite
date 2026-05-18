@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/pages/support/support_device_info_collector.dart';
+import 'package:food_delivery_platform/themes/app_theme.dart';
 import 'package:intl/intl.dart';
 
 class SupportScreen extends StatefulWidget {
@@ -73,6 +74,11 @@ class _SupportScreenState extends State<SupportScreen> {
     }
   }
 
+  String _shortOrderId(String id) {
+    if (id.length <= 4) return id;
+    return id.substring(id.length - 4);
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -105,10 +111,14 @@ class _SupportScreenState extends State<SupportScreen> {
       );
 
       if (!mounted) return;
+      final brand = Theme.of(context).extension<BrandColors>()!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Support request submitted! We\'ll be in touch.'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text(
+            'Request submitted!',
+            style: TextStyle(color: brand.onSuccess),
+          ),
+          backgroundColor: brand.success,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -127,10 +137,17 @@ class _SupportScreenState extends State<SupportScreen> {
   }
 
   void _showOrderPicker() {
+    final scheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: scheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.6,
       ),
       builder: (context) {
         return StreamBuilder<List<Order>>(
@@ -150,56 +167,49 @@ class _SupportScreenState extends State<SupportScreen> {
               );
             }
 
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Select Order',
-                    style: Theme.of(context).textTheme.titleLarge,
+            return SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Select Order',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    ),
                   ),
-                ),
-                const Divider(height: 1),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: orders.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final order = orders[index];
-                      final dateStr = DateFormat(
-                        'MMM dd, yyyy • HH:mm',
-                      ).format(order.createdAt);
-                      return ListTile(
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.receipt_long,
-                            color: Colors.orange,
-                          ),
-                        ),
-                        title: Text(
-                          'Order #${order.id.substring(0, 8).toUpperCase()}',
-                        ),
-                        subtitle: Text(
-                          '$dateStr\n\$${order.totalPrice.toStringAsFixed(2)} • ${order.status.name.toUpperCase()}',
-                        ),
-                        isThreeLine: true,
-                        onTap: () {
-                          setState(() => _selectedOrder = order);
-                          Navigator.pop(context);
-                        },
-                      );
-                    },
+                  Divider(height: 1, color: scheme.outlineVariant),
+                  Flexible(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: orders.length,
+                      separatorBuilder: (_, _) => Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: scheme.outlineVariant,
+                      ),
+                      itemBuilder: (context, index) {
+                        final order = orders[index];
+                        return _OrderPickerTile(
+                          order: order,
+                          shortId: _shortOrderId(order.id),
+                          onTap: () {
+                            setState(() => _selectedOrder = order);
+                            Navigator.pop(context);
+                          },
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         );
@@ -207,183 +217,426 @@ class _SupportScreenState extends State<SupportScreen> {
     );
   }
 
+  Future<void> _pickIssueCategory() async {
+    final scheme = Theme.of(context).colorScheme;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Issue Category',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+            Divider(height: 1, color: scheme.outlineVariant),
+            for (final entry in _issueTypes.entries)
+              ListTile(
+                leading: Icon(
+                  entry.value['icon'] as IconData,
+                  color: _selectedType == entry.key
+                      ? scheme.primary
+                      : scheme.onSurfaceVariant,
+                ),
+                title: Text(
+                  entry.value['label'] as String,
+                  style: TextStyle(
+                    fontWeight: _selectedType == entry.key
+                        ? FontWeight.w800
+                        : FontWeight.w500,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                trailing: _selectedType == entry.key
+                    ? Icon(Icons.check, color: scheme.primary)
+                    : null,
+                onTap: () => Navigator.pop(ctx, entry.key),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null) {
+      setState(() {
+        _selectedType = selected;
+        if (selected != 'order_problem') _selectedOrder = null;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final isOrderProblem = _selectedType == 'order_problem';
+    final currentType = _issueTypes[_selectedType]!;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Help & Support'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+        title: Text(
+          'Support',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: scheme.primary,
+          ),
+        ),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: theme.colorScheme.onSurface,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
       ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        child: Column(
           children: [
-            const Icon(
-              Icons.contact_support_rounded,
-              size: 64,
-              color: Colors.orange,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "How can we help?",
-              textAlign: TextAlign.center,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Issue Category Dropdown
-            DropdownButtonFormField<String>(
-              initialValue: _selectedType,
-              decoration: InputDecoration(
-                labelText: 'Issue Category',
-                prefixIcon: Icon(
-                  _issueTypes[_selectedType]?['icon'] ?? Icons.help_outline,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: theme.cardColor,
-              ),
-              items: _issueTypes.entries.map((entry) {
-                return DropdownMenuItem<String>(
-                  value: entry.key,
-                  child: Text(entry.value['label']),
-                );
-              }).toList(),
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() {
-                    _selectedType = val;
-                    _selectedOrder = null;
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Order Selection (Contextual)
-            if (isOrderProblem) ...[
-              InkWell(
-                onTap: _showOrderPicker,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: theme.dividerColor),
-                    borderRadius: BorderRadius.circular(12),
-                    color: theme.cardColor,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.shopping_bag_outlined,
-                        color: theme.primaryColor,
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: scheme.secondaryContainer,
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(width: 12),
+                      child: Icon(
+                        Icons.contact_support_rounded,
+                        size: 36,
+                        color: scheme.onSecondaryContainer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'How can we help?',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please fill out the form below and our team will get back to you shortly.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 14,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  _FieldLabel(label: 'Issue Category'),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
                       Expanded(
-                        child: Text(
-                          _selectedOrder == null
-                              ? "Tap to select an order"
-                              : "Order #${_selectedOrder!.id.substring(0, 8).toUpperCase()} - \$${_selectedOrder!.totalPrice}",
-                          style: TextStyle(
-                            color: _selectedOrder == null
-                                ? Colors.grey
-                                : theme.colorScheme.onSurface,
-                            fontWeight: _selectedOrder == null
-                                ? FontWeight.normal
-                                : FontWeight.bold,
+                        child: _PillSelector(
+                          icon: currentType['icon'] as IconData,
+                          label: currentType['label'] as String,
+                          trailingIcon: Icons.keyboard_arrow_down,
+                          onTap: _pickIssueCategory,
+                          bold: true,
+                        ),
+                      ),
+                      if (isOrderProblem) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _OrderSelector(
+                            order: _selectedOrder,
+                            shortId: _selectedOrder == null
+                                ? null
+                                : _shortOrderId(_selectedOrder!.id),
+                            onTap: _showOrderPicker,
                           ),
                         ),
-                      ),
-                      const Icon(Icons.chevron_right, color: Colors.grey),
+                      ],
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+                  const SizedBox(height: 24),
 
-            // Subject Field
-            TextFormField(
-              controller: _subjectController,
-              decoration: InputDecoration(
-                labelText: 'Subject',
-                hintText: 'Brief summary',
-                prefixIcon: const Icon(Icons.title),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: theme.cardColor,
-              ),
-              validator: (v) =>
-                  v?.trim().isEmpty ?? true ? 'Please enter a subject' : null,
-            ),
-            const SizedBox(height: 16),
-
-            // Details Field
-            TextFormField(
-              controller: _messageController,
-              maxLines: 4,
-              decoration: InputDecoration(
-                labelText: 'Details',
-                hintText: 'Describe your issue...',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: theme.cardColor,
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Message is required';
-                if (v.trim().length < 10) return 'Please provide more detail';
-                return null;
-              },
-            ),
-            const SizedBox(height: 32),
-
-            // Submit Button
-            SizedBox(
-              height: 54,
-              child: ElevatedButton(
-                onPressed: _isSending ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  _FieldLabel(label: 'Subject'),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _subjectController,
+                    decoration: const InputDecoration(
+                      hintText: 'Brief description of the issue',
+                      prefixIcon: Icon(Icons.title),
+                    ),
+                    validator: (v) => v?.trim().isEmpty ?? true
+                        ? 'Please enter a subject'
+                        : null,
                   ),
-                  elevation: 0,
+                  const SizedBox(height: 22),
+
+                  _FieldLabel(label: 'Details'),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _messageController,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      hintText: 'Please provide as much detail as possible...',
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Message is required';
+                      }
+                      if (v.trim().length < 10) {
+                        return 'Detail needs 10 characters minimum';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            SafeArea(
+              top: false,
+              minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton(
+                  onPressed: _isSending ? null : _submit,
+                  child: _isSending
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Submit Request',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                 ),
-                child: _isSending
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        'Submit Request',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PillSelector extends StatelessWidget {
+  const _PillSelector({
+    required this.icon,
+    required this.label,
+    required this.trailingIcon,
+    required this.onTap,
+    this.bold = false,
+    this.muted = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final IconData trailingIcon;
+  final VoidCallback onTap;
+  final bool bold;
+  final bool muted;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final foreground = muted ? scheme.onSurfaceVariant : scheme.onSurface;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: scheme.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: foreground),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 14,
+                  fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+            Icon(trailingIcon, size: 18, color: foreground),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderSelector extends StatelessWidget {
+  const _OrderSelector({
+    required this.order,
+    required this.shortId,
+    required this.onTap,
+  });
+
+  final Order? order;
+  final String? shortId;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (order == null) {
+      return _PillSelector(
+        icon: Icons.receipt_long_outlined,
+        label: 'select an order',
+        trailingIcon: Icons.chevron_right,
+        onTap: onTap,
+        muted: true,
+      );
+    }
+
+    return _PillSelector(
+      icon: Icons.receipt_long_outlined,
+      label: '#order_${shortId ?? ''}',
+      trailingIcon: Icons.keyboard_arrow_down,
+      onTap: onTap,
+      bold: true,
+    );
+  }
+}
+
+class _OrderPickerTile extends StatelessWidget {
+  const _OrderPickerTile({
+    required this.order,
+    required this.shortId,
+    required this.onTap,
+  });
+
+  final Order order;
+  final String shortId;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: _OrderTile(order: order, shortId: shortId),
+    );
+  }
+}
+
+class _OrderTile extends StatelessWidget {
+  const _OrderTile({required this.order, required this.shortId});
+
+  final Order order;
+  final String shortId;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final dateStr = DateFormat('MMM dd, yyyy').format(order.createdAt);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: scheme.secondaryContainer.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.receipt_long_rounded,
+              color: scheme.onSecondaryContainer,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '#order_$shortId',
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  '$dateStr  ·  ${order.status.name.toUpperCase()}',
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${order.totalPrice.toStringAsFixed(2)} SAR',
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

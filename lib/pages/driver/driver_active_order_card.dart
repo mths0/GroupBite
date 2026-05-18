@@ -5,7 +5,9 @@ import 'package:food_delivery_platform/models/customer.dart';
 import 'package:food_delivery_platform/models/driver.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/themes/app_theme.dart';
 import 'package:food_delivery_platform/utils/location_service.dart';
+import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DriverActiveOrderCard extends StatefulWidget {
@@ -121,28 +123,20 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
     }
   }
 
-  VoidCallback confirmDialog({required Future<void> Function() onPress}) {
-    return () {
-      showDialog(
+  VoidCallback confirmDialog({
+    required String title,
+    required String message,
+    required String confirmLabel,
+    required Future<void> Function() onPress,
+  }) {
+    return () async {
+      final ok = await showConfirmDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Confirm Action'),
-          content: const Text('Are you sure you want to proceed?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Center(child: const Text('Cancel')),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await onPress();
-              },
-              child: const Text('Confirm'),
-            ),
-          ],
-        ),
+        title: title,
+        message: message,
+        confirmLabel: confirmLabel,
       );
+      if (ok == true) await onPress();
     };
   }
 
@@ -164,233 +158,514 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: scheme.outlineVariant, width: 1),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isGoingToCustomer)
+                    _CustomerHeader(
+                      customerName: _customer?.name ?? 'Customer',
+                      orderId: widget.order.id,
+                    )
+                  else
+                    _RestaurantHeader(
+                      restaurant: _restaurant,
+                      orderId: widget.order.id,
+                    ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Items',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final item in widget.order.items)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'x${item.quantity}',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: scheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.name,
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                                if (item.customizationSummary.isNotEmpty)
+                                  Text(
+                                    item.customizationSummary,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (isGoingToRestaurant)
+          _PickupActions(
+            canMarkPickedUp: canMarkPickedUp,
+            distanceKm: restaurantDistanceKm,
+            onOpenMaps: () => _openDirections(
+              destinationLat: widget.order.restaurantLocation.latitude,
+              destinationLng: widget.order.restaurantLocation.longitude,
+            ),
+            onCall: _restaurant == null
+                ? null
+                : () => _callPhone(_saudiPhone(_restaurant!.phone)),
+            onPickedUp: canMarkPickedUp
+                ? confirmDialog(
+                    title: 'Mark as picked up?',
+                    message:
+                        'Confirm you have collected the order from the restaurant.',
+                    confirmLabel: 'Mark picked up',
+                    onPress: widget.onPickedUp,
+                  )
+                : null,
+          )
+        else if (isGoingToCustomer)
+          _DeliveryActions(
+            canMarkDelivered: canMarkDelivered,
+            distanceKm: customerDistanceKm,
+            onOpenMaps: () => _openDirections(
+              destinationLat: widget.order.customerLocation.latitude,
+              destinationLng: widget.order.customerLocation.longitude,
+            ),
+            onCall: _customer == null
+                ? null
+                : () => _callPhone(_saudiPhone(_customer!.phone)),
+            onWhatsApp: _customer == null
+                ? null
+                : () => _openWhatsApp(_customer!.phone),
+            onDelivered: canMarkDelivered
+                ? confirmDialog(
+                    title: 'Mark as delivered?',
+                    message: 'Confirm you handed the order to the customer.',
+                    confirmLabel: 'Mark delivered',
+                    onPress: widget.onDelivered,
+                  )
+                : null,
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'No active driver action for this order.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _RestaurantHeader extends StatelessWidget {
+  const _RestaurantHeader({required this.restaurant, required this.orderId});
+
+  final Restaurant? restaurant;
+  final String orderId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final imageUrl = restaurant?.imageUrl ?? '';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: imageUrl.isNotEmpty
+              ? Image.network(
+                  imageUrl,
+                  width: 64,
+                  height: 64,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => _RestaurantImageFallback(),
+                )
+              : _RestaurantImageFallback(),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: (_restaurant?.imageUrl ?? '').isNotEmpty
-                        ? Image.network(
-                            _restaurant!.imageUrl,
-                            width: 64,
-                            height: 64,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
-                              width: 64,
-                              height: 64,
-                              color: scheme.surfaceContainerHighest,
-                              alignment: Alignment.center,
-                              child: Icon(
-                                Icons.restaurant,
-                                color: scheme.outline,
-                              ),
-                            ),
-                          )
-                        : Container(
-                            width: 64,
-                            height: 64,
-                            color: scheme.surfaceContainerHighest,
-                            alignment: Alignment.center,
-                            child: Icon(
-                              Icons.restaurant,
-                              color: scheme.outline,
-                            ),
-                          ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _restaurant?.name ?? 'Restaurant',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Order #${widget.order.id}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.outline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
               Text(
-                'Items',
-                style: theme.textTheme.titleSmall?.copyWith(
+                restaurant?.name ?? 'Restaurant',
+                style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 6),
-              for (final item in widget.order.items)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'x${item.quantity}',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: scheme.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.name,
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                            if (item.customizationSummary.isNotEmpty)
-                              Text(
-                                item.customizationSummary,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: scheme.outline,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+              const SizedBox(height: 4),
+              Text(
+                'Order #$orderId',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
                 ),
-              const SizedBox(height: 16),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
 
-              if (isGoingToRestaurant) ...[
-                const Text(
-                  "Go to Restaurant",
-                  style: TextStyle(fontWeight: FontWeight.bold),
+class _RestaurantImageFallback extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 64,
+      height: 64,
+      color: scheme.surfaceContainerHigh,
+      alignment: Alignment.center,
+      child: Icon(Icons.restaurant, color: scheme.onSurfaceVariant),
+    );
+  }
+}
+
+class _CustomerHeader extends StatelessWidget {
+  const _CustomerHeader({required this.customerName, required this.orderId});
+
+  final String customerName;
+  final String orderId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 64,
+          height: 64,
+          child: Icon(
+            Icons.person_outline,
+            color: scheme.onSurface,
+            size: 44,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                customerName,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: () => _openDirections(
-                    destinationLat: widget.order.restaurantLocation.latitude,
-                    destinationLng: widget.order.restaurantLocation.longitude,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Order #$orderId',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PickupActions extends StatelessWidget {
+  const _PickupActions({
+    required this.canMarkPickedUp,
+    required this.distanceKm,
+    required this.onOpenMaps,
+    required this.onCall,
+    required this.onPickedUp,
+  });
+
+  final bool canMarkPickedUp;
+  final double distanceKm;
+  final VoidCallback onOpenMaps;
+  final VoidCallback? onCall;
+  final VoidCallback? onPickedUp;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final brand = theme.extension<BrandColors>()!;
+    return Container(
+      color: scheme.surface,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Divider(height: 1, color: scheme.outlineVariant),
+          SafeArea(
+            top: false,
+            minimum: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SecondaryAction(
+                        icon: Icons.navigation_outlined,
+                        label: 'Google Maps',
+                        onPressed: onOpenMaps,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _SecondaryAction(
+                        icon: Icons.call_outlined,
+                        label: 'Call Restaurant',
+                        onPressed: onCall,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: FilledButton(
+                    onPressed: onPickedUp,
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Picked Up',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                  icon: const Icon(Icons.navigation),
-                  label: const Text("Open Google Maps"),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: _restaurant == null
-                      ? null
-                      : () => _callPhone(_saudiPhone(_restaurant!.phone)),
-                  icon: const Icon(Icons.call),
-                  label: const Text("Call Restaurant"),
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: canMarkPickedUp
-                      ? confirmDialog(onPress: widget.onPickedUp)
-                      : null,
-                  child: const Text("Picked Up"),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   canMarkPickedUp
                       ? 'You are close enough to the restaurant.'
-                      : 'Move closer to the restaurant (${restaurantDistanceKm.toStringAsFixed(2)} km away).',
+                      : 'Move closer to the restaurant (${distanceKm.toStringAsFixed(2)} km away).',
                   style: TextStyle(
-                    color: canMarkPickedUp ? Colors.green : scheme.error,
+                    color: canMarkPickedUp ? brand.success : scheme.error,
                     fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-              if (isGoingToCustomer) ...[
-                const Text(
-                  "Go to Customer",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                if (_customer != null) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.person_outline,
-                        size: 18,
-                        color: scheme.outline,
+class _DeliveryActions extends StatelessWidget {
+  const _DeliveryActions({
+    required this.canMarkDelivered,
+    required this.distanceKm,
+    required this.onOpenMaps,
+    required this.onCall,
+    required this.onWhatsApp,
+    required this.onDelivered,
+  });
+
+  final bool canMarkDelivered;
+  final double distanceKm;
+  final VoidCallback onOpenMaps;
+  final VoidCallback? onCall;
+  final VoidCallback? onWhatsApp;
+  final VoidCallback? onDelivered;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final brand = theme.extension<BrandColors>()!;
+    return Container(
+      color: scheme.surface,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Divider(height: 1, color: scheme.outlineVariant),
+          SafeArea(
+            top: false,
+            minimum: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SecondaryAction(
+                        icon: Icons.navigation_outlined,
+                        label: 'Google Maps',
+                        onPressed: onOpenMaps,
                       ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _customer!.name,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                    ),
+                    const SizedBox(width: 10),
+                    _CircleAction(
+                      icon: Icons.phone_rounded,
+                      filled: true,
+                      onTap: onCall,
+                    ),
+                    const SizedBox(width: 10),
+                    _CircleAction(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      filled: false,
+                      onTap: onWhatsApp,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: FilledButton(
+                    onPressed: onDelivered,
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                    ],
+                    ),
+                    child: const Text(
+                      'Delivered',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ],
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: () => _openDirections(
-                    destinationLat: widget.order.customerLocation.latitude,
-                    destinationLng: widget.order.customerLocation.longitude,
-                  ),
-                  icon: const Icon(Icons.navigation),
-                  label: const Text("Open Google Maps"),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: _customer == null
-                      ? null
-                      : () => _callPhone(_saudiPhone(_customer!.phone)),
-                  icon: const Icon(Icons.call),
-                  label: const Text("Call Customer"),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: _customer == null
-                      ? null
-                      : () => _openWhatsApp(_customer!.phone),
-                  icon: const Icon(Icons.chat),
-                  label: const Text("WhatsApp Customer"),
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: canMarkDelivered
-                      ? confirmDialog(onPress: widget.onDelivered)
-                      : null,
-                  child: const Text("Delivered"),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   canMarkDelivered
                       ? 'You are close enough to the customer.'
-                      : 'Move closer to the customer (${customerDistanceKm.toStringAsFixed(2)} km away).',
+                      : 'Move closer to the customer (${distanceKm.toStringAsFixed(2)} km away).',
                   style: TextStyle(
-                    color: canMarkDelivered ? Colors.green : scheme.error,
+                    color: canMarkDelivered ? brand.success : scheme.error,
                     fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-              if (!isGoingToRestaurant && !isGoingToCustomer)
-                const Text("No active driver action for this order."),
-            ],
+class _CircleAction extends StatelessWidget {
+  const _CircleAction({
+    required this.icon,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final bool filled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      shape: const CircleBorder(),
+      color: filled ? scheme.primary : scheme.surfaceContainerLowest,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: filled
+                ? null
+                : Border.all(color: scheme.outlineVariant, width: 1),
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            icon,
+            size: 20,
+            color: filled ? scheme.onPrimary : scheme.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SecondaryAction extends StatelessWidget {
+  const _SecondaryAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18),
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: scheme.surfaceContainerLowest,
+          foregroundColor: scheme.onSurface,
+          side: BorderSide(color: scheme.outlineVariant),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
       ),

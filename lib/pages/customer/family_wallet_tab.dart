@@ -5,6 +5,7 @@ import 'package:food_delivery_platform/models/family_wallet.dart';
 import 'package:food_delivery_platform/models/family_wallet_invite.dart';
 import 'package:food_delivery_platform/models/family_wallet_member.dart';
 import 'package:food_delivery_platform/pages/customer/add_funds_sheet.dart';
+import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
 
 class FamilyWalletTab extends StatefulWidget {
   const FamilyWalletTab({
@@ -153,53 +154,147 @@ class _InviteListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final first = invites.first;
+    final rest = invites.skip(1).toList();
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
       children: [
         Text(
-          'Family Wallet Invitations',
-          style: theme.textTheme.titleMedium?.copyWith(
+          "You're Invited",
+          textAlign: TextAlign.center,
+          style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 12),
-        ...invites.map(
-          (invite) => Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${invite.ownerName} invited you to their family wallet',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => _reject(context, invite.id),
-                          child: const Text('Decline'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: () => _accept(context, invite.id),
-                          child: const Text('Accept'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+        const SizedBox(height: 14),
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: first.ownerName,
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
+              TextSpan(
+                text: ' invited you to their family wallet.',
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 32),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: () => _reject(context, first.id),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(54),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              side: BorderSide(color: scheme.outlineVariant),
+              foregroundColor: scheme.onSurface,
+            ),
+            child: const Text(
+              'Decline',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ),
         ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: () => _accept(context, first.id),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(54),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: const Text(
+              'Accept Invitation',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+        if (rest.isNotEmpty) ...[
+          const SizedBox(height: 32),
+          Divider(color: scheme.outlineVariant, height: 1),
+          const SizedBox(height: 20),
+          Text(
+            'Other invitations',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...rest.map(
+                (invite) =>
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: scheme.outlineVariant),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          '${invite.ownerName} invited you',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => _reject(context, invite.id),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(48),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  side: BorderSide(
+                                      color: scheme.outlineVariant),
+                                  foregroundColor: scheme.onSurface,
+                                ),
+                                child: const Text('Decline'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () => _accept(context, invite.id),
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(48),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                child: const Text('Accept'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ),
+        ],
       ],
     );
   }
@@ -255,24 +350,11 @@ class _WalletView extends StatelessWidget {
   }
 
   Future<void> _removeMember(BuildContext context, String memberId) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showDestructiveConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remove member?'),
-        content: const Text(
-          'They will lose access to the family wallet immediately.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
+      title: 'Remove member?',
+      message: 'They will lose access to the family wallet immediately.',
+      confirmLabel: 'Remove',
     );
     if (confirmed != true) return;
     try {
@@ -307,22 +389,11 @@ class _WalletView extends StatelessWidget {
   }
 
   Future<void> _leave(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showDestructiveConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Leave family wallet?'),
-        content: const Text('You will lose access to the shared balance.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Center(child: const Text('Cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Leave'),
-          ),
-        ],
-      ),
+      title: 'Leave family wallet?',
+      message: 'You will lose access to the shared balance.',
+      confirmLabel: 'Leave',
     );
     if (confirmed != true) return;
     try {
@@ -336,24 +407,12 @@ class _WalletView extends StatelessWidget {
   }
 
   Future<void> _deleteWallet(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showDestructiveConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete family wallet?'),
-        content: Text(
+      title: 'Delete family wallet?',
+      message:
           'Balance of ${wallet.balance.toStringAsFixed(2)} SAR will be refunded to your personal wallet. Members will lose access.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Center(child: const Text('Cancel')),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Delete',
     );
     if (confirmed != true) return;
     try {
@@ -372,80 +431,192 @@ class _WalletView extends StatelessWidget {
     final theme = Theme.of(context);
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
-        // Balance card
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.family_restroom, color: scheme.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      wallet.name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+        Container(
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+          decoration: BoxDecoration(
+            color: scheme.primary,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              Positioned(
+                right: -10,
+                top: -10,
+                child: Icon(
+                  Icons.family_restroom,
+                  size: 120,
+                  color: scheme.onPrimary.withValues(alpha: 0.08),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'FAMILY WALLET',
+                    style: TextStyle(
+                      color: scheme.onPrimary.withValues(alpha: 0.7),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'SAR',
+                        style: TextStyle(
+                          color: scheme.onPrimary,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        wallet.balance.toStringAsFixed(2),
+                        style: TextStyle(
+                          color: scheme.onPrimary,
+                          fontSize: 34,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (isOwner) ...[
+                    const SizedBox(height: 18),
+                    Material(
+                      color: scheme.secondaryContainer,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => _addFunds(context),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 22,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.add_rounded,
+                                color: scheme.onSecondaryContainer,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Top Up',
+                                style: TextStyle(
+                                  color: scheme.onSecondaryContainer,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '${wallet.balance.toStringAsFixed(2)} SAR',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: scheme.primary,
-                  ),
-                ),
-                if (isOwner) ...[
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () => _addFunds(context),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add funds'),
-                    ),
-                  ),
                 ],
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 14),
+
+        if (isOwner) ...[
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _addMember(context),
+              style: FilledButton.styleFrom(
+                backgroundColor: scheme.primary,
+                foregroundColor: scheme.onPrimary,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(Icons.person_add_alt),
+              label: const Text(
+                'Add Member',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ] else
+          const SizedBox(height: 14),
 
         // Members
-        Text(
-          'Members',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Members',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            if (isOwner)
+              IconButton(
+                tooltip: 'Delete Family Wallet',
+                onPressed: () => _deleteWallet(context),
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  color: scheme.error,
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 12),
 
-        Card(
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: scheme.primary,
-              child: Text(
-                wallet.ownerName.isNotEmpty
-                    ? wallet.ownerName[0].toUpperCase()
-                    : 'O',
-                style: TextStyle(color: scheme.onPrimary),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: scheme.outlineVariant, width: 1),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      wallet.ownerName,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    _RoleBadge(
+                      label: 'Owner',
+                      background: scheme.primary,
+                      foreground: scheme.onPrimary,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            title: Text(wallet.ownerName),
-            trailing: Chip(
-              label: const Text('Owner'),
-              visualDensity: VisualDensity.compact,
-              backgroundColor: scheme.primaryContainer,
-            ),
+            ],
           ),
         ),
+        const SizedBox(height: 10),
         StreamBuilder<List<FamilyWalletMember>>(
           stream: db.streamFamilyWalletMembers(wallet.id),
           builder: (context, snap) {
@@ -454,52 +625,30 @@ class _WalletView extends StatelessWidget {
                 m.userId: m
             };
             return Column(
-              children: wallet.memberIds.map((memberId) {
-                final m = byId[memberId];
-                final showProgress = isOwner || memberId == currentUserId;
-                return _MemberTile(
-                  memberId: memberId,
-                  member: showProgress ? m : null,
-                  isCurrentUser: memberId == currentUserId,
-                  isOwnerView: isOwner,
-                  onRemove: () => _removeMember(context, memberId),
-                  onLeave: () => _leave(context),
-                  onEdit: () => _editLimit(context, memberId, m),
-                );
-              }).toList(),
+              children: [
+                for (final memberId in wallet.memberIds) ...[
+                  _MemberTile(
+                    memberId: memberId,
+                    member:
+                    (isOwner || memberId == currentUserId)
+                        ? byId[memberId]
+                        : null,
+                    isCurrentUser: memberId == currentUserId,
+                    isOwnerView: isOwner,
+                    onRemove: () => _removeMember(context, memberId),
+                    onLeave: () => _leave(context),
+                    onEdit: () => _editLimit(context, memberId, byId[memberId]),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
             );
           },
         ),
 
         if (isOwner) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _addMember(context),
-              icon: const Icon(Icons.person_add_alt),
-              label: const Text('Add Member'),
-            ),
-          ),
           const SizedBox(height: 24),
           _PendingInvitesSection(walletId: wallet.id, db: db),
-          const SizedBox(height: 24),
-          SafeArea(
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _deleteWallet(context),
-                icon: Icon(Icons.delete_outline, color: scheme.error),
-                label: Text(
-                  'Delete Family Wallet',
-                  style: TextStyle(color: scheme.error),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: scheme.error),
-                ),
-              ),
-            ),
-          ),
         ],
       ],
     );
@@ -536,35 +685,23 @@ class _MemberTile extends StatelessWidget {
     final spent = m == null ? 0.0 : m.effectiveSpent(DateTime.now());
     final progress = hasLimit ? (spent / m.limit!).clamp(0.0, 1.0) : 0.0;
     final atOrOverLimit = hasLimit && spent >= m.limit!;
-    final showProgressBar = m != null;
 
-    String subtitle;
-    if (m == null) {
-      subtitle = 'No limit';
-    } else if (m.limit == null) {
-      subtitle = 'No limit';
-    } else {
-      subtitle =
-          '${spent.toStringAsFixed(0)} / ${m.limit!.toStringAsFixed(0)} SAR  ·  ${limitPeriodLabel(m.period)}';
-    }
-
-    final trailingButtons = <Widget>[];
+    final actions = <Widget>[];
     if (isOwnerView) {
-      trailingButtons.add(IconButton(
-        icon: const Icon(Icons.tune),
-        onPressed: onEdit,
-        tooltip: 'Edit limit',
-      ));
-      trailingButtons.add(IconButton(
+      actions.add(IconButton(
         icon: const Icon(Icons.person_remove_outlined),
         onPressed: onRemove,
         tooltip: 'Remove',
+        color: scheme.error,
+        visualDensity: VisualDensity.compact,
       ));
     } else if (isCurrentUser) {
-      trailingButtons.add(IconButton(
+      actions.add(IconButton(
         icon: const Icon(Icons.exit_to_app),
         onPressed: onLeave,
         tooltip: 'Leave',
+        color: scheme.error,
+        visualDensity: VisualDensity.compact,
       ));
     }
 
@@ -572,63 +709,155 @@ class _MemberTile extends StatelessWidget {
       future: db.getUserById(memberId),
       builder: (context, snap) {
         final name = snap.data?.name ?? memberId;
-        final initial = name.isNotEmpty ? name[0].toUpperCase() : 'M';
 
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                CircleAvatar(
-                  backgroundColor: scheme.surfaceContainerHigh,
-                  child: Text(initial),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        return Material(
+          color: scheme.surfaceContainerLowest,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: scheme.outlineVariant, width: 1),
+          ),
+          child: InkWell(
+            onTap: isOwnerView ? onEdit : null,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text(
-                        name,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: atOrOverLimit
-                              ? scheme.error
-                              : scheme.onSurfaceVariant,
-                        ),
-                      ),
-                      if (showProgressBar && hasLimit) ...[
-                        const SizedBox(height: 6),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 6,
-                            backgroundColor: scheme.surfaceContainerHigh,
-                            valueColor: AlwaysStoppedAnimation(
-                              atOrOverLimit
-                                  ? scheme.error
-                                  : scheme.primary,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 6),
+                            _RoleBadge(
+                              label: 'Member',
+                              background: scheme.surfaceContainerHigh,
+                              foreground: scheme.onSurfaceVariant,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                      ...actions,
                     ],
                   ),
-                ),
-                ...trailingButtons,
-              ],
+                  if (m != null) ...[
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Text(
+                          'Spending',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (hasLimit)
+                          Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: spent.toStringAsFixed(0),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: atOrOverLimit
+                                        ? scheme.error
+                                        : scheme.onSurface,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: ' / ${m.limit!.toStringAsFixed(0)} SAR',
+                                  style: TextStyle(
+                                    color: scheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                        ),
+                            style: theme.textTheme.bodyMedium,
+                          )
+                        else
+                          Text(
+                            'No limit',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (hasLimit) ...[
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 6,
+                          backgroundColor: scheme.surfaceContainerHigh,
+                          valueColor: AlwaysStoppedAnimation(
+                            atOrOverLimit ? scheme.error : scheme.secondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          limitPeriodLabel(m.period),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+class _RoleBadge extends StatelessWidget {
+  const _RoleBadge({
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
+        ),
+      ),
     );
   }
 }
@@ -795,87 +1024,142 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
 
     return Padding(
       padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 8,
+        left: 20,
+        right: 20,
+        top: 4,
         bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
       ),
       child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Add Member',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Add Member',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _phoneController,
-              autofocus: true,
-              keyboardType: TextInputType.phone,
-              maxLength: 9,
-              decoration: InputDecoration(
-                labelText: 'Phone Number',
-                prefixIcon: const Icon(Icons.phone_outlined),
-                border: const OutlineInputBorder(),
-                errorText: _error,
-                errorStyle: TextStyle(color: scheme.error),
+              const SizedBox(height: 20),
+              _SheetLabel('Phone Number'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _phoneController,
+                autofocus: true,
+                keyboardType: TextInputType.phone,
+                maxLength: 9,
+                decoration: InputDecoration(
+                  hintText: 'Phone Number',
+                  prefixIcon: const Icon(Icons.phone_outlined),
+                  errorText: _error,
+                  errorStyle: TextStyle(color: scheme.error),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _limitController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-              ],
-              decoration: const InputDecoration(
-                labelText: 'Spending Limit (optional)',
-                hintText: 'Leave blank for no limit',
-                prefixIcon: Icon(Icons.speed_outlined),
-                suffixText: 'SAR',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 18),
+              _SheetLabel('Limit'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _limitController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: false,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
+                decoration: const InputDecoration(
+                  hintText: 'Spending Limit (optional)',
+                  prefixIcon: Icon(Icons.speed_outlined),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<LimitPeriod>(
-              value: _period,
-              onChanged: _hasLimit
-                  ? (v) => setState(() => _period = v ?? LimitPeriod.manual)
-                  : null,
-              decoration: InputDecoration(
-                labelText: 'Reset',
-                prefixIcon: const Icon(Icons.event_repeat),
-                border: const OutlineInputBorder(),
-                helperText:
-                    _hasLimit ? null : 'Set a limit to choose a reset cadence',
-              ),
-              items: LimitPeriod.values
-                  .map((p) => DropdownMenuItem(
+              const SizedBox(height: 18),
+              _SheetLabel('How the limit resets'),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<LimitPeriod>(
+                initialValue: _period,
+                onChanged: _hasLimit
+                    ? (v) =>
+                    setState(() => _period = v ?? LimitPeriod.manual)
+                    : null,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.restart_alt_outlined),
+                ),
+                items: LimitPeriod.values
+                    .map(
+                      (p) =>
+                      DropdownMenuItem(
                         value: p,
-                        child: Text(limitPeriodLabel(p)),
-                      ))
-                  .toList(),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _busy ? null : _submit,
-                child: _busy
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Send Invite'),
+                        child: Text(_resetCadenceLabel(p)),
+                      ),
+                )
+                    .toList(),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 54,
+                child: FilledButton(
+                  onPressed: _busy ? null : _submit,
+                  child: _busy
+                      ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
+                      : const Text(
+                    'Send Invite',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _resetCadenceLabel(LimitPeriod p) {
+  switch (p) {
+    case LimitPeriod.daily:
+      return 'Daily';
+    case LimitPeriod.weekly:
+      return 'Weekly';
+    case LimitPeriod.monthly:
+      return 'Monthly';
+    case LimitPeriod.manual:
+      return 'Manual';
+  }
+}
+
+class _SheetLabel extends StatelessWidget {
+  const _SheetLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -975,93 +1259,175 @@ class _EditLimitSheetState extends State<_EditLimitSheet> {
     }
   }
 
+  Future<void> _removeLimit() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.db.setMemberLimit(
+        walletId: widget.walletId,
+        userId: widget.memberId,
+        limit: null,
+        period: LimitPeriod.manual,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = '$e';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final showResetButton = _period == LimitPeriod.manual &&
         (widget.member?.spentInPeriod ?? 0) > 0;
+    final hasExistingLimit = widget.member?.limit != null;
 
     return Padding(
       padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 8,
+        left: 20,
+        right: 20,
+        top: 4,
         bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
       ),
       child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Edit Limit',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Edit Limit',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _limitController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Spending Limit',
-                hintText: 'Leave blank for no limit',
-                prefixIcon: const Icon(Icons.speed_outlined),
-                suffixText: 'SAR',
-                border: const OutlineInputBorder(),
-                errorText: _error,
-                errorStyle: TextStyle(color: scheme.error),
+              const SizedBox(height: 20),
+              _SheetLabel('Limit'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _limitController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: false,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
+                decoration: InputDecoration(
+                  hintText: 'Spending Limit',
+                  prefixIcon: const Icon(Icons.speed_outlined),
+                  errorText: _error,
+                  errorStyle: TextStyle(color: scheme.error),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<LimitPeriod>(
-              value: _period,
-              onChanged: _hasLimit
-                  ? (v) => setState(() => _period = v ?? LimitPeriod.manual)
-                  : null,
-              decoration: InputDecoration(
-                labelText: 'Reset',
-                prefixIcon: const Icon(Icons.event_repeat),
-                border: const OutlineInputBorder(),
-                helperText: _hasLimit
-                    ? 'Changing the period resets the spent total'
-                    : 'Set a limit to choose a reset cadence',
-              ),
-              items: LimitPeriod.values
-                  .map((p) => DropdownMenuItem(
+              const SizedBox(height: 18),
+              _SheetLabel('How the limit resets'),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<LimitPeriod>(
+                initialValue: _period,
+                onChanged: _hasLimit
+                    ? (v) =>
+                    setState(() => _period = v ?? LimitPeriod.manual)
+                    : null,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.restart_alt_outlined),
+                ),
+                items: LimitPeriod.values
+                    .map(
+                      (p) =>
+                      DropdownMenuItem(
                         value: p,
-                        child: Text(limitPeriodLabel(p)),
-                      ))
-                  .toList(),
-            ),
-            if (showResetButton) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _busy ? null : _resetSpend,
-                icon: const Icon(Icons.restart_alt),
-                label: const Text('Reset spending'),
+                        child: Text(_resetCadenceLabel(p)),
+                      ),
+                )
+                    .toList(),
+              ),
+              if (showResetButton) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _resetSpend,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: scheme.surfaceContainerLowest,
+                    foregroundColor: scheme.onSurface,
+                    minimumSize: const Size.fromHeight(52),
+                    side: BorderSide(color: scheme.outlineVariant),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  icon: const Icon(Icons.restart_alt),
+                  label: const Text(
+                    'Reset spending',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+              if (hasExistingLimit) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _removeLimit,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: scheme.errorContainer.withValues(
+                      alpha: 0.35,
+                    ),
+                    foregroundColor: scheme.error,
+                    minimumSize: const Size.fromHeight(52),
+                    side: BorderSide(
+                      color: scheme.error.withValues(alpha: 0.35),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  icon: const Icon(Icons.do_not_disturb_alt_outlined),
+                  label: const Text(
+                    'Remove limit',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 54,
+                child: FilledButton(
+                  onPressed: _busy ? null : _save,
+                  child: _busy
+                      ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
+                      : const Text(
+                    'Save',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ),
             ],
-            const SizedBox(height: 20),
-            SizedBox(
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _busy ? null : _save,
-                child: _busy
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Save'),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

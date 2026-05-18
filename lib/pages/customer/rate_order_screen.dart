@@ -65,13 +65,20 @@ class _RateOrderSheetState extends State<RateOrderSheet> {
     required ValueChanged<int> onChanged,
   }) {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(5, (index) {
         final starValue = index + 1;
-        return IconButton(
-          onPressed: () => onChanged(starValue),
-          icon: Icon(
-            starValue <= currentValue ? Icons.star : Icons.star_border,
-            color: Colors.amber,
+        final filled = starValue <= currentValue;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: InkResponse(
+            onTap: () => onChanged(starValue),
+            radius: 26,
+            child: Icon(
+              filled ? Icons.star_rounded : Icons.star_outline_rounded,
+              size: 38,
+              color: const Color(0xFFE9C176),
+            ),
           ),
         );
       }),
@@ -94,51 +101,68 @@ class _RateOrderSheetState extends State<RateOrderSheet> {
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Center(
-              child: Text(
-                'Rate Your Order',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+            Text(
+              'Rate Your Order',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 20),
-            const Text(
+            const SizedBox(height: 24),
+            Text(
               'Restaurant Rating',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: scheme.onSurface,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
             ),
+            const SizedBox(height: 12),
             _buildStars(
               currentValue: _restaurantRating,
               onChanged: (value) {
                 setState(() => _restaurantRating = value);
               },
             ),
-            const SizedBox(height: 20),
-            const Text(
+            const SizedBox(height: 24),
+            Text(
               'Driver Rating',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: scheme.onSurface,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
             ),
+            const SizedBox(height: 12),
             _buildStars(
               currentValue: _driverRating,
               onChanged: (value) {
                 setState(() => _driverRating = value);
               },
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              height: 54,
+              child: FilledButton(
                 onPressed: _isSubmitting ? null : _submit,
                 child: _isSubmitting
                     ? const SizedBox(
                         width: 22,
                         height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: Colors.white,
+                        ),
                       )
-                    : const Text('Submit Rating'),
+                    : const Text(
+                        'Submit Rating',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
               ),
             ),
           ],

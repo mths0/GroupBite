@@ -1,6 +1,76 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// Brand-specific semantic colors that don't fit Material's ColorScheme.
+/// Access with `Theme.of(context).extension<BrandColors>()!`.
+class BrandColors extends ThemeExtension<BrandColors> {
+  const BrandColors({
+    required this.offer,
+    required this.onOffer,
+    required this.openStatus,
+    required this.onOpenStatus,
+    required this.success,
+    required this.onSuccess,
+  });
+
+  final Color offer;
+  final Color onOffer;
+  final Color openStatus;
+  final Color onOpenStatus;
+  final Color success;
+  final Color onSuccess;
+
+  static const BrandColors light = BrandColors(
+    offer: Color(0xFFFFF1C9),
+    onOffer: Color(0xFF7A5500),
+    openStatus: Color(0xFFD7F0DC),
+    onOpenStatus: Color(0xFF1A5E2A),
+    success: Color(0xFF1A5E2A),
+    onSuccess: Color(0xFFFFFFFF),
+  );
+
+  static const BrandColors dark = BrandColors(
+    offer: Color(0xFF4A3A00),
+    onOffer: Color(0xFFFFE9A8),
+    openStatus: Color(0xFF1F4A29),
+    onOpenStatus: Color(0xFFB7E5C2),
+    success: Color(0xFF2E6B3D),
+    onSuccess: Color(0xFFFFFFFF),
+  );
+
+  @override
+  BrandColors copyWith({
+    Color? offer,
+    Color? onOffer,
+    Color? openStatus,
+    Color? onOpenStatus,
+    Color? success,
+    Color? onSuccess,
+  }) {
+    return BrandColors(
+      offer: offer ?? this.offer,
+      onOffer: onOffer ?? this.onOffer,
+      openStatus: openStatus ?? this.openStatus,
+      onOpenStatus: onOpenStatus ?? this.onOpenStatus,
+      success: success ?? this.success,
+      onSuccess: onSuccess ?? this.onSuccess,
+    );
+  }
+
+  @override
+  BrandColors lerp(ThemeExtension<BrandColors>? other, double t) {
+    if (other is! BrandColors) return this;
+    return BrandColors(
+      offer: Color.lerp(offer, other.offer, t)!,
+      onOffer: Color.lerp(onOffer, other.onOffer, t)!,
+      openStatus: Color.lerp(openStatus, other.openStatus, t)!,
+      onOpenStatus: Color.lerp(onOpenStatus, other.onOpenStatus, t)!,
+      success: Color.lerp(success, other.success, t)!,
+      onSuccess: Color.lerp(onSuccess, other.onSuccess, t)!,
+    );
+  }
+}
+
 /// Light scheme: "Sophisticated Navy & Gold" (see Design.md).
 /// Dark scheme: "Nocturnal Elegance" (see Dark Mode Design.md).
 class AppTheme {
@@ -84,14 +154,22 @@ class AppTheme {
     scrim: Color(0xFF000000),
   );
 
-  static ThemeData get lightTheme => _build(lightColorScheme, _lightTextTheme);
-  static ThemeData get darkTheme => _build(darkColorScheme, _darkTextTheme);
+  static ThemeData get lightTheme =>
+      _build(lightColorScheme, _lightTextTheme, BrandColors.light);
 
-  static ThemeData _build(ColorScheme scheme, TextTheme textTheme) {
+  static ThemeData get darkTheme =>
+      _build(darkColorScheme, _darkTextTheme, BrandColors.dark);
+
+  static ThemeData _build(
+    ColorScheme scheme,
+    TextTheme textTheme,
+    BrandColors brandColors,
+  ) {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       brightness: scheme.brightness,
+      extensions: <ThemeExtension<dynamic>>[brandColors],
       textTheme: textTheme.apply(
         bodyColor: scheme.onSurface,
         displayColor: scheme.onSurface,
@@ -163,6 +241,29 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(_radiusLg)),
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: scheme.surface,
+        indicatorColor: scheme.primary,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? scheme.onPrimary
+                : scheme.onSurfaceVariant,
+          ),
+        ),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 12,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w700
+                : FontWeight.w500,
+            color: states.contains(WidgetState.selected)
+                ? scheme.onSurface
+                : scheme.onSurfaceVariant,
+          ),
         ),
       ),
     );

@@ -146,9 +146,26 @@ class _DriverLocationGateState extends State<DriverLocationGate>
     }
 
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Location Required')),
+      appBar: AppBar(
+        title: Text(
+          'Location Required',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: scheme.primary,
+          ),
+        ),
+        centerTitle: true,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -162,14 +179,14 @@ class _DriverLocationGateState extends State<DriverLocationGate>
                   Icon(
                     Icons.location_on_outlined,
                     size: 64,
-                    color: theme.colorScheme.primary,
+                    color: scheme.primary,
                   ),
                   const SizedBox(height: 18),
                   Text(
                     'Share your live location',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -178,29 +195,81 @@ class _DriverLocationGateState extends State<DriverLocationGate>
                         'Checking location permission before opening driver mode.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: scheme.onSurfaceVariant,
+                      height: 1.4,
                     ),
                   ),
                   const SizedBox(height: 24),
                   if (_isChecking)
                     const Center(child: CircularProgressIndicator())
                   else ...[
-                    FilledButton.icon(
-                      onPressed: _verifyAndShareLocation,
-                      icon: const Icon(Icons.my_location),
-                      label: const Text('Try Again'),
+                    SizedBox(
+                      height: 54,
+                      child: FilledButton.icon(
+                        onPressed: _verifyAndShareLocation,
+                        icon: const Icon(Icons.my_location),
+                        label: const Text(
+                          'Try Again',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: Geolocator.openLocationSettings,
-                      icon: const Icon(Icons.settings_outlined),
-                      label: const Text('Location Settings'),
+                    SizedBox(
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: Geolocator.openLocationSettings,
+                        icon: const Icon(Icons.settings_outlined, size: 18),
+                        label: const Text(
+                          'Location Settings',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: scheme.surfaceContainerLowest,
+                          foregroundColor: scheme.onSurface,
+                          side: BorderSide(color: scheme.outlineVariant),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: Geolocator.openAppSettings,
-                      icon: const Icon(Icons.app_settings_alt_outlined),
-                      label: const Text('App Settings'),
+                    SizedBox(
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: Geolocator.openAppSettings,
+                        icon: const Icon(
+                          Icons.app_settings_alt_outlined,
+                          size: 18,
+                        ),
+                        label: const Text(
+                          'App Settings',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: scheme.surfaceContainerLowest,
+                          foregroundColor: scheme.onSurface,
+                          side: BorderSide(color: scheme.outlineVariant),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
+import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
 
 class PromotionsScreen extends StatefulWidget {
   const PromotionsScreen({super.key, required this.restaurantId});
@@ -38,28 +39,11 @@ class _PromotionsScreenState extends State<PromotionsScreen> {
   }
 
   Future<void> _delete(String promoId, String title) async {
-    final primary = Theme.of(context).colorScheme.primary;
-
-    final ok = await showDialog<bool>(
+    final ok = await showDestructiveConfirmDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Delete promotion?"),
-        content: Text("Delete “$title”?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text("Delete"),
-          ),
-        ],
-      ),
+      title: "Delete promotion?",
+      message: "Delete “$title”?",
+      confirmLabel: "Delete",
     );
     if (ok != true) return;
     await _promosCol.doc(promoId).delete();
