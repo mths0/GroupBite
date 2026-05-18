@@ -74,9 +74,9 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 8,
+          left: 20,
+          right: 20,
+          top: 4,
           bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
         ),
         child: StreamBuilder<List<SavedCard>>(
@@ -86,7 +86,6 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
             final savedCard = cards.isEmpty ? null : cards.first;
             final hasSaved = savedCard != null;
 
-            // Force "new" when there's no saved card.
             final useNewCard = !hasSaved || _choice == _CardChoice.newCard;
 
             return Form(
@@ -96,52 +95,49 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      widget.title,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        widget.title,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
                     TextFormField(
                       controller: _amountController,
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
+                        signed: false,
                       ),
                       inputFormatters: [
                         FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                       ],
                       decoration: const InputDecoration(
-                        labelText: 'Amount',
+                        hintText: 'Amount',
                         prefixIcon: Icon(Icons.payments_outlined),
-                        suffixText: 'SAR',
-                        border: OutlineInputBorder(),
                       ),
                       validator: _validateAmount,
                     ),
 
                     if (hasSaved) ...[
-                      const SizedBox(height: 20),
-                      Text(
-                        'Pay with',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 22),
+                      _SectionLabel('PAY WITH'),
+                      const SizedBox(height: 10),
                       _CardChoiceTile(
-                        title: '${savedCard.brand}  ••••  ${savedCard.last4}',
+                        title: 'Card ••••  ${savedCard.last4}',
                         subtitle: savedCard.holderName,
                         icon: Icons.credit_card_rounded,
                         isSelected: _choice == _CardChoice.saved,
                         onTap: () =>
                             setState(() => _choice = _CardChoice.saved),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       _CardChoiceTile(
                         title: 'Use another card',
-                        subtitle: 'Won’t be saved to your account',
+                        subtitle: "Won't be saved to your account",
                         icon: Icons.add_card,
                         isSelected: _choice == _CardChoice.newCard,
                         onTap: () =>
@@ -150,17 +146,11 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
                     ],
 
                     if (useNewCard) ...[
-                      const SizedBox(height: 16),
-                      if (!hasSaved)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            'Card details',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.outline,
-                            ),
-                          ),
-                        ),
+                      const SizedBox(height: 22),
+                      if (hasSaved) ...[
+                        _SectionLabel('CARD DETAILS'),
+                        const SizedBox(height: 12),
+                      ],
                       CardFormFields(
                         numberController: _numberController,
                         expiryController: _expiryController,
@@ -169,12 +159,18 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
                       ),
                     ],
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 24),
                     SizedBox(
-                      height: 50,
-                      child: ElevatedButton(
+                      height: 54,
+                      child: FilledButton(
                         onPressed: () => _confirm(useNewCard: useNewCard),
-                        child: const Text('Confirm'),
+                        child: const Text(
+                          'Confirm',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -182,6 +178,29 @@ class _AddFundsSheetState extends State<AddFundsSheet> {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: scheme.onSurfaceVariant,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.4,
         ),
       ),
     );
@@ -209,49 +228,56 @@ class _CardChoiceTile extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected ? scheme.primary : scheme.outlineVariant,
-            width: isSelected ? 1.8 : 0.8,
+            width: isSelected ? 1.5 : 1,
           ),
           color: isSelected
-              ? scheme.primaryContainer.withOpacity(0.25)
-              : Colors.transparent,
+              ? scheme.primaryContainer.withValues(alpha: 0.18)
+              : scheme.surfaceContainerLowest,
         ),
         child: Row(
           children: [
-            Icon(icon, color: isSelected ? scheme.primary : scheme.outline),
-            const SizedBox(width: 12),
+            Icon(
+              icon,
+              color: isSelected ? scheme.primary : scheme.onSurfaceVariant,
+              size: 22,
+            ),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    style: TextStyle(
                       color: scheme.onSurfaceVariant,
+                      fontSize: 13,
                     ),
                   ),
                 ],
               ),
             ),
-            Radio<bool>(
-              value: true,
-              groupValue: isSelected ? true : null,
-              onChanged: (_) => onTap(),
-              activeColor: scheme.primary,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected ? scheme.primary : scheme.outline,
             ),
           ],
         ),

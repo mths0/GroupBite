@@ -168,6 +168,17 @@ class DatabaseService {
     });
   }
 
+  Stream<Customer?> streamCustomerById(String customerId) {
+    return _db.collection('users').doc(customerId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+
+      final data = doc.data();
+      if (data == null) return null;
+
+      return Customer.fromMap(data);
+    });
+  }
+
   User _userFromMap(Map<String, dynamic> map) {
     switch (map['role']) {
       case 'driver':
@@ -269,6 +280,7 @@ class DatabaseService {
     required List<OrderItem> items,
     DateTime? scheduledFor,
     String? familyWalletId,
+    String? groupOrderId,
   }) async {
     final orderId = IdGenerator.generateOrderId();
     final docRef = _db.collection('orders').doc(orderId);
@@ -306,6 +318,8 @@ class DatabaseService {
       'restaurantRating': null,
       'driverRating': null,
       'familyWalletId': familyWalletId,
+      'groupOrderId': groupOrderId,
+      'paymentRefunded': false,
     });
 
     final snapshot = await docRef.get();
@@ -330,8 +344,25 @@ class DatabaseService {
   }
 
   Future<void> restaurantRejectOrder(String orderId) async {
-    await _db.collection('orders').doc(orderId).update({
-      'status': OrderStatus.rejected.name,
+    final orderRef = _db.collection('orders').doc(orderId);
+
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(orderRef);
+      if (!snapshot.exists) {
+        throw Exception('Order not found.');
+      }
+
+      final data = snapshot.data() as Map<String, dynamic>;
+
+      final orderUpdates = <String, dynamic>{
+        'status': OrderStatus.rejected.name,
+      };
+      await _addRefundToCustomerWallet(
+        tx: transaction,
+        orderData: data,
+        orderUpdates: orderUpdates,
+      );
+      transaction.update(orderRef, orderUpdates);
     });
   }
 
@@ -433,12 +464,54 @@ class DatabaseService {
         throw Exception('Cancellation time has expired.');
       }
 
-      transaction.update(orderRef, {
+      final orderUpdates = <String, dynamic>{
         'status': OrderStatus.cancelled.name,
         'cancelledAt': firestore.FieldValue.serverTimestamp(),
         'cancelledBy': customerId,
-      });
+      };
+      await _addRefundToCustomerWallet(
+        tx: transaction,
+        orderData: data,
+        orderUpdates: orderUpdates,
+      );
+      transaction.update(orderRef, orderUpdates);
     });
+  }
+
+  /// Mutates [orderUpdates] with refund flags and writes the wallet credit
+  /// inside [tx]. Must be called before any writes happen in [tx], because it
+  /// reads the wallet doc. No-op if the order has already been refunded, is a
+  /// group final order (group flow handles its own refunds), has no customer,
+  /// or has a non-positive total.
+  Future<void> _addRefundToCustomerWallet({
+    required firestore.Transaction tx,
+    required Map<String, dynamic> orderData,
+    required Map<String, dynamic> orderUpdates,
+  }) async {
+    if (orderData['paymentRefunded'] == true) return;
+    final groupOrderId = (orderData['groupOrderId'] ?? '').toString();
+    if (groupOrderId.isNotEmpty) return;
+    final customerId = (orderData['customerId'] ?? '').toString();
+    if (customerId.isEmpty) return;
+    final total = (orderData['totalPrice'] as num?)?.toDouble() ?? 0.0;
+    if (total <= 0) return;
+
+    final walletRef = _walletDoc(customerId);
+    final walletSnap = await tx.get(walletRef);
+    if (walletSnap.exists) {
+      tx.update(walletRef, {
+        'balance': firestore.FieldValue.increment(total),
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+    } else {
+      tx.set(walletRef, {
+        'balance': total,
+        'updatedAt': firestore.FieldValue.serverTimestamp(),
+      });
+    }
+    orderUpdates['paymentRefunded'] = true;
+    orderUpdates['refundedAmount'] = total;
+    orderUpdates['refundedAt'] = firestore.FieldValue.serverTimestamp();
   }
 
   /// Ends the customer-cancel window early so the restaurant sees the order
@@ -506,11 +579,17 @@ class DatabaseService {
       if (deadline == null) return false;
       if (now.isBefore(deadline.toDate())) return false;
 
-      transaction.update(orderRef, {
+      final orderUpdates = <String, dynamic>{
         'status': OrderStatus.cancelled.name,
         'cancelledAt': firestore.FieldValue.serverTimestamp(),
         'cancelledBy': 'system',
-      });
+      };
+      await _addRefundToCustomerWallet(
+        tx: transaction,
+        orderData: data,
+        orderUpdates: orderUpdates,
+      );
+      transaction.update(orderRef, orderUpdates);
       return true;
     });
   }
@@ -703,6 +782,35 @@ class DatabaseService {
     await _groupOrders.doc(groupOrderId).update({
       ...data,
       'updatedAt': firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<cart_models.Coupon> applyGroupPromoCode({
+    required String groupOrderId,
+    required String restaurantId,
+    required String code,
+  }) async {
+    final coupon = await validateCoupon(restaurantId: restaurantId, code: code);
+    if (coupon == null) {
+      throw Exception('Invalid or expired promo code.');
+    }
+    await updateGroupOrder(groupOrderId, {
+      'promoCode': coupon.code,
+      'promoLabel': coupon.label,
+      'promoDiscountType': coupon.discountType == cart_models.CouponDiscountType.fixed
+          ? 'fixed'
+          : 'percentage',
+      'promoDiscountValue': coupon.discountValue,
+    });
+    return coupon;
+  }
+
+  Future<void> clearGroupPromoCode(String groupOrderId) async {
+    await updateGroupOrder(groupOrderId, {
+      'promoCode': null,
+      'promoLabel': null,
+      'promoDiscountType': null,
+      'promoDiscountValue': null,
     });
   }
 
@@ -1449,13 +1557,28 @@ class DatabaseService {
     final deliveryFee = restaurant?.deliveryFee ?? 0.0;
 
     final tax = subtotal * kTaxRate;
-    final total = subtotal + tax + deliveryFee;
+    final gross = subtotal + tax + deliveryFee;
+
+    final promoType = groupData['promoDiscountType']?.toString();
+    final promoValue = (groupData['promoDiscountValue'] as num?)?.toDouble();
+    double discount = 0;
+    if (promoType != null && promoValue != null) {
+      final base = subtotal + tax;
+      if (promoType == 'fixed') {
+        discount = promoValue.clamp(0.0, base).toDouble();
+      } else {
+        discount = base * (promoValue / 100);
+        if (discount > base) discount = base;
+      }
+    }
+    final total = (gross - discount).clamp(0.0, double.infinity).toDouble();
 
     final placedOrder = await addOrder(
       customerId: customerId,
       restaurantId: restaurantId,
       totalPrice: total,
       items: orderItems,
+      groupOrderId: groupOrderId,
     );
 
     await groupRef.update({

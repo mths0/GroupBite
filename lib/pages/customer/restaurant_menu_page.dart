@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:food_delivery_platform/cart/cart_controller.dart';
 import 'package:food_delivery_platform/cart/cart_scope.dart';
@@ -16,6 +17,8 @@ import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/group_order_summary_screen.dart';
 import 'package:food_delivery_platform/pages/customer/item_customization_screen.dart';
+import 'package:food_delivery_platform/themes/app_theme.dart';
+import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class RestaurantMenuPage extends StatefulWidget {
@@ -112,27 +115,14 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
 
     if (!mounted) return false;
 
-    final bool? shouldLeave = await showDialog<bool>(
+    final bool? shouldLeave = await showDestructiveConfirmDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isHost ? 'End Group Order?' : 'Leave Group Order?'),
-        content: Text(
-          isHost
-              ? 'As the host, leaving will cancel the group order for everyone. Are you sure?'
-              : 'Leaving will remove you from the group and delete your items. Are you sure?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Stay'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(isHost ? 'End Order' : 'Leave Group'),
-          ),
-        ],
-      ),
+      title: isHost ? 'End Group Order?' : 'Leave Group Order?',
+      message: isHost
+          ? 'As the host, leaving will cancel the group order for everyone. Are you sure?'
+          : 'Leaving will remove you from the group and delete your items. Are you sure?',
+      confirmLabel: isHost ? 'End Order' : 'Leave Group',
+      cancelLabel: 'Stay',
     );
 
     if (shouldLeave == true) {
@@ -146,15 +136,73 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
     return false;
   }
 
+  final GlobalKey _naturalChipBarKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     _menuFuture = DatabaseService().getMenuForRestaurant(
       restaurantId: widget.restaurant.id,
     );
+    _scrollController.addListener(_onScrollUpdate);
+  }
+
+  void _onScrollUpdate() {
+    final keyContext = _naturalChipBarKey.currentContext;
+    if (keyContext == null) return;
+    final renderObject = keyContext.findRenderObject();
+    if (renderObject is! RenderBox) return;
+    final position = renderObject.localToGlobal(Offset.zero);
+    final topInset = MediaQuery.of(context).padding.top;
+    final pinned = position.dy <= topInset + _chipBarTopPadding;
+    if (pinned != _isChipBarPinned) {
+      setState(() => _isChipBarPinned = pinned);
+    }
   }
 
   late final Future<List<MenuItem>> _menuFuture;
+
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _sectionKeys = {};
+  int _selectedTabIndex = 0;
+
+  static const double _chipBarHeight = 65;
+  static const double _chipBarTopPadding = 56;
+
+  bool _isChipBarPinned = false;
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScrollUpdate);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  GlobalKey _sectionKey(String category) {
+    return _sectionKeys.putIfAbsent(category, () => GlobalKey());
+  }
+
+  void _onChipTap(List<String> tabs, int index) {
+    setState(() => _selectedTabIndex = index);
+    final keyContext = _sectionKeys[tabs[index]]?.currentContext;
+    if (keyContext == null) return;
+    final renderObject = keyContext.findRenderObject();
+    if (renderObject is! RenderBox) return;
+    final viewport = RenderAbstractViewport.of(renderObject);
+    final revealOffset = viewport.getOffsetToReveal(renderObject, 0).offset;
+    final position = _scrollController.position;
+    final topInset = MediaQuery.of(context).padding.top;
+    final pinnedHeight = _chipBarHeight + topInset + _chipBarTopPadding;
+    final target = (revealOffset - pinnedHeight).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -173,145 +221,118 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new),
-            onPressed: () async {
-              final shouldPop = await _handleBackAction();
-              if (shouldPop && context.mounted) {
-                Navigator.pop(context);
-              }
-            },
-          ),
-        ),
+        body: Stack(
+          children: [
+            FutureBuilder<List<MenuItem>>(
+              future: _menuFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-        body: FutureBuilder<List<MenuItem>>(
-          future: _menuFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (snapshot.hasError) {
-              return Center(
-                child: Text('Failed to load menu items: ${snapshot.error}'),
-              );
-            }
-
-            final items = snapshot.data ?? const <MenuItem>[];
-
-            return StreamBuilder<
-              firestore.DocumentSnapshot<Map<String, dynamic>>
-            >(
-              stream: _restaurantStream,
-              builder: (context, restaurantSnap) {
-                final tabs = _extractCategories(
-                  restaurantSnap.data?.data(),
-                );
-
-                if (tabs.isEmpty) {
-                  return Column(
-                    children: [
-                      HeaderCard(restaurant: widget.restaurant),
-                      const Expanded(
-                        child: Center(child: Text('No menu categories yet')),
-                      ),
-                    ],
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Failed to load menu items: ${snapshot.error}',
+                    ),
                   );
                 }
 
-                return DefaultTabController(
-                  key: ValueKey(tabs.join('|')),
-                  length: tabs.length,
-                  child: Column(
-                    children: [
-                      HeaderCard(restaurant: widget.restaurant),
+                final items = snapshot.data ?? const <MenuItem>[];
 
-                      const SizedBox(height: 8),
+                return StreamBuilder<
+                  firestore.DocumentSnapshot<Map<String, dynamic>>
+                >(
+                  stream: _restaurantStream,
+                  builder: (context, restaurantSnap) {
+                    final tabs = _extractCategories(
+                      restaurantSnap.data?.data(),
+                    );
 
-                      if (widget.groupOrderId == null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: _startGroupOrder,
-                            icon: const Icon(Icons.group_add),
-                            label: const Text('Start Group Order'),
+                    if (tabs.isEmpty) {
+                      return Column(
+                        children: [
+                          _RestaurantHero(
+                            imageUrl: widget.restaurant.imageUrl,
                           ),
-                        )
-                      else
-                        _GroupOrderStatusBar(
-                          groupOrderId: widget.groupOrderId!,
-                          customerId: widget.customer.id,
-                          autoShowQr: widget.showGroupQrOnOpen,
-                          onSummaryTap: _navigateToGroupOrderSummary,
-                        ),
+                          HeaderCard(restaurant: widget.restaurant),
+                          const Expanded(
+                            child: Center(
+                              child: Text('No menu categories yet'),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
 
-                      const SizedBox(height: 8),
+                final topInset = MediaQuery.of(context).padding.top;
 
-                      TabBar(
-                        isScrollable: true,
-                        labelColor: scheme.primary,
-                        unselectedLabelColor: scheme.outline,
-                        indicatorColor: scheme.primary,
-                        tabs: tabs.map((t) => Tab(text: t)).toList(),
-                      ),
-
-                      Expanded(
-                        child: StreamBuilder<List<GroupOrderItem>>(
-                          stream: widget.groupOrderId == null
-                              ? null
-                              : DatabaseService()
+                return StreamBuilder<List<GroupOrderItem>>(
+                      stream: widget.groupOrderId == null
+                          ? null
+                          : DatabaseService()
                               .watchGroupItems(widget.groupOrderId!),
-                          builder: (context, groupItemsSnap) {
-                            final groupItems =
-                                groupItemsSnap.data ??
-                                    const <GroupOrderItem>[];
-                            return TabBarView(
-                          children: tabs.map((cat) {
+                      builder: (context, groupItemsSnap) {
+                        final groupItems =
+                            groupItemsSnap.data ?? const <GroupOrderItem>[];
+
+                        final rows = <Widget>[];
+                        for (final cat in tabs) {
                             final filtered = items
                                 .where((e) => e.category == cat)
                                 .toList();
-
+                            rows.add(
+                              Padding(
+                                key: _sectionKey(cat),
+                                padding: const EdgeInsets.fromLTRB(0, 20, 0, 12),
+                                child: Text(
+                                  cat,
+                                  style: theme.textTheme.headlineSmall
+                                      ?.copyWith(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                            );
                             if (filtered.isEmpty) {
-                              return const Center(child: Text('No items'));
+                              rows.add(
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  child: Text(
+                                    'No items',
+                                    style: TextStyle(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              );
+                              continue;
                             }
+                            for (var i = 0; i < filtered.length; i++) {
+                              final item = filtered[i];
 
-                            return ListView.separated(
-                              padding: const EdgeInsets.all(16),
-                              itemCount: filtered.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 12),
-                              itemBuilder: (context, index) {
-                                final item = filtered[index];
-
-                                Future<void> handleTap() async {
-                                  ItemCustomizationResult? customization;
-
-                                  if (item.optionGroups.isNotEmpty) {
-                                    customization =
-                                        await showModalBottomSheet<
-                                          ItemCustomizationResult
-                                        >(
-                                          context: context,
-                                          isScrollControlled: true,
-                                          useSafeArea: true,
-                                          showDragHandle: true,
-                                          clipBehavior: Clip.antiAlias,
-                                          shape: const RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.vertical(
-                                              top: Radius.circular(20),
-                                            ),
+                              Future<void> handleTap() async {
+                                  final customization =
+                                      await showModalBottomSheet<
+                                        ItemCustomizationResult
+                                      >(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        useSafeArea: true,
+                                        clipBehavior: Clip.antiAlias,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(
+                                            top: Radius.circular(20),
                                           ),
-                                          builder: (_) =>
-                                              ItemCustomizationScreen(
-                                                item: item,
-                                              ),
-                                        );
+                                        ),
+                                        builder: (_) =>
+                                            ItemCustomizationScreen(
+                                              item: item,
+                                            ),
+                                      );
 
-                                    if (customization == null) {
-                                      return;
-                                    }
+                                  if (customization == null) {
+                                    return;
                                   }
 
                                   if (widget.groupOrderId == null) {
@@ -319,10 +340,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                       restaurantId: restaurantId,
                                       item: item,
                                       selectedOptions:
-                                          customization?.selectedOptions ??
-                                          const [],
+                                          customization.selectedOptions,
                                       customUnitPrice:
-                                          customization?.finalUnitPrice,
+                                          customization.finalUnitPrice,
                                     );
 
                                     if (!context.mounted) return;
@@ -377,10 +397,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                     memberId: widget.customer.id,
                                     menuItem: item,
                                     selectedOptions:
-                                        customization?.selectedOptions ??
-                                        const [],
+                                        customization.selectedOptions,
                                     customUnitPrice:
-                                        customization?.finalUnitPrice,
+                                        customization.finalUnitPrice,
                                   );
 
                                   if (!context.mounted) return;
@@ -469,14 +488,22 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                     );
                                   }
 
-                                  return _MenuItemTile(
-                                    item: item,
-                                    count: myCount,
-                                    onAdd: handleTap,
-                                    onIncrement: myCount > 0
-                                        ? handleGroupIncrement
-                                        : null,
+                                  rows.add(
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: _MenuItemTile(
+                                        item: item,
+                                        count: myCount,
+                                        onAdd: handleTap,
+                                        onIncrement: myCount > 0
+                                            ? handleGroupIncrement
+                                            : null,
+                                      ),
+                                    ),
                                   );
+                                  continue;
                                 }
 
                                 Future<void> handleIncrement() async {
@@ -520,81 +547,202 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                   );
                                 }
 
-                                return AnimatedBuilder(
-                                  animation: cart,
-                                  builder: (_, _) => _MenuItemTile(
-                                    item: item,
-                                    count: cart.quantityForMenuItem(
-                                      restaurantId: restaurantId,
-                                      menuItemId: item.id,
+                                rows.add(
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: 12,
                                     ),
-                                    onAdd: handleTap,
-                                    onIncrement: handleIncrement,
+                                    child: AnimatedBuilder(
+                                      animation: cart,
+                                      builder: (_, _) => _MenuItemTile(
+                                        item: item,
+                                        count: cart.quantityForMenuItem(
+                                          restaurantId: restaurantId,
+                                          menuItemId: item.id,
+                                        ),
+                                        onAdd: handleTap,
+                                        onIncrement: handleIncrement,
+                                      ),
+                                    ),
                                   ),
                                 );
-                              },
-                            );
-                          }).toList(),
-                            );
-                          },
+                              }
+                            }
+
+                        return Stack(
+                          children: [
+                            CustomScrollView(
+                          controller: _scrollController,
+                          cacheExtent: 10000,
+                          slivers: [
+                            SliverToBoxAdapter(
+                              child: Column(
+                                children: [
+                                  _RestaurantHero(
+                                    imageUrl: widget.restaurant.imageUrl,
+                                  ),
+                                  Transform.translate(
+                                    offset: const Offset(0, -32),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      child: HeaderCard(
+                                        restaurant: widget.restaurant,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SliverToBoxAdapter(
+                              child: widget.groupOrderId == null
+                                  ? Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        child: FilledButton.icon(
+                                          onPressed: _startGroupOrder,
+                                          icon: const Icon(Icons.group_add),
+                                          label: const Text(
+                                            'Start Group Order',
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : _GroupOrderStatusBar(
+                                      groupOrderId: widget.groupOrderId!,
+                                      customerId: widget.customer.id,
+                                      autoShowQr: widget.showGroupQrOnOpen,
+                                      onSummaryTap:
+                                          _navigateToGroupOrderSummary,
+                                    ),
+                            ),
+                            SliverToBoxAdapter(
+                              child: Container(
+                                key: _naturalChipBarKey,
+                                color: scheme.surface,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      child: _CategoryChipBar(
+                                        tabs: tabs,
+                                        selectedIndex: _selectedTabIndex.clamp(
+                                          0,
+                                          tabs.length - 1,
+                                        ),
+                                        onSelect: (i) => _onChipTap(tabs, i),
+                                      ),
+                                    ),
+                                    Divider(
+                                      height: 1,
+                                      color: scheme.outlineVariant,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                0,
+                                16,
+                                120,
+                              ),
+                              sliver: SliverList(
+                                delegate: SliverChildListDelegate(rows),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                );
+                            if (_isChipBarPinned)
+                              Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                child: Container(
+                                  color: scheme.surface,
+                                  padding: EdgeInsets.only(
+                                    top: topInset + _chipBarTopPadding,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        child: _CategoryChipBar(
+                                          tabs: tabs,
+                                          selectedIndex: _selectedTabIndex
+                                              .clamp(0, tabs.length - 1),
+                                          onSelect: (i) =>
+                                              _onChipTap(tabs, i),
+                                        ),
+                                      ),
+                                      Divider(
+                                        height: 1,
+                                        color: scheme.outlineVariant,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    );
               },
             );
           },
         ),
-        floatingActionButton: widget.groupOrderId == null
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: 16,
+              child: _StickyBackButton(
+                onTap: () async {
+                  final shouldPop = await _handleBackAction();
+                  if (shouldPop && context.mounted) {
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: widget.groupOrderId == null
             ? AnimatedBuilder(
                 animation: cart!,
                 builder: (_, _) {
                   final count = cart.itemCount(restaurantId);
-
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      FloatingActionButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CartScope(
-                                notifier: cart,
-                                child: CartScreen(
-                                  restaurantId: restaurantId,
-                                  customerId: widget.customer.id,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Icon(Icons.shopping_cart_outlined),
-                      ),
-                      if (count > 0)
-                        Positioned(
-                          right: -2,
-                          top: -2,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '$count',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
+                  if (count == 0) return const SizedBox.shrink();
+                  return _ViewCartBar(
+                    count: count,
+                    label: 'View Cart',
+                    trailing:
+                        '${cart.subtotal(restaurantId).toStringAsFixed(2)} SAR',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CartScope(
+                            notifier: cart,
+                            child: CartScreen(
+                              restaurantId: restaurantId,
+                              customerId: widget.customer.id,
                             ),
                           ),
                         ),
-                    ],
+                      );
+                    },
                   );
                 },
               )
@@ -602,51 +750,23 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                 stream: DatabaseService().watchGroupItems(widget.groupOrderId!),
                 builder: (context, snapshot) {
                   final allItems = snapshot.data ?? [];
-
-                  final myItemCount = allItems
+                  final myItems = allItems
                       .where((item) => item.memberId == widget.customer.id)
-                      .fold<int>(
-                        0,
-                        (sum, item) => sum + item.quantity,
-                      );
-
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      FloatingActionButton.extended(
-                        onPressed: _navigateToGroupOrderSummary,
-                        icon: const Icon(Icons.receipt_long),
-                        label: const Text('Group Order'),
-                      ),
-
-                      if (myItemCount > 0)
-                        Positioned(
-                          right: -2,
-                          top: -6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: theme.colorScheme.surface,
-                                width: 2,
-                              ),
-                            ),
-                            child: Text(
-                              '$myItemCount',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                      .toList();
+                  final myCount = myItems.fold<int>(
+                    0,
+                    (sum, item) => sum + item.quantity,
+                  );
+                  if (myCount == 0) return const SizedBox.shrink();
+                  final mySubtotal = myItems.fold<double>(
+                    0,
+                    (sum, item) => sum + (item.unitPrice * item.quantity),
+                  );
+                  return _ViewCartBar(
+                    count: myCount,
+                    label: 'View Group Order',
+                    trailing: '${mySubtotal.toStringAsFixed(2)} SAR',
+                    onTap: _navigateToGroupOrderSummary,
                   );
                 },
               ),
@@ -697,7 +817,68 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
   }
 }
 
-//Todo use this in the restaurant list page
+class _RestaurantHero extends StatelessWidget {
+  const _RestaurantHero({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final topInset = MediaQuery.of(context).padding.top;
+
+    return SizedBox(
+      height: 260 + topInset,
+      width: double.infinity,
+      child: Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Container(
+          color: scheme.surfaceContainerHighest,
+          child: Center(
+            child: Icon(
+              Icons.image_not_supported_outlined,
+              color: scheme.outline,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StickyBackButton extends StatelessWidget {
+  const _StickyBackButton({required this.onTap});
+
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerLowest.withValues(alpha: 0.95),
+      shape: CircleBorder(
+        side: BorderSide(color: scheme.outlineVariant, width: 1),
+      ),
+      elevation: 2,
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(
+            Icons.arrow_back,
+            size: 20,
+            color: scheme.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class HeaderCard extends StatelessWidget {
   const HeaderCard({super.key, required this.restaurant});
 
@@ -707,116 +888,370 @@ class HeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final brand = theme.extension<BrandColors>()!;
+    final cuisine = restaurant.tags
+        .take(2)
+        .map((t) => t.label)
+        .join('  •  ');
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          color: scheme.surface,
-          child: Column(
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                height: 200,
-                width: double.infinity,
-                child: Image.network(
-                  restaurant.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
-                    color: scheme.surfaceContainerHighest,
-                    child: const Center(child: Icon(Icons.image_not_supported)),
-                  ),
-                ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            restaurant.name,
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
+                        Text(
+                          restaurant.name,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (cuisine.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            cuisine,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: restaurant.isOpen
-                                ? Colors.green
-                                : Colors.grey,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            restaurant.isOpen ? "Open" : "Closed",
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 8),
-
-                    Row(
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _HeaderBadge(
+                        label: restaurant.isOpen ? 'Open' : 'Closed',
+                        background: restaurant.isOpen
+                            ? brand.openStatus
+                            : scheme.outline,
+                        foreground: restaurant.isOpen
+                            ? brand.onOpenStatus
+                            : scheme.surface,
+                      ),
+                      if (restaurant.hasOffer) ...[
+                        const SizedBox(height: 6),
+                        _HeaderBadge(
+                          label: 'Offer',
+                          background: brand.offer,
+                          foreground: brand.onOffer,
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Divider(height: 1, color: scheme.outlineVariant),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Icon(
+                    Icons.local_shipping_outlined,
+                    size: 20,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Delivery Fee',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        restaurant.deliveryFee == 0
+                            ? 'Free'
+                            : '${restaurant.deliveryFee.toStringAsFixed(2)} SAR',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: scheme.onSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.star, size: 18, color: Colors.amber),
-                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.star,
+                          size: 14,
+                          color: Color(0xFFE9C176),
+                        ),
+                        const SizedBox(width: 4),
                         Text(
                           restaurant.rating.toStringAsFixed(1),
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        const SizedBox(width: 14),
-                        const Icon(Icons.attach_money, size: 18),
-                        Text(
-                          restaurant.deliveryFee == 0
-                              ? "Free Delivery"
-                              : "${restaurant.deliveryFee.toStringAsFixed(0)} SAR",
-                          style: theme.textTheme.bodyMedium,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onSurface,
+                          ),
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: restaurant.tags
-                          .map((tag) => _TagChip(text: tag.label))
-                          .toList(),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
+    );
+  }
+}
+
+class _HeaderBadge extends StatelessWidget {
+  const _HeaderBadge({
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
         ),
       ),
     );
   }
 }
 
-class _TagChip extends StatelessWidget {
-  const _TagChip({required this.text});
-  final String text;
+class _CategoryChipBar extends StatefulWidget {
+  const _CategoryChipBar({
+    required this.tabs,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  final List<String> tabs;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  State<_CategoryChipBar> createState() => _CategoryChipBarState();
+}
+
+class _CategoryChipBarState extends State<_CategoryChipBar> {
+  final ScrollController _controller = ScrollController();
+  final Map<int, GlobalKey> _chipKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToSelected();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _CategoryChipBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedIndex != oldWidget.selectedIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToSelected();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _scrollToSelected() {
+    if (!mounted || !_controller.hasClients) return;
+    final ctx = _chipKeys[widget.selectedIndex]?.currentContext;
+    final renderObject = ctx?.findRenderObject();
+    if (renderObject == null) return;
+    _controller.position.ensureVisible(
+      renderObject,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
+
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        controller: _controller,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: widget.tabs.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final selected = widget.selectedIndex == index;
+          final key = _chipKeys.putIfAbsent(index, () => GlobalKey());
+          return Material(
+            key: key,
+            color: selected ? scheme.primary : Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+              side: BorderSide(
+                color: selected ? scheme.primary : scheme.outlineVariant,
+                width: 1,
+              ),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => widget.onSelect(index),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 8,
+                ),
+                child: Text(
+                  widget.tabs[index],
+                  style: TextStyle(
+                    color: selected ? scheme.onPrimary : scheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
-      child: Text(text, style: TextStyle(color: scheme.onSurface)),
+    );
+  }
+}
+
+class _ViewCartBar extends StatelessWidget {
+  const _ViewCartBar({
+    required this.count,
+    required this.label,
+    required this.trailing,
+    required this.onTap,
+  });
+
+  final int count;
+  final String label;
+  final String trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+        SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: SizedBox(
+            height: 56,
+            child: Material(
+              color: scheme.primary,
+              borderRadius: BorderRadius.circular(14),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: scheme.onPrimary.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '$count',
+                      style: TextStyle(
+                        color: scheme.onPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: scheme.onPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    trailing,
+                    style: TextStyle(
+                      color: scheme.onPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+        ),
+      ],
     );
   }
 }
@@ -840,21 +1275,13 @@ class _MenuItemTile extends StatelessWidget {
     final scheme = theme.colorScheme;
 
     return Material(
-      color: scheme.surface,
+      color: scheme.surfaceContainerLowest,
       borderRadius: BorderRadius.circular(16),
-      elevation: 0,
-      shadowColor: Colors.transparent,
       child: Ink(
         decoration: BoxDecoration(
-          color: scheme.surface,
+          color: scheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              blurRadius: 10,
-              offset: Offset(0, 4),
-              color: Colors.black12,
-            ),
-          ],
+          border: Border.all(color: scheme.outlineVariant, width: 1),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
@@ -864,31 +1291,20 @@ class _MenuItemTile extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: item.imageUrl.isNotEmpty
                       ? Image.network(
                           item.imageUrl,
-                          width: 84,
-                          height: 84,
+                          width: 88,
+                          height: 88,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            width: 84,
-                            height: 84,
-                            color: scheme.surfaceContainerHighest,
-                            child: Icon(
-                              Icons.image_not_supported,
-                              color: scheme.outline,
-                            ),
-                          ),
+                          errorBuilder: (_, _, _) =>
+                              _MenuItemPlaceholder(scheme: scheme),
                         )
-                      : Container(
-                          width: 84,
-                          height: 84,
-                          color: scheme.surfaceContainerHighest,
-                          child: Icon(Icons.fastfood, color: scheme.outline),
-                        ),
+                      : _MenuItemPlaceholder(scheme: scheme),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -904,63 +1320,107 @@ class _MenuItemTile extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         item.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: scheme.outline,
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 13,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${item.price.toStringAsFixed(2)} SAR',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: scheme.primary,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        'Incl. 15% tax',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: scheme.outline,
-                        ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            '${item.price.toStringAsFixed(2)} SAR',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: scheme.onSurface,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (count > 0)
+                            _CountPill(
+                              count: count,
+                              onTap: onIncrement,
+                            ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                if (count > 0) ...[
-                  const SizedBox(width: 10),
-                  Material(
-                    color: scheme.primary,
-                    borderRadius: BorderRadius.circular(8),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: onIncrement == null
-                          ? null
-                          : () async {
-                              await onIncrement!();
-                            },
-                      child: Container(
-                        width: 42,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.add, color: scheme.onPrimary, size: 22),
-                            const SizedBox(height: 2),
-                            Text(
-                              '$count',
-                              style: TextStyle(
-                                color: scheme.onPrimary,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuItemPlaceholder extends StatelessWidget {
+  const _MenuItemPlaceholder({required this.scheme});
+
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 88,
+      height: 88,
+      color: scheme.surfaceContainerHigh,
+      child: Icon(
+        Icons.restaurant_menu,
+        color: scheme.outline,
+        size: 28,
+      ),
+    );
+  }
+}
+
+class _CountPill extends StatelessWidget {
+  const _CountPill({required this.count, this.onTap});
+
+  final int count;
+  final Future<void> Function()? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.primary,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap == null
+            ? null
+            : () async {
+                await onTap!();
+              },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.add_shopping_cart,
+                color: scheme.onPrimary,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 16,
+                child: Text(
+                  '$count',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: scheme.onPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1170,106 +1630,144 @@ class _GroupOrderStatusBarBodyState extends State<_GroupOrderStatusBarBody> {
       builder: (_) {
         return Dialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
           ),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [scheme.primary, scheme.primaryContainer],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: scheme.primary.withOpacity(0.2),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'JOIN CODE',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SelectableText(
-                            code,
-                            style: const TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 8,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.copy_all_rounded,
-                              color: Colors.white70,
-                            ),
-                            onPressed: () {
-                              Clipboard.setData(
-                                ClipboardData(text: code),
-                              );
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Join code copied!'),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      const Text(
-                        'Invite friends to start eating together',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+          insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+          clipBehavior: Clip.antiAlias,
+          backgroundColor: scheme.surfaceContainerLowest,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [scheme.primary, scheme.primaryContainer],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(8),
+                child: Column(
+                  children: [
+                    Text(
+                      'JOIN CODE',
+                      style: TextStyle(
+                        color: scheme.onPrimary.withValues(alpha: 0.7),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        letterSpacing: 3,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SelectableText(
+                      code,
+                      style: TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 6,
+                        color: scheme.onPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Material(
+                      color: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        side: BorderSide(
+                          color: scheme.onPrimary.withValues(alpha: 0.35),
+                          width: 1,
+                        ),
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: code));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Join code copied!'),
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 10,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.copy_all_rounded,
+                                color: scheme.onPrimary,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Copy Code',
+                                style: TextStyle(
+                                  color: scheme.onPrimary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 22, 20, 8),
+                child: Text(
+                  'Invite friends to start eating together',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    color: scheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: scheme.outlineVariant,
+                      width: 1,
+                    ),
                   ),
                   child: QrImageView(
                     data: code,
                     version: QrVersions.auto,
-                    size: 200,
+                    size: 180,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Close'),
+              ),
+              InkWell(
+                onTap: () => Navigator.pop(context),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  child: Text(
+                    'Close',
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -1313,30 +1811,31 @@ class _GroupOrderStatusBarBodyState extends State<_GroupOrderStatusBarBody> {
 
         return InkWell(
           onTap: widget.onSummaryTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
               color: scheme.primaryContainer,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
               children: [
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: scheme.primary,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
                     Icons.groups,
                     color: scheme.onPrimary,
+                    size: 22,
                   ),
                 ),
 
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
 
                 Expanded(
                   child: Column(
@@ -1346,18 +1845,43 @@ class _GroupOrderStatusBarBodyState extends State<_GroupOrderStatusBarBody> {
                         'Group Order Active',
                         style: TextStyle(
                           color: scheme.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 4),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Code: ',
+                              style: TextStyle(
+                                color: scheme.onPrimaryContainer.withValues(
+                                  alpha: 0.75,
+                                ),
+                                fontSize: 13,
+                              ),
+                            ),
+                            TextSpan(
+                              text: groupOrder.joinCode,
+                              style: TextStyle(
+                                color: scheme.onPrimaryContainer,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 2),
                       Text(
-                        'Code: ${groupOrder.joinCode} • closes in ${_formatRemaining(groupOrder.expiresAt)}',
+                        'closes in ${_formatRemaining(groupOrder.expiresAt)}',
                         style: TextStyle(
                           color: scheme.onPrimaryContainer.withValues(
                             alpha: 0.75,
                           ),
-                          fontSize: 12,
+                          fontSize: 13,
                         ),
                       ),
                     ],

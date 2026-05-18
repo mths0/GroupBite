@@ -75,7 +75,12 @@ class _JoinGroupOrderScreenState extends State<JoinGroupOrderScreen> {
   Future<void> _join() async {
     final code = _codeController.text.trim().toUpperCase();
 
-    if (code.isEmpty) return;
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a group code to join.')),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -134,100 +139,296 @@ class _JoinGroupOrderScreenState extends State<JoinGroupOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Join Group Order'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+        title: Text(
+          'Join Group Order',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: scheme.primary,
+          ),
+        ),
+        centerTitle: true,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
       ),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: 300,
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: MobileScanner(
-                            controller: controller,
-                            onDetect: _joinWithBarcode,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Column(
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 1,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              MobileScanner(
+                                controller: controller,
+                                onDetect: _joinWithBarcode,
+                              ),
+                              Center(
+                                child: LayoutBuilder(
+                                  builder: (context, c) {
+                                    final size = c.maxWidth * 0.78;
+                                    return SizedBox(
+                                      width: size,
+                                      height: size,
+                                      child: CustomPaint(
+                                        painter: _ScannerFramePainter(
+                                          frameColor: Colors.white,
+                                          cornerColor: scheme.primary,
+                                          radius: 28,
+                                          stroke: 4,
+                                          cornerLength: 28,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 24,
+                                child: Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.7,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: const Text(
+                                      'Scan QR Code to Join',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-
-                        // Positioned(
-                        //   top: 12,
-                        //   left: 12,
-                        //   right: 12,
-                        //   child: Row(
-                        //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        //     children: [
-                        //       IconButton(
-                        //         icon: const Icon(Icons.close, color: Colors.white),
-                        //         onPressed: () => Navigator.pop(context),
-                        //       ),
-                        //       // ValueListenableBuilder(
-                        //       //   valueListenable: controller,
-                        //       //   builder: (context, state, child) {
-                        //       //     return IconButton(
-                        //       //       icon: Icon(
-                        //       //         state.torchState == TorchState.on
-                        //       //             ? Icons.flash_on
-                        //       //             : Icons.flash_off,
-                        //       //         color: Colors.white,
-                        //       //       ),
-                        //       //       onPressed: () => controller.toggleTorch(),
-                        //       //     );
-                        //       //   },
-                        //       // ),
-                        //     ],
-                        //   ),
-                        // ),
-                        Center(
-                          child: Container(
-                            width: 220,
-                            height: 220,
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 3,
-                              ),
-                              borderRadius: BorderRadius.circular(20),
+                      ),
+                      const SizedBox(height: 28),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Divider(
+                              color: scheme.outlineVariant,
+                              thickness: 1,
                             ),
                           ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                            ),
+                            child: Text(
+                              'OR',
+                              style: TextStyle(
+                                color: scheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.2,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Divider(
+                              color: scheme.outlineVariant,
+                              thickness: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: _codeController,
+                        textCapitalization: TextCapitalization.characters,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 2,
                         ),
-                      ],
-                    ),
+                        decoration: const InputDecoration(
+                          hintText: 'Enter Group Code',
+                          hintStyle: TextStyle(
+                            letterSpacing: 0,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _codeController,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: 'Group Code',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: _isLoading ? null : _join,
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Join'),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Divider(height: 1, color: scheme.outlineVariant),
+                SafeArea(
+                  top: false,
+                  minimum: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: _isLoading ? null : _join,
+                      child: _isLoading
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: scheme.onPrimary,
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Text(
+                                  'Join Group',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Icon(Icons.arrow_forward, size: 20),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
+  }
+}
+
+class _ScannerFramePainter extends CustomPainter {
+  _ScannerFramePainter({
+    required this.frameColor,
+    required this.cornerColor,
+    required this.radius,
+    required this.stroke,
+    required this.cornerLength,
+  });
+
+  final Color frameColor;
+  final Color cornerColor;
+  final double radius;
+  final double stroke;
+  final double cornerLength;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+
+    final framePaint = Paint()
+      ..color = frameColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawRRect(rrect, framePaint);
+
+    final cornerPaint = Paint()
+      ..color = cornerColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+
+    final r = radius;
+    final c = cornerLength;
+
+    // Top-left
+    final tlPath = Path()
+      ..moveTo(0, r + c)
+      ..lineTo(0, r)
+      ..arcToPoint(
+        Offset(r, 0),
+        radius: Radius.circular(r),
+        clockwise: true,
+      )
+      ..lineTo(r + c, 0);
+    canvas.drawPath(tlPath, cornerPaint);
+
+    // Top-right
+    final trPath = Path()
+      ..moveTo(size.width - r - c, 0)
+      ..lineTo(size.width - r, 0)
+      ..arcToPoint(
+        Offset(size.width, r),
+        radius: Radius.circular(r),
+        clockwise: true,
+      )
+      ..lineTo(size.width, r + c);
+    canvas.drawPath(trPath, cornerPaint);
+
+    // Bottom-right
+    final brPath = Path()
+      ..moveTo(size.width, size.height - r - c)
+      ..lineTo(size.width, size.height - r)
+      ..arcToPoint(
+        Offset(size.width - r, size.height),
+        radius: Radius.circular(r),
+        clockwise: true,
+      )
+      ..lineTo(size.width - r - c, size.height);
+    canvas.drawPath(brPath, cornerPaint);
+
+    // Bottom-left
+    final blPath = Path()
+      ..moveTo(r + c, size.height)
+      ..lineTo(r, size.height)
+      ..arcToPoint(
+        Offset(0, size.height - r),
+        radius: Radius.circular(r),
+        clockwise: true,
+      )
+      ..lineTo(0, size.height - r - c);
+    canvas.drawPath(blPath, cornerPaint);
+  }
+
+  @override
+  bool shouldRepaint(_ScannerFramePainter oldDelegate) {
+    return frameColor != oldDelegate.frameColor ||
+        cornerColor != oldDelegate.cornerColor ||
+        radius != oldDelegate.radius ||
+        stroke != oldDelegate.stroke ||
+        cornerLength != oldDelegate.cornerLength;
   }
 }

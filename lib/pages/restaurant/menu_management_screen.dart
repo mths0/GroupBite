@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/models/menu_item.dart';
 import 'package:food_delivery_platform/models/menu_item_option.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
 import 'package:image_picker/image_picker.dart';
 
 class MenuManagementScreen extends StatefulWidget {
@@ -99,22 +100,11 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
   }
 
   Future<void> _deleteItem(MenuItem item) async {
-    final ok = await showDialog<bool>(
+    final ok = await showDestructiveConfirmDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Delete item?"),
-        content: Text("Are you sure you want to delete “${item.name}”?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Delete"),
-          ),
-        ],
-      ),
+      title: "Delete item?",
+      message: "Are you sure you want to delete “${item.name}”?",
+      confirmLabel: "Delete",
     );
 
     if (ok != true) return;
@@ -381,24 +371,13 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
     }
     final category = _tabs[index];
 
-    final shouldDelete = await showDialog<bool>(
+    final shouldDelete = await showDestructiveConfirmDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete category?'),
-        content: Text(
+      title: 'Delete category?',
+      message:
           'This will delete the category “$category” and all menu items inside it.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text("Keep it"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text("Delete"),
-          ),
-        ],
-      ),
+      confirmLabel: 'Delete',
+      cancelLabel: 'Keep it',
     );
 
     if (shouldDelete != true || !mounted) return;

@@ -31,6 +31,8 @@ class Order {
   final DateTime? restaurantRespondBy;
   final DateTime? driverAcceptBy;
   final DateTime? scheduledFor;
+  final bool paymentRefunded;
+  final double? refundedAmount;
 
   Order({
     required this.id,
@@ -52,6 +54,8 @@ class Order {
     this.restaurantRespondBy,
     this.driverAcceptBy,
     this.scheduledFor,
+    this.paymentRefunded = false,
+    this.refundedAmount,
   });
 
   factory Order.fromFirestore(DocumentSnapshot doc) {
@@ -94,6 +98,8 @@ class Order {
       scheduledFor: rawScheduledFor is Timestamp
           ? rawScheduledFor.toDate()
           : null,
+      paymentRefunded: (data['paymentRefunded'] ?? false) == true,
+      refundedAmount: (data['refundedAmount'] as num?)?.toDouble(),
     );
   }
 

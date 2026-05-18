@@ -23,67 +23,102 @@ class CardFormFields extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _Label('Card Number'),
+        const SizedBox(height: 8),
         TextFormField(
           controller: numberController,
           keyboardType: TextInputType.number,
           inputFormatters: [CardNumberFormatter()],
           decoration: const InputDecoration(
-            labelText: 'Card Number',
-            hintText: '1234 5678 9012 3456',
+            hintText: '0000 0000 0000 0000',
             prefixIcon: Icon(Icons.credit_card),
-            border: OutlineInputBorder(),
           ),
           validator: Validators.validateCardNumber,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 18),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: TextFormField(
-                controller: expiryController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [ExpiryFormatter()],
-                decoration: const InputDecoration(
-                  labelText: 'Expiry MM/YY',
-                  hintText: 'MM/YY',
-                  prefixIcon: Icon(Icons.calendar_today_outlined),
-                  border: OutlineInputBorder(),
-                ),
-                validator: Validators.validateExpiry,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Label('Expiry Date'),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: expiryController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [ExpiryFormatter()],
+                    decoration: const InputDecoration(
+                      hintText: 'MM/YY',
+                      prefixIcon: Icon(Icons.calendar_today_outlined),
+                    ),
+                    validator: Validators.validateExpiry,
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: TextFormField(
-                controller: cvvController,
-                keyboardType: TextInputType.number,
-                obscureText: true,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(3),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Label('CVV'),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: cvvController,
+                    keyboardType: TextInputType.number,
+                    obscureText: true,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(3),
+                    ],
+                    decoration: const InputDecoration(
+                      hintText: '123',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                    validator: Validators.validateCardCvv,
+                  ),
                 ],
-                decoration: const InputDecoration(
-                  labelText: 'CVV',
-                  prefixIcon: Icon(Icons.lock_outline),
-                  border: OutlineInputBorder(),
-                ),
-                validator: Validators.validateCardCvv,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 18),
+        _Label('Cardholder Name'),
+        const SizedBox(height: 8),
         TextFormField(
           controller: holderController,
           textCapitalization: TextCapitalization.words,
           decoration: const InputDecoration(
-            labelText: 'Holder Name',
+            hintText: 'Name on card',
             prefixIcon: Icon(Icons.person_outline),
-            border: OutlineInputBorder(),
           ),
           validator: Validators.validateCardHolder,
         ),
       ],
+    );
+  }
+}
+
+class _Label extends StatelessWidget {
+  const _Label(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

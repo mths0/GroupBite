@@ -55,9 +55,9 @@ class _CardFormSheetState extends State<CardFormSheet> {
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 8,
+          left: 20,
+          right: 20,
+          top: 4,
           bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
         ),
         child: Form(
@@ -66,25 +66,34 @@ class _CardFormSheetState extends State<CardFormSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Add Card',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Add Card',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               CardFormFields(
                 numberController: _numberController,
                 expiryController: _expiryController,
                 cvvController: _cvvController,
                 holderController: _holderController,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               SizedBox(
-                height: 50,
-                child: ElevatedButton(
+                height: 54,
+                child: FilledButton(
                   onPressed: _submit,
-                  child: const Text('Save Card'),
+                  child: const Text(
+                    'Save Card',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ],

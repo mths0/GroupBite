@@ -3,6 +3,7 @@ import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/models/driver.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/pages/support/support_screen.dart';
+import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
 
 class DriverProfileTab extends StatelessWidget {
   const DriverProfileTab({
@@ -13,24 +14,11 @@ class DriverProfileTab extends StatelessWidget {
   final Driver driver;
 
   Future<void> _signOut(BuildContext context) async {
-    final shouldSignOut = await showDialog<bool>(
+    final shouldSignOut = await showDestructiveConfirmDialog(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Sign out'),
-          content: const Text('Are you sure you want to sign out?'),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Sign out'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Center(child: const Text('Cancel')),
-            ),
-          ],
-        );
-      },
+      title: 'Sign out',
+      message: 'Are you sure you want to sign out?',
+      confirmLabel: 'Sign out',
     );
 
     if (shouldSignOut != true) return;

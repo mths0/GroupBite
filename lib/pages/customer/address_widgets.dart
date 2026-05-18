@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/customer_address.dart';
-import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 
 class AddressChip extends StatelessWidget {
   const AddressChip({
@@ -79,14 +78,14 @@ class AddressPickerSheet extends StatelessWidget {
   const AddressPickerSheet({
     super.key,
     required this.customerId,
-    this.title = 'Choose delivery address',
-    this.subtitle = 'Tap one to use it for this order.',
+    this.title = 'Deliver to',
+    this.selectedAddressId,
     this.highlightDefault = true,
   });
 
   final String customerId;
   final String title;
-  final String subtitle;
+  final String? selectedAddressId;
   final bool highlightDefault;
 
   @override
@@ -100,22 +99,15 @@ class AddressPickerSheet extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: theme.textTheme.titleMedium?.copyWith(
+                style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.outline,
                 ),
               ),
               const SizedBox(height: 12),
@@ -132,7 +124,7 @@ class AddressPickerSheet extends StatelessWidget {
                         padding: EdgeInsets.symmetric(vertical: 24),
                         child: Center(
                           child: Text(
-                            'No addresses yet. Add one in your profile.',
+                            'No addresses yet. Add one in your account.',
                           ),
                         ),
                       );
@@ -140,52 +132,20 @@ class AddressPickerSheet extends StatelessWidget {
                     return ListView.separated(
                       shrinkWrap: true,
                       itemCount: addresses.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final address = addresses[index];
-                        return Card(
-                          margin: EdgeInsets.zero,
-                          child: ListTile(
-                            onTap: () => Navigator.pop(context, address),
-                            leading: Icon(
-                              address.isDefault && highlightDefault
-                                  ? Icons.location_on
-                                  : Icons.location_on_outlined,
-                              color: address.isDefault && highlightDefault
-                                  ? scheme.primary
-                                  : null,
-                            ),
-                            title: Text(address.label),
-                            subtitle: Text(
-                              address.fullAddress,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: address.isDefault && highlightDefault
-                                ? Chip(
-                                    label: const Text('Default'),
-                                    backgroundColor: scheme.primaryContainer,
-                                    labelStyle: TextStyle(
-                                      color: scheme.onPrimaryContainer,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                    visualDensity: VisualDensity.compact,
-                                  )
-                                : const Icon(Icons.chevron_right),
-                          ),
+                        final isSelected = address.id == selectedAddressId;
+                        final isDefault = address.isDefault && highlightDefault;
+                        return _AddressPickerTile(
+                          address: address,
+                          isSelected: isSelected,
+                          isDefault: isDefault,
+                          onTap: () => Navigator.pop(context, address),
                         );
                       },
                     );
                   },
-                ),
-              ),
-              const Divider(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _addNewAddress(context),
-                  icon: const Icon(Icons.add_location_alt_outlined),
-                  label: const Text('Add new address'),
                 ),
               ),
             ],
@@ -194,22 +154,92 @@ class AddressPickerSheet extends StatelessWidget {
       ),
     );
   }
+}
 
-  Future<void> _addNewAddress(BuildContext context) async {
-    final result = await Navigator.push<CustomerAddress>(
-      context,
-      MaterialPageRoute(builder: (_) => const AddAddressScreen()),
+class _AddressPickerTile extends StatelessWidget {
+  const _AddressPickerTile({
+    required this.address,
+    required this.isSelected,
+    required this.isDefault,
+    required this.onTap,
+  });
+
+  final CustomerAddress address;
+  final bool isSelected;
+  final bool isDefault;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? scheme.primaryContainer.withValues(alpha: 0.18)
+              : scheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? scheme.primary : scheme.outlineVariant,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    address.label,
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    address.fullAddress,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isDefault) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'Default',
+                  style: TextStyle(
+                    color: scheme.onPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
-    if (result == null) return;
-    await DatabaseService().addCustomerAddress(
-      customerId: customerId,
-      address: result,
-    );
-    if (result.isDefault) {
-      await DatabaseService().setDefaultCustomerAddress(
-        customerId: customerId,
-        addressId: result.id,
-      );
-    }
   }
 }

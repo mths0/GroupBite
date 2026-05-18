@@ -8,6 +8,7 @@ import 'package:food_delivery_platform/models/family_wallet.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/pages/customer/order_detail_screen.dart';
+import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
 
 class CustomerOrdersScreen extends StatefulWidget {
   const CustomerOrdersScreen({
@@ -80,47 +81,108 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<FamilyWallet?>(
-      stream: _walletStream,
-      builder: (context, walletSnap) {
-        if (walletSnap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return SafeArea(
+      bottom: false,
+      child: StreamBuilder<FamilyWallet?>(
+        stream: _walletStream,
+        builder: (context, walletSnap) {
+          if (walletSnap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-        final wallet = walletSnap.data;
-        final isOwner = wallet != null && wallet.isOwner(widget.customer.id);
+          final wallet = walletSnap.data;
+          final isOwner =
+              wallet != null && wallet.isOwner(widget.customer.id);
 
-        if (!isOwner) {
-          return _myOrdersList();
-        }
+          if (!isOwner) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: _myOrdersList(),
+            );
+          }
 
-        return DefaultTabController(
-          length: 2,
-          child: Column(
-            children: [
-              Material(
-                color: Theme.of(context).scaffoldBackgroundColor,
-                child: TabBar(
-                  labelColor: Theme.of(context).colorScheme.primary,
-                  indicatorColor: Theme.of(context).colorScheme.primary,
-                  tabs: const [
-                    Tab(text: 'My Orders'),
-                    Tab(text: 'Family'),
-                  ],
+          return DefaultTabController(
+            length: 2,
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                Material(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  child: TabBar(
+                    labelColor: Theme.of(context).colorScheme.primary,
+                    indicatorColor: Theme.of(context).colorScheme.primary,
+                    tabs: const [
+                      Tab(text: 'My Orders'),
+                      Tab(text: 'Family'),
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _myOrdersList(),
-                    _familyOrdersList(wallet.id),
-                  ],
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _myOrdersList(),
+                      _familyOrdersList(wallet.id),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  bool _isPastOrder(OrderStatus status) {
+    return status == OrderStatus.delivered ||
+        status == OrderStatus.cancelled ||
+        status == OrderStatus.rejected;
+  }
+
+  Widget _ordersBody({
+    required List<Order> orders,
+    required String Function(Order) nameForOrder,
+  }) {
+    if (orders.isEmpty) {
+      return const Center(child: Text('No orders yet'));
+    }
+
+    final active = orders.where((o) => !_isPastOrder(o.status)).toList();
+    final past = orders.where((o) => _isPastOrder(o.status)).toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        if (active.isNotEmpty) ...[
+          _OrdersSectionHeader(title: 'Active Orders'),
+          const SizedBox(height: 12),
+          for (final order in active) ...[
+            _OrderCard(
+              order: order,
+              customerName: nameForOrder(order),
+              restaurantFuture: _restaurantFuture(order.restaurantId),
+              isPast: false,
+              onTap: () => _openDetail(order, nameForOrder(order)),
+            ),
+            const SizedBox(height: 14),
+          ],
+          const SizedBox(height: 16),
+        ],
+        if (past.isNotEmpty) ...[
+          _OrdersSectionHeader(title: 'Past Orders'),
+          const SizedBox(height: 12),
+          for (final order in past) ...[
+            _OrderCard(
+              order: order,
+              customerName: nameForOrder(order),
+              restaurantFuture: _restaurantFuture(order.restaurantId),
+              isPast: true,
+              onTap: () => _openDetail(order, nameForOrder(order)),
+            ),
+            const SizedBox(height: 14),
+          ],
+        ],
+      ],
     );
   }
 
@@ -138,22 +200,9 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _autoCancelStale(orders);
         });
-        if (orders.isEmpty) {
-          return const Center(child: Text('No orders yet'));
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: orders.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 18),
-          itemBuilder: (context, index) {
-            final order = orders[index];
-            return _OrderCard(
-              order: order,
-              customerName: widget.customer.name,
-              restaurantFuture: _restaurantFuture(order.restaurantId),
-              onTap: () => _openDetail(order, widget.customer.name),
-            );
-          },
+        return _ordersBody(
+          orders: orders,
+          nameForOrder: (_) => widget.customer.name,
         );
       },
     );
@@ -175,25 +224,55 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
             child: Text('No family wallet orders yet'),
           );
         }
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: orders.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 18),
-          itemBuilder: (context, index) {
-            final order = orders[index];
-            return FutureBuilder<String>(
-              future: _memberNameFuture(order.customerId),
-              builder: (context, nameSnap) {
-                final name = nameSnap.data ?? '…';
-                return _OrderCard(
-                  order: order,
-                  customerName: name,
-                  restaurantFuture: _restaurantFuture(order.restaurantId),
-                  onTap: () => _openDetail(order, name),
-                );
-              },
-            );
-          },
+
+        final active = orders.where((o) => !_isPastOrder(o.status)).toList();
+        final past = orders.where((o) => _isPastOrder(o.status)).toList();
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          children: [
+            if (active.isNotEmpty) ...[
+              _OrdersSectionHeader(title: 'Active Orders'),
+              const SizedBox(height: 12),
+              for (final order in active) ...[
+                FutureBuilder<String>(
+                  future: _memberNameFuture(order.customerId),
+                  builder: (context, nameSnap) {
+                    final name = nameSnap.data ?? '…';
+                    return _OrderCard(
+                      order: order,
+                      customerName: name,
+                      restaurantFuture: _restaurantFuture(order.restaurantId),
+                      isPast: false,
+                      onTap: () => _openDetail(order, name),
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
+              ],
+              const SizedBox(height: 16),
+            ],
+            if (past.isNotEmpty) ...[
+              _OrdersSectionHeader(title: 'Past Orders'),
+              const SizedBox(height: 12),
+              for (final order in past) ...[
+                FutureBuilder<String>(
+                  future: _memberNameFuture(order.customerId),
+                  builder: (context, nameSnap) {
+                    final name = nameSnap.data ?? '…';
+                    return _OrderCard(
+                      order: order,
+                      customerName: name,
+                      restaurantFuture: _restaurantFuture(order.restaurantId),
+                      isPast: true,
+                      onTap: () => _openDetail(order, name),
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
+              ],
+            ],
+          ],
         );
       },
     );
@@ -254,30 +333,13 @@ class _CancelOrderTimerState extends State<CancelOrderTimer> {
   }
 
   Future<void> _confirmCancelOrder() async {
-    final shouldCancel = await showDialog<bool>(
+    final shouldCancel = await showDestructiveConfirmDialog(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Cancel Order?'),
-          content: const Text(
-            'Are you sure you want to cancel this order? This action cannot be undone.',
-          ),
-          actions: [
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-                foregroundColor: Theme.of(context).colorScheme.onError,
-              ),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Yes, Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Center(child: const Text('Keep Order')),
-            ),
-          ],
-        );
-      },
+      title: 'Cancel Order?',
+      message:
+          'Are you sure you want to cancel this order? This action cannot be undone.',
+      confirmLabel: 'Yes, Cancel',
+      cancelLabel: 'Keep Order',
     );
 
     if (shouldCancel != true) return;
@@ -504,23 +566,82 @@ class _CancelOrderTimerState extends State<CancelOrderTimer> {
   }
 }
 
+class _OrdersSectionHeader extends StatelessWidget {
+  const _OrdersSectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 4),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
 class _OrderCard extends StatelessWidget {
   const _OrderCard({
     required this.order,
     required this.customerName,
     required this.restaurantFuture,
+    required this.isPast,
     required this.onTap,
   });
 
   final Order order;
   final String customerName;
   final Future<Restaurant?> restaurantFuture;
+  final bool isPast;
   final VoidCallback onTap;
 
   String _formatTime(DateTime dt) {
     final hour = dt.hour.toString().padLeft(2, '0');
     final min = dt.minute.toString().padLeft(2, '0');
     return '${dt.day}/${dt.month}/${dt.year}  $hour:$min';
+  }
+
+  String _phaseLabel(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return 'Pending';
+      case OrderStatus.accepted:
+        return 'Accepted';
+      case OrderStatus.assigned:
+        return 'Assigned';
+      case OrderStatus.pickedUp:
+        return 'Picked Up';
+      case OrderStatus.delivered:
+        return 'Delivered';
+      case OrderStatus.cancelled:
+        return 'Cancelled';
+      case OrderStatus.rejected:
+        return 'Rejected';
+    }
+  }
+
+  ({Color bg, Color fg}) _phaseColors(BuildContext context, OrderStatus s) {
+    final scheme = Theme.of(context).colorScheme;
+    switch (s) {
+      case OrderStatus.pending:
+        return (bg: const Color(0xFFFFF1C9), fg: const Color(0xFF7A5500));
+      case OrderStatus.accepted:
+        return (bg: const Color(0xFFDDEBFF), fg: const Color(0xFF1A3D7A));
+      case OrderStatus.assigned:
+        return (bg: const Color(0xFFD4EEF1), fg: const Color(0xFF0F5E66));
+      case OrderStatus.pickedUp:
+        return (bg: const Color(0xFFFFDDB5), fg: const Color(0xFF7A3E00));
+      case OrderStatus.delivered:
+        return (bg: const Color(0xFFD7F0DC), fg: const Color(0xFF1A5E2A));
+      case OrderStatus.rejected:
+      case OrderStatus.cancelled:
+        return (bg: scheme.errorContainer, fg: scheme.onErrorContainer);
+    }
   }
 
   @override
@@ -534,6 +655,7 @@ class _OrderCard extends StatelessWidget {
         final restaurant = snap.data;
         final restaurantName = restaurant?.name ?? 'Restaurant';
         final imageUrl = restaurant?.imageUrl ?? '';
+        final phaseColors = _phaseColors(context, order.status);
 
         return Material(
           color: scheme.surface,
@@ -546,15 +668,12 @@ class _OrderCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: scheme.surface,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: scheme.outlineVariant,
-                  width: 1,
-                ),
+                border: Border.all(color: scheme.outlineVariant, width: 1),
                 boxShadow: [
                   BoxShadow(
                     blurRadius: 14,
                     offset: const Offset(0, 4),
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                   ),
                 ],
               ),
@@ -594,7 +713,7 @@ class _OrderCard extends StatelessWidget {
                           Text(
                             customerName,
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: scheme.outline,
+                              color: scheme.onSurfaceVariant,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -605,21 +724,51 @@ class _OrderCard extends StatelessWidget {
                     const SizedBox(width: 10),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          _formatTime(order.createdAt),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.outline,
+                        if (isPast)
+                          Text(
+                            '${order.totalPrice.toStringAsFixed(2)} SAR',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: phaseColors.bg,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              _phaseLabel(order.status),
+                              style: TextStyle(
+                                color: phaseColors.fg,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${order.totalPrice.toStringAsFixed(2)} SAR',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: scheme.primary,
-                            fontWeight: FontWeight.w800,
+                        const SizedBox(height: 6),
+                        if (isPast)
+                          Text(
+                            _formatTime(order.createdAt),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          )
+                        else
+                          Text(
+                            '${order.totalPrice.toStringAsFixed(2)} SAR',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ],

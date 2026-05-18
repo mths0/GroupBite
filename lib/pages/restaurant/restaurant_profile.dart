@@ -11,6 +11,7 @@ import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
 import 'package:food_delivery_platform/pages/support/support_screen.dart';
 import 'package:food_delivery_platform/utils/validators.dart';
+import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
 import 'package:image_picker/image_picker.dart';
 
 class RestaurantProfile extends StatefulWidget {
@@ -122,24 +123,11 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
   }
 
   Future<void> _signOut() async {
-    final shouldSignOut = await showDialog<bool>(
+    final shouldSignOut = await showDestructiveConfirmDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Sign out?'),
-        content: const Text('Are you sure you want to sign out?'),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          Center(
-            child: TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Sign out'),
-            ),
-          ),
-        ],
-      ),
+      title: 'Sign out?',
+      message: 'Are you sure you want to sign out?',
+      confirmLabel: 'Sign out',
     );
 
     if (shouldSignOut != true) return;
