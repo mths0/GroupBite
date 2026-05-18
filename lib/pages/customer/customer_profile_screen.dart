@@ -3,19 +3,19 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:food_delivery_platform/auth_service.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/models/customer_address.dart';
-import 'package:food_delivery_platform/models/saved_card.dart';
-import 'package:food_delivery_platform/pages/customer/add_funds_sheet.dart';
-import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
-import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
-import 'package:food_delivery_platform/pages/customer/family_wallet_tab.dart';
-import 'package:food_delivery_platform/pages/start_screen.dart';
-import 'package:food_delivery_platform/pages/support/support_screen.dart';
-import 'package:food_delivery_platform/utils/id_generator.dart';
-import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
+import 'package:yjeek/auth_service.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/customer.dart';
+import 'package:yjeek/models/customer_address.dart';
+import 'package:yjeek/models/saved_card.dart';
+import 'package:yjeek/pages/customer/add_funds_sheet.dart';
+import 'package:yjeek/pages/customer/add_address_screen.dart';
+import 'package:yjeek/pages/customer/card_form_sheet.dart';
+import 'package:yjeek/pages/customer/family_wallet_tab.dart';
+import 'package:yjeek/pages/start_screen.dart';
+import 'package:yjeek/pages/support/support_screen.dart';
+import 'package:yjeek/utils/id_generator.dart';
+import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class CustomerProfileScreen extends StatefulWidget {
   const CustomerProfileScreen({
@@ -151,7 +151,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  'GroupBite',
+                  'Yjeek',
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: scheme.primary,
                     fontWeight: FontWeight.w800,

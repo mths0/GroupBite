@@ -1,14 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/cart/cart_scope.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/models/restaurant_tag.dart';
-import 'package:food_delivery_platform/pages/customer/join_group_order_screen.dart';
-import 'package:food_delivery_platform/pages/customer/restaurant_menu_page.dart';
-import 'package:food_delivery_platform/themes/app_theme.dart';
-import 'package:food_delivery_platform/utils/location_service.dart';
+import 'package:yjeek/cart/cart_scope.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/customer.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/models/restaurant_tag.dart';
+import 'package:yjeek/pages/customer/join_group_order_screen.dart';
+import 'package:yjeek/pages/customer/restaurant_menu_page.dart';
+import 'package:yjeek/themes/app_theme.dart';
+import 'package:yjeek/utils/location_service.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({
@@ -230,7 +230,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         ),
         const SizedBox(width: 12),
         Text(
-          'GroupBite',
+          'Yjeek',
           style: theme.textTheme.titleMedium?.copyWith(
             color: scheme.primary,
             fontWeight: FontWeight.w800,

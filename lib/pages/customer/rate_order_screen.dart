@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/models/order.dart';
+import 'package:yjeek/models/order.dart';
 
 class RateOrderSheet extends StatefulWidget {
   const RateOrderSheet({

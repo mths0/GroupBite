@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:food_delivery_platform/models/menu_item_option.dart';
+import 'package:yjeek/models/menu_item_option.dart';
 
 enum MenuCategory {
   appetizers,

@@ -1,4 +1,4 @@
-import 'package:food_delivery_platform/models/selected_option_choice.dart';
+import 'package:yjeek/models/selected_option_choice.dart';
 
 class ItemCustomizationResult {
   final List<SelectedOptionChoice> selectedOptions;

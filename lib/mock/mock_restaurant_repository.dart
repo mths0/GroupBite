@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/models/restaurant_tag.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/models/restaurant_tag.dart';
 
 class MockRestaurantRepository {
   Stream<List<Restaurant>> get restaurantSnapshot async* {

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/auth_service.dart';
-import 'package:food_delivery_platform/models/driver.dart';
-import 'package:food_delivery_platform/pages/start_screen.dart';
-import 'package:food_delivery_platform/pages/support/support_screen.dart';
-import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
+import 'package:yjeek/auth_service.dart';
+import 'package:yjeek/models/driver.dart';
+import 'package:yjeek/pages/start_screen.dart';
+import 'package:yjeek/pages/support/support_screen.dart';
+import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class DriverProfileTab extends StatelessWidget {
   const DriverProfileTab({

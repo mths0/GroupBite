@@ -1,4 +1,4 @@
-# Food Delivery Platform – API Keys Setup
+# Yjeek - API Keys Setup
 
 
 # !!!!!
@@ -94,5 +94,4 @@ Replace the placeholders:
 
 apiKey: 'YOUR_API_KEY_ANDROID'
 apiKey: 'YOUR_API_KEY_IOS'
-
 

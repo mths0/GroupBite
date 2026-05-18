@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:food_delivery_platform/utils/validators.dart';
+import 'package:yjeek/utils/validators.dart';
 
 /// The four card-input fields (number / expiry / CVV / holder name) bundled
 /// as a reusable widget. The parent owns the controllers and the form key.

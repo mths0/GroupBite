@@ -1,8 +1,8 @@
 // lib/pages/customer/cart_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/pages/customer/checkout_screen.dart';
 
 import '../../cart/cart_controller.dart';
 import '../../cart/cart_scope.dart';

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/pages/support/support_device_info_collector.dart';
-import 'package:food_delivery_platform/themes/app_theme.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/order.dart';
+import 'package:yjeek/pages/support/support_device_info_collector.dart';
+import 'package:yjeek/themes/app_theme.dart';
 import 'package:intl/intl.dart';
 
 class SupportScreen extends StatefulWidget {

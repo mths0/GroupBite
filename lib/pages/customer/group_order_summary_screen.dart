@@ -1,17 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/cart_models.dart' as cart_models;
-import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/models/group_order.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/pages/customer/checkout_screen.dart';
-import 'package:food_delivery_platform/pages/customer/order_detail_screen.dart';
-import 'package:food_delivery_platform/utils/tax.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/cart_models.dart' as cart_models;
+import 'package:yjeek/models/customer.dart';
+import 'package:yjeek/models/group_order.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/pages/customer/checkout_screen.dart';
+import 'package:yjeek/pages/customer/order_detail_screen.dart';
+import 'package:yjeek/utils/tax.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
+import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class GroupOrderSummaryScreen extends StatelessWidget {
   const GroupOrderSummaryScreen({

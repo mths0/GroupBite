@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/cart/cart_scope.dart';
-import 'package:food_delivery_platform/models/cart_item.dart';
+import 'package:yjeek/cart/cart_scope.dart';
+import 'package:yjeek/models/cart_item.dart';
 
 class GlobalCartPage extends StatelessWidget {
   const GlobalCartPage({

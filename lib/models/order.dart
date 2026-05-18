@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:food_delivery_platform/models/selected_option_choice.dart';
+import 'package:yjeek/models/selected_option_choice.dart';
 
 enum OrderStatus {
   pending,

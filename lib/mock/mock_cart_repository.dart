@@ -5,8 +5,8 @@
 // method with real Firestore queries — the method signatures stay identical,
 // so the UI code requires zero changes.
 
-import 'package:food_delivery_platform/models/cart_models.dart';
-import 'package:food_delivery_platform/utils/tax.dart';
+import 'package:yjeek/models/cart_models.dart';
+import 'package:yjeek/utils/tax.dart';
 
 class MockCartRepository {
   // ---------------------------------------------------------------------------

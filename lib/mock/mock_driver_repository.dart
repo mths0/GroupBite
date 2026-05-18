@@ -1,4 +1,4 @@
-import 'package:food_delivery_platform/models/driver.dart';
+import 'package:yjeek/models/driver.dart';
 
 class MockDriverRepository {
   static final List<Driver> _pendingDrivers = [];

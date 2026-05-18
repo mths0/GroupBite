@@ -1,17 +1,17 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/cart/cart_scope.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/cart_models.dart';
-import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/models/family_wallet.dart';
-import 'package:food_delivery_platform/models/family_wallet_member.dart';
-import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/models/saved_card.dart';
-import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
-import 'package:food_delivery_platform/pages/customer/order_detail_screen.dart';
-import 'package:food_delivery_platform/utils/id_generator.dart';
+import 'package:yjeek/cart/cart_scope.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/cart_models.dart';
+import 'package:yjeek/models/customer.dart';
+import 'package:yjeek/models/family_wallet.dart';
+import 'package:yjeek/models/family_wallet_member.dart';
+import 'package:yjeek/models/order.dart';
+import 'package:yjeek/models/saved_card.dart';
+import 'package:yjeek/pages/customer/card_form_sheet.dart';
+import 'package:yjeek/pages/customer/order_detail_screen.dart';
+import 'package:yjeek/utils/id_generator.dart';
 
 //! This class needs to be refactored and cleaned up
 //Todo This class needs to be refactored and cleaned up

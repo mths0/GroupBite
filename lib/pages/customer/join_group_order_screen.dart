@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/pages/customer/restaurant_menu_page.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/customer.dart';
+import 'package:yjeek/pages/customer/restaurant_menu_page.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class JoinGroupOrderScreen extends StatefulWidget {

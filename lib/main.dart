@@ -1,10 +1,10 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/link_handler_service.dart';
-import 'package:food_delivery_platform/notification_service.dart';
-import 'package:food_delivery_platform/pages/register_screen.dart';
-import 'package:food_delivery_platform/pages/start_screen.dart';
-import 'package:food_delivery_platform/themes/app_theme.dart';
+import 'package:yjeek/link_handler_service.dart';
+import 'package:yjeek/notification_service.dart';
+import 'package:yjeek/pages/register_screen.dart';
+import 'package:yjeek/pages/start_screen.dart';
+import 'package:yjeek/themes/app_theme.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 
@@ -69,6 +69,7 @@ class _OurAppState extends State<OurApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
+      title: 'Yjeek',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/driver.dart';
-import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/pages/driver/driver_active_order_card.dart';
-import 'package:food_delivery_platform/pages/driver/driver_profile_screen.dart';
-import 'package:food_delivery_platform/themes/app_theme.dart';
-import 'package:food_delivery_platform/utils/location_service.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/driver.dart';
+import 'package:yjeek/models/order.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/pages/driver/driver_active_order_card.dart';
+import 'package:yjeek/pages/driver/driver_profile_screen.dart';
+import 'package:yjeek/themes/app_theme.dart';
+import 'package:yjeek/utils/location_service.dart';
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({
@@ -388,7 +388,7 @@ class _DriverDashboardState extends State<DriverDashboard>
             ),
             const Spacer(),
             Text(
-              'GroupBite',
+              'Yjeek',
               style: theme.textTheme.titleMedium?.copyWith(
                 color: scheme.primary,
                 fontWeight: FontWeight.w800,

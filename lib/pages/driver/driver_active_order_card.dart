@@ -1,13 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/models/driver.dart';
-import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/themes/app_theme.dart';
-import 'package:food_delivery_platform/utils/location_service.dart';
-import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/customer.dart';
+import 'package:yjeek/models/driver.dart';
+import 'package:yjeek/models/order.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/themes/app_theme.dart';
+import 'package:yjeek/utils/location_service.dart';
+import 'package:yjeek/widgets/confirm_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DriverActiveOrderCard extends StatefulWidget {

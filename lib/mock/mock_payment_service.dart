@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:food_delivery_platform/models/payment.dart';
-import 'package:food_delivery_platform/utils/id_generator.dart';
+import 'package:yjeek/models/payment.dart';
+import 'package:yjeek/utils/id_generator.dart';
 
 class MockPaymentService {
   // Simulate the actual "Charge" process

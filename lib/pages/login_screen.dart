@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/auth_service.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/components/loading_indicator.dart';
-import 'package:food_delivery_platform/utils/validators.dart';
+import 'package:yjeek/auth_service.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/components/loading_indicator.dart';
+import 'package:yjeek/utils/validators.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

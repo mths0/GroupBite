@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
-import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
+import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class PromotionsScreen extends StatefulWidget {
   const PromotionsScreen({super.key, required this.restaurantId});

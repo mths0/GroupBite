@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import 'package:food_delivery_platform/components/loading_indicator.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/abstract_user.dart';
-import 'package:food_delivery_platform/utils/validators.dart';
+import 'package:yjeek/components/loading_indicator.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/abstract_user.dart';
+import 'package:yjeek/utils/validators.dart';
 
 import '../auth_service.dart';
 import '../role_navigator.dart';

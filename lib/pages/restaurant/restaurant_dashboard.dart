@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/pages/restaurant/menu_management_screen.dart';
-import 'package:food_delivery_platform/pages/restaurant/promotions_screen.dart';
-import 'package:food_delivery_platform/pages/restaurant/restaurant_orders_dashboard.dart';
-import 'package:food_delivery_platform/pages/restaurant/restaurant_profile.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/pages/restaurant/menu_management_screen.dart';
+import 'package:yjeek/pages/restaurant/promotions_screen.dart';
+import 'package:yjeek/pages/restaurant/restaurant_orders_dashboard.dart';
+import 'package:yjeek/pages/restaurant/restaurant_profile.dart';
 
 class RestaurantDashboard extends StatefulWidget {
   const RestaurantDashboard({super.key, required this.restaurant});

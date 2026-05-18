@@ -4,7 +4,7 @@
 // Designed to be Firebase-ready: each model includes a `toMap` and
 // a named `fromMap` constructor for future Firestore serialization.
 
-import 'package:food_delivery_platform/models/selected_option_choice.dart';
+import 'package:yjeek/models/selected_option_choice.dart';
 
 /// Represents a single item in the user's shopping cart.
 class CartItem {

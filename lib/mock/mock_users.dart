@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:food_delivery_platform/models/abstract_user.dart';
-import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/models/driver.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/models/restaurant_tag.dart';
+import 'package:yjeek/models/abstract_user.dart';
+import 'package:yjeek/models/customer.dart';
+import 'package:yjeek/models/driver.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/models/restaurant_tag.dart';
 
 final List<User> mockUsers = [
   Customer(
