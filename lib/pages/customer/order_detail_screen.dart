@@ -10,6 +10,7 @@ import 'package:food_delivery_platform/pages/customer/cart_screen.dart';
 import 'package:food_delivery_platform/pages/customer/customer_orders_screen.dart';
 import 'package:food_delivery_platform/pages/customer/map_track_screen.dart';
 import 'package:food_delivery_platform/pages/customer/rate_order_screen.dart';
+import 'package:food_delivery_platform/themes/app_theme.dart';
 import 'package:food_delivery_platform/utils/tax.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -64,17 +65,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   Color _statusPillBg(BuildContext context, OrderStatus status) {
     final scheme = Theme.of(context).colorScheme;
+    final brand = Theme.of(context).extension<BrandColors>()!;
     switch (status) {
       case OrderStatus.pending:
-        return const Color(0xFFFFF1C9);
+        return brand.offer;
       case OrderStatus.accepted:
-        return const Color(0xFFDDEBFF);
+        return brand.accepted;
       case OrderStatus.assigned:
-        return const Color(0xFFD4EEF1);
+        return brand.assigned;
       case OrderStatus.pickedUp:
-        return const Color(0xFFFFDDB5);
+        return brand.pickedUp;
       case OrderStatus.delivered:
-        return const Color(0xFFD7F0DC);
+        return brand.openStatus;
       case OrderStatus.rejected:
       case OrderStatus.cancelled:
         return scheme.errorContainer;
@@ -83,17 +85,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   Color _statusPillFg(BuildContext context, OrderStatus status) {
     final scheme = Theme.of(context).colorScheme;
+    final brand = Theme.of(context).extension<BrandColors>()!;
     switch (status) {
       case OrderStatus.pending:
-        return const Color(0xFF7A5500);
+        return brand.onOffer;
       case OrderStatus.accepted:
-        return const Color(0xFF1A3D7A);
+        return brand.onAccepted;
       case OrderStatus.assigned:
-        return const Color(0xFF0F5E66);
+        return brand.onAssigned;
       case OrderStatus.pickedUp:
-        return const Color(0xFF7A3E00);
+        return brand.onPickedUp;
       case OrderStatus.delivered:
-        return const Color(0xFF1A5E2A);
+        return brand.onOpenStatus;
       case OrderStatus.rejected:
       case OrderStatus.cancelled:
         return scheme.onErrorContainer;
@@ -312,10 +315,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ),
                 ),
                 icon: const Icon(Icons.star_outline),
-                label: const Text(
-                  'Rate Order',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                ),
+                label: const Text('Rate Order'),
               ),
             ),
             const SizedBox(height: 12),
@@ -331,10 +331,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ),
               ),
               icon: const Icon(Icons.refresh),
-              label: const Text(
-                'Order again',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
+              label: const Text('Order again'),
             ),
           ),
           const SizedBox(height: 16),

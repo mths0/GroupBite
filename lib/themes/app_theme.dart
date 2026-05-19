@@ -11,6 +11,12 @@ class BrandColors extends ThemeExtension<BrandColors> {
     required this.onOpenStatus,
     required this.success,
     required this.onSuccess,
+    required this.accepted,
+    required this.onAccepted,
+    required this.assigned,
+    required this.onAssigned,
+    required this.pickedUp,
+    required this.onPickedUp,
   });
 
   final Color offer;
@@ -19,6 +25,12 @@ class BrandColors extends ThemeExtension<BrandColors> {
   final Color onOpenStatus;
   final Color success;
   final Color onSuccess;
+  final Color accepted;
+  final Color onAccepted;
+  final Color assigned;
+  final Color onAssigned;
+  final Color pickedUp;
+  final Color onPickedUp;
 
   static const BrandColors light = BrandColors(
     offer: Color(0xFFFFF1C9),
@@ -27,6 +39,12 @@ class BrandColors extends ThemeExtension<BrandColors> {
     onOpenStatus: Color(0xFF1A5E2A),
     success: Color(0xFF1A5E2A),
     onSuccess: Color(0xFFFFFFFF),
+    accepted: Color(0xFFDDEBFF),
+    onAccepted: Color(0xFF1A3D7A),
+    assigned: Color(0xFFD4EEF1),
+    onAssigned: Color(0xFF0F5E66),
+    pickedUp: Color(0xFFFFDDB5),
+    onPickedUp: Color(0xFF7A3E00),
   );
 
   static const BrandColors dark = BrandColors(
@@ -36,6 +54,12 @@ class BrandColors extends ThemeExtension<BrandColors> {
     onOpenStatus: Color(0xFFB7E5C2),
     success: Color(0xFF2E6B3D),
     onSuccess: Color(0xFFFFFFFF),
+    accepted: Color(0xFF1A2F52),
+    onAccepted: Color(0xFFB8CCEE),
+    assigned: Color(0xFF15393E),
+    onAssigned: Color(0xFFA8D6DC),
+    pickedUp: Color(0xFF4A2E00),
+    onPickedUp: Color(0xFFFFCB8A),
   );
 
   @override
@@ -46,6 +70,12 @@ class BrandColors extends ThemeExtension<BrandColors> {
     Color? onOpenStatus,
     Color? success,
     Color? onSuccess,
+    Color? accepted,
+    Color? onAccepted,
+    Color? assigned,
+    Color? onAssigned,
+    Color? pickedUp,
+    Color? onPickedUp,
   }) {
     return BrandColors(
       offer: offer ?? this.offer,
@@ -54,6 +84,12 @@ class BrandColors extends ThemeExtension<BrandColors> {
       onOpenStatus: onOpenStatus ?? this.onOpenStatus,
       success: success ?? this.success,
       onSuccess: onSuccess ?? this.onSuccess,
+      accepted: accepted ?? this.accepted,
+      onAccepted: onAccepted ?? this.onAccepted,
+      assigned: assigned ?? this.assigned,
+      onAssigned: onAssigned ?? this.onAssigned,
+      pickedUp: pickedUp ?? this.pickedUp,
+      onPickedUp: onPickedUp ?? this.onPickedUp,
     );
   }
 
@@ -67,6 +103,12 @@ class BrandColors extends ThemeExtension<BrandColors> {
       onOpenStatus: Color.lerp(onOpenStatus, other.onOpenStatus, t)!,
       success: Color.lerp(success, other.success, t)!,
       onSuccess: Color.lerp(onSuccess, other.onSuccess, t)!,
+      accepted: Color.lerp(accepted, other.accepted, t)!,
+      onAccepted: Color.lerp(onAccepted, other.onAccepted, t)!,
+      assigned: Color.lerp(assigned, other.assigned, t)!,
+      onAssigned: Color.lerp(onAssigned, other.onAssigned, t)!,
+      pickedUp: Color.lerp(pickedUp, other.pickedUp, t)!,
+      onPickedUp: Color.lerp(onPickedUp, other.onPickedUp, t)!,
     );
   }
 }
@@ -119,36 +161,36 @@ class AppTheme {
   static const ColorScheme darkColorScheme = ColorScheme(
     brightness: Brightness.dark,
     primary: Color(0xFFB6C7EB),
-    onPrimary: Color(0xFF20304E),
+    onPrimary: Color(0xFF031632),
     primaryContainer: Color(0xFF1A2B48),
-    onPrimaryContainer: Color(0xFF8293B5),
-    secondary: Color(0xFFE9C176),
+    onPrimaryContainer: Color(0xFFD7E2FF),
+    secondary: Color(0xFFFED488),
     onSecondary: Color(0xFF412D00),
-    secondaryContainer: Color(0xFF604403),
-    onSecondaryContainer: Color(0xFFDAB36A),
+    secondaryContainer: Color(0xFF5D4201),
+    onSecondaryContainer: Color(0xFFFED488),
     tertiary: Color(0xFFD7C4A4),
     onTertiary: Color(0xFF3A2F18),
     tertiaryContainer: Color(0xFF352913),
-    onTertiaryContainer: Color(0xFFA19072),
+    onTertiaryContainer: Color(0xFFC9C6C0),
     error: Color(0xFFFFB4AB),
     onError: Color(0xFF690005),
     errorContainer: Color(0xFF93000A),
     onErrorContainer: Color(0xFFFFDAD6),
-    surface: Color(0xFF131315),
-    onSurface: Color(0xFFE4E2E5),
-    surfaceContainerLowest: Color(0xFF0D0E10),
-    surfaceContainerLow: Color(0xFF1B1B1E),
-    surfaceContainer: Color(0xFF1F1F22),
-    surfaceContainerHigh: Color(0xFF292A2C),
-    surfaceContainerHighest: Color(0xFF343537),
-    surfaceDim: Color(0xFF131315),
-    surfaceBright: Color(0xFF39393B),
-    onSurfaceVariant: Color(0xFFC5C6CE),
-    inverseSurface: Color(0xFFE4E2E5),
-    onInverseSurface: Color(0xFF303033),
-    inversePrimary: Color(0xFF4E5F7E),
-    outline: Color(0xFF8F9098),
-    outlineVariant: Color(0xFF44474D),
+    surface: Color(0xFF14171C),
+    onSurface: Color(0xFFE8E6E4),
+    surfaceContainerLowest: Color(0xFF0E1014),
+    surfaceContainerLow: Color(0xFF1A1D22),
+    surfaceContainer: Color(0xFF1E2128),
+    surfaceContainerHigh: Color(0xFF25282F),
+    surfaceContainerHighest: Color(0xFF2C2F36),
+    surfaceDim: Color(0xFF0F1216),
+    surfaceBright: Color(0xFF353841),
+    onSurfaceVariant: Color(0xFFC2BFBC),
+    inverseSurface: Color(0xFFE8E6E4),
+    onInverseSurface: Color(0xFF303030),
+    inversePrimary: Color(0xFF1A2B48),
+    outline: Color(0xFF8B8D93),
+    outlineVariant: Color(0xFF3F4248),
     surfaceTint: Color(0xFFB6C7EB),
     shadow: Color(0xFF000000),
     scrim: Color(0xFF000000),
@@ -273,7 +315,7 @@ class AppTheme {
       style: FilledButton.styleFrom(
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
-        minimumSize: const Size(double.infinity, 50),
+        minimumSize: const Size(0, 48),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_radius),
         ),
@@ -288,7 +330,7 @@ class AppTheme {
         backgroundColor: scheme.secondary,
         foregroundColor: scheme.onSecondary,
         elevation: 0,
-        minimumSize: const Size(double.infinity, 50),
+        minimumSize: const Size(0, 48),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_radius),
         ),
@@ -301,7 +343,7 @@ class AppTheme {
     return OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: scheme.primary,
-        minimumSize: const Size(double.infinity, 50),
+        minimumSize: const Size(0, 48),
         side: BorderSide(color: scheme.secondary, width: 1),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_radius),
@@ -329,7 +371,7 @@ class AppTheme {
     return InputDecorationTheme(
       filled: true,
       fillColor: scheme.surfaceContainerLow,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       hintStyle: TextStyle(color: scheme.onSurfaceVariant),
       labelStyle: TextStyle(color: scheme.onSurfaceVariant),
       border: border(scheme.outlineVariant),
@@ -342,21 +384,25 @@ class AppTheme {
 
   static ChipThemeData _chipTheme(ColorScheme scheme) {
     return ChipThemeData(
-      backgroundColor: scheme.primaryContainer,
+      backgroundColor: scheme.surfaceContainerHigh,
       labelStyle: TextStyle(
-        color: scheme.secondary,
+        color: scheme.onSurface,
         fontWeight: FontWeight.w600,
       ),
       side: BorderSide.none,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_radiusSm),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     );
   }
 
-  /// Light typography uses Montserrat throughout (Design.md).
-  static TextTheme get _lightTextTheme {
+  /// Montserrat scale shared by light and dark themes — the dark theme is a
+  /// tonal sibling of light (see DESIGN_lightmode.md, DESIGN_darkmode.md).
+  static TextTheme get _lightTextTheme => _montserratTextTheme;
+  static TextTheme get _darkTextTheme => _montserratTextTheme;
+
+  static TextTheme get _montserratTextTheme {
     final base = GoogleFonts.montserratTextTheme();
     return base.copyWith(
       displayLarge: base.displayLarge?.copyWith(
@@ -401,52 +447,6 @@ class AppTheme {
         fontSize: 12,
         height: 16 / 12,
         fontWeight: FontWeight.w500,
-      ),
-    );
-  }
-
-  /// Dark typography pairs Playfair Display headlines with Manrope body
-  /// (Dark Mode Design.md).
-  static TextTheme get _darkTextTheme {
-    final headline = GoogleFonts.playfairDisplayTextTheme();
-    final body = GoogleFonts.manropeTextTheme();
-    return body.copyWith(
-      displayLarge: headline.displayLarge?.copyWith(
-        fontSize: 48,
-        height: 56 / 48,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.96,
-      ),
-      headlineLarge: headline.headlineLarge?.copyWith(
-        fontSize: 32,
-        height: 40 / 32,
-        fontWeight: FontWeight.w600,
-      ),
-      headlineMedium: headline.headlineMedium?.copyWith(
-        fontSize: 24,
-        height: 32 / 24,
-        fontWeight: FontWeight.w600,
-      ),
-      titleLarge: headline.titleLarge?.copyWith(
-        fontSize: 20,
-        height: 28 / 20,
-        fontWeight: FontWeight.w600,
-      ),
-      bodyLarge: body.bodyLarge?.copyWith(
-        fontSize: 18,
-        height: 28 / 18,
-        fontWeight: FontWeight.w400,
-      ),
-      bodyMedium: body.bodyMedium?.copyWith(
-        fontSize: 16,
-        height: 24 / 16,
-        fontWeight: FontWeight.w400,
-      ),
-      labelMedium: body.labelMedium?.copyWith(
-        fontSize: 14,
-        height: 20 / 14,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.7,
       ),
     );
   }

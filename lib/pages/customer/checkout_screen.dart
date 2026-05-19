@@ -11,6 +11,7 @@ import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/saved_card.dart';
 import 'package:food_delivery_platform/pages/customer/card_form_sheet.dart';
 import 'package:food_delivery_platform/pages/customer/order_detail_screen.dart';
+import 'package:food_delivery_platform/themes/app_theme.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 
 //! This class needs to be refactored and cleaned up
@@ -498,6 +499,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       builder: (sheetCtx) {
         final theme = Theme.of(sheetCtx);
         final scheme = theme.colorScheme;
+        final brand = theme.extension<BrandColors>()!;
         return SafeArea(
           top: false,
           child: Padding(
@@ -510,14 +512,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   child: Container(
                     width: 96,
                     height: 96,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFD7F0DC),
+                    decoration: BoxDecoration(
+                      color: brand.openStatus,
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(
+                    child: Icon(
                       Icons.check_rounded,
-                      color: Color(0xFF1A5E2A),
+                      color: brand.onOpenStatus,
                       size: 56,
                     ),
                   ),

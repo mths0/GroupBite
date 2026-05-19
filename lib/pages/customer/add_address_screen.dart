@@ -598,10 +598,7 @@ class LocationPickerScreenState extends State<LocationPickerScreen> {
                       ? null
                       : () => Navigator.pop(context, _selected),
                   icon: const Icon(Icons.check_rounded),
-                  label: const Text(
-                    'Confirm Location',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
+                  label: const Text('Confirm Location'),
                 ),
               ),
             ),

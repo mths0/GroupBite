@@ -12,25 +12,13 @@ import 'package:food_delivery_platform/themes/app_theme.dart';
     case OrderStatus.pending:
       return (background: brand.offer, foreground: brand.onOffer);
     case OrderStatus.accepted:
-      return (
-        background: const Color(0xFFDDEBFF),
-        foreground: const Color(0xFF1A3D7A),
-      );
+      return (background: brand.accepted, foreground: brand.onAccepted);
     case OrderStatus.assigned:
-      return (
-        background: const Color(0xFFD4EEF1),
-        foreground: const Color(0xFF0F5E66),
-      );
+      return (background: brand.assigned, foreground: brand.onAssigned);
     case OrderStatus.pickedUp:
-      return (
-        background: const Color(0xFFFFDDB5),
-        foreground: const Color(0xFF7A3E00),
-      );
+      return (background: brand.pickedUp, foreground: brand.onPickedUp);
     case OrderStatus.delivered:
-      return (
-        background: brand.openStatus,
-        foreground: brand.onOpenStatus,
-      );
+      return (background: brand.openStatus, foreground: brand.onOpenStatus);
     case OrderStatus.rejected:
     case OrderStatus.cancelled:
       return (

@@ -941,7 +941,9 @@ class _RestaurantInformationPageState
                     padding: const EdgeInsets.only(top: 8, left: 4),
                     child: Text(
                       _locationErrorText!,
-                      style: TextStyle(color: scheme.error, fontSize: 12),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: scheme.error,
+                      ),
                     ),
                   ),
               ],

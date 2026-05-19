@@ -2299,10 +2299,7 @@ class _MemberTile extends StatelessWidget {
                     Icons.volunteer_activism_outlined,
                     size: 16,
                   ),
-                  label: const Text(
-                    'Cover',
-                    style: TextStyle(fontSize: 11),
-                  ),
+                  label: const Text('Cover'),
                 ),
               if (canRemove)
                 IconButton(

@@ -280,10 +280,9 @@ class _RoleCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 label,
-                style: TextStyle(
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: selected ? scheme.onPrimary : scheme.onSurface,
                   fontWeight: FontWeight.w700,
-                  fontSize: 13,
                 ),
               ),
             ],
