@@ -38,8 +38,14 @@ class Validators {
     if (trimmed.isEmpty) {
       return 'Phone number is required';
     }
-    if (!RegExp(r'^5\d{8}$').hasMatch(value)) {
-      return 'Enter a valid phone number';
+    if (!regExpNumbersOnly.hasMatch(trimmed)) {
+      return 'Phone number must contain digits only';
+    }
+    if (trimmed.length != 9) {
+      return 'Phone number must be 9 digits';
+    }
+    if (!trimmed.startsWith('5')) {
+      return 'Phone number must start with 5';
     }
     return null;
   }

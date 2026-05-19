@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/auth_service.dart';
 import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/components/loading_indicator.dart';
 import 'package:food_delivery_platform/utils/validators.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -54,9 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sign-in link sent to $email'),
-        ),
+        SnackBar(content: Text('Sign-in link sent to $email')),
       );
     } catch (e) {
       setState(() {
@@ -74,64 +71,88 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Email Login"),
+        title: Text(
+          'Login',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: scheme.primary,
+          ),
+        ),
+        centerTitle: true,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
       ),
       body: AbsorbPointer(
         absorbing: isLoading,
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Enter your email',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "We'll send you a sign-in link",
-                      style: TextStyle(
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    TextField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        hintText: 'customer@gmail.com',
-                        errorText: errorText,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: isLoading
-                          ? const LoadingIndicator()
-                          : FilledButton(
-                              onPressed: validateEmail,
-                              child: const Text(
-                                'Continue',
-                                style: TextStyle(fontSize: 16),
-                              ),
-                            ),
-                    ),
-                  ],
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            children: [
+              Text(
+                'Welcome back',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                "Enter your email and we'll send you a sign-in link.",
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 28),
+              Text(
+                'Email',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                onChanged: (_) {
+                  if (errorText != null) {
+                    setState(() => errorText = null);
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: 'you@example.com',
+                  errorText: errorText,
+                ),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: isLoading ? null : validateEmail,
+                  child: isLoading
+                      ? SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: scheme.onPrimary,
+                          ),
+                        )
+                      : const Text('Continue'),
+                ),
+              ),
+            ],
           ),
         ),
       ),
