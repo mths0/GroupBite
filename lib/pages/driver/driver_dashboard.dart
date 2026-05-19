@@ -430,47 +430,6 @@ class _DriverDashboardState extends State<DriverDashboard>
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: status.background,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                statusText,
-                style: TextStyle(
-                  color: status.foreground,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ),
-            const Spacer(),
-            Text(
-              'Yjeek',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: scheme.primary,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
-        ),
-        centerTitle: false,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Divider(height: 1, color: scheme.outlineVariant),
-        ),
       body: PageView(
         controller: _pageController,
         onPageChanged: (index) {

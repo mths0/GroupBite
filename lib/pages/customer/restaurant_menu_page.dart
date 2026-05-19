@@ -967,6 +967,7 @@ class HeaderCard extends StatelessWidget {
               const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _HeaderBadge(
                     label: restaurant.isOpen ? 'Open' : 'Closed',
@@ -977,7 +978,15 @@ class HeaderCard extends StatelessWidget {
                         ? brand.onOpenStatus
                         : scheme.surface,
                   ),
-                  const Spacer(),
+                  if (restaurant.hasOffer) ...[
+                    const SizedBox(height: 6),
+                    _HeaderBadge(
+                      label: 'Offer',
+                      background: brand.offer,
+                      foreground: brand.onOffer,
+                    ),
+                  ],
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
