@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/customer_address.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/customer_address.dart';
 
 class AddressChip extends StatelessWidget {
   const AddressChip({

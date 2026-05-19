@@ -1,6 +1,6 @@
 // lib/models/cart_item.dart
-import 'package:food_delivery_platform/models/menu_item.dart';
-import 'package:food_delivery_platform/models/selected_option_choice.dart';
+import 'package:yjeek/models/menu_item.dart';
+import 'package:yjeek/models/selected_option_choice.dart';
 
 class CartItem {
   final String restaurantId;

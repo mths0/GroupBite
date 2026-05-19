@@ -1,4 +1,4 @@
-// import 'package:food_delivery_platform/models/menu_item.dart';
+// import 'package:yjeek/models/menu_item.dart';
 
 // abstract class MenuRepository {
 //   Future<List<MenuItem>> getMenuForRestaurant(String restaurantId);

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/saved_card.dart';
-import 'package:food_delivery_platform/pages/customer/card_form_fields.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/saved_card.dart';
+import 'package:yjeek/pages/customer/card_form_fields.dart';
 
 /// Bottom sheet that captures the amount to add and which card to "charge".
 ///

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/models/item_customization_result.dart';
-import 'package:food_delivery_platform/models/menu_item.dart';
-import 'package:food_delivery_platform/models/menu_item_option.dart';
-import 'package:food_delivery_platform/models/selected_option_choice.dart';
+import 'package:yjeek/models/item_customization_result.dart';
+import 'package:yjeek/models/menu_item.dart';
+import 'package:yjeek/models/menu_item_option.dart';
+import 'package:yjeek/models/selected_option_choice.dart';
 
 class ItemCustomizationScreen extends StatefulWidget {
   const ItemCustomizationScreen({

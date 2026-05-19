@@ -1,4 +1,4 @@
-import 'package:food_delivery_platform/models/family_wallet_member.dart';
+import 'package:yjeek/models/family_wallet_member.dart';
 
 enum InviteStatus { pending, accepted, rejected }
 

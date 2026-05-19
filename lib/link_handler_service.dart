@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/auth_service.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/notification_service.dart';
-import 'package:food_delivery_platform/role_navigator.dart';
+import 'package:yjeek/auth_service.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/notification_service.dart';
+import 'package:yjeek/role_navigator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LinkHandlerService {

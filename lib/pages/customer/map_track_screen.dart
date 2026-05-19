@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/driver.dart';
-import 'package:food_delivery_platform/models/order.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/driver.dart';
+import 'package:yjeek/models/order.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 

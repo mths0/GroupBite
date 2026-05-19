@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
-import 'package:food_delivery_platform/pages/restaurant/restaurant_dashboard.dart';
-import 'package:food_delivery_platform/themes/app_theme.dart';
-import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
+import 'package:yjeek/pages/restaurant/restaurant_dashboard.dart';
+import 'package:yjeek/themes/app_theme.dart';
+import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class PromotionsScreen extends StatefulWidget {
   const PromotionsScreen({

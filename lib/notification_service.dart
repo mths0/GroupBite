@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:food_delivery_platform/database_service.dart';
+import 'package:yjeek/database_service.dart';
 
 class NotificationService {
   NotificationService._();

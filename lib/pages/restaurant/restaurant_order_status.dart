@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/themes/app_theme.dart';
+import 'package:yjeek/models/order.dart';
+import 'package:yjeek/themes/app_theme.dart';
 
 ({Color background, Color foreground}) restaurantStatusColors(
   BuildContext context,

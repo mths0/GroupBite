@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/pages/customer/card_form_fields.dart';
+import 'package:yjeek/pages/customer/card_form_fields.dart';
 
 class CardInput {
   const CardInput({

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/family_wallet.dart';
-import 'package:food_delivery_platform/models/family_wallet_invite.dart';
-import 'package:food_delivery_platform/models/family_wallet_member.dart';
-import 'package:food_delivery_platform/pages/customer/add_funds_sheet.dart';
-import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/family_wallet.dart';
+import 'package:yjeek/models/family_wallet_invite.dart';
+import 'package:yjeek/models/family_wallet_member.dart';
+import 'package:yjeek/pages/customer/add_funds_sheet.dart';
+import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class FamilyWalletTab extends StatefulWidget {
   const FamilyWalletTab({

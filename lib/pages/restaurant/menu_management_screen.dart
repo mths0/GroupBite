@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/models/menu_item.dart';
-import 'package:food_delivery_platform/models/menu_item_option.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/pages/restaurant/restaurant_dashboard.dart';
-import 'package:food_delivery_platform/themes/app_theme.dart';
-import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
+import 'package:yjeek/models/menu_item.dart';
+import 'package:yjeek/models/menu_item_option.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/pages/restaurant/restaurant_dashboard.dart';
+import 'package:yjeek/themes/app_theme.dart';
+import 'package:yjeek/widgets/confirm_dialog.dart';
 import 'package:image_picker/image_picker.dart';
 
 class MenuManagementScreen extends StatefulWidget {

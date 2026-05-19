@@ -1,5 +1,5 @@
 // lib/cart/cart_state.dart
-import 'package:food_delivery_platform/models/cart_item.dart';
+import 'package:yjeek/models/cart_item.dart';
 
 class CartState {
   // restaurantId -> menuItemId -> CartItem

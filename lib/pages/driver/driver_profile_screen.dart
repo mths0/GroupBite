@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/auth_service.dart';
-import 'package:food_delivery_platform/models/driver.dart';
-import 'package:food_delivery_platform/pages/start_screen.dart';
-import 'package:food_delivery_platform/pages/support/support_screen.dart';
-import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
+import 'package:yjeek/auth_service.dart';
+import 'package:yjeek/models/driver.dart';
+import 'package:yjeek/pages/start_screen.dart';
+import 'package:yjeek/pages/support/support_screen.dart';
+import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class DriverProfileTab extends StatelessWidget {
   const DriverProfileTab({
@@ -79,7 +79,7 @@ class DriverProfileTab extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  'GroupBite',
+                  'Yjeek',
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: scheme.primary,
                     fontWeight: FontWeight.w800,

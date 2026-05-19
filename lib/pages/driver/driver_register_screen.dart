@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:food_delivery_platform/auth_service.dart';
-import 'package:food_delivery_platform/database_service.dart';
+import 'package:yjeek/auth_service.dart';
+import 'package:yjeek/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:food_delivery_platform/pages/start_screen.dart';
+import 'package:yjeek/pages/start_screen.dart';
 import 'package:geolocator/geolocator.dart';
 
-import 'package:food_delivery_platform/utils/validators.dart';
-import 'package:food_delivery_platform/models/abstract_user.dart';
-import 'package:food_delivery_platform/models/driver.dart';
-import 'package:food_delivery_platform/utils/id_generator.dart';
+import 'package:yjeek/utils/validators.dart';
+import 'package:yjeek/models/abstract_user.dart';
+import 'package:yjeek/models/driver.dart';
+import 'package:yjeek/utils/id_generator.dart';
 
 class DriverRegisterScreen extends StatefulWidget {
   const DriverRegisterScreen({super.key, required this.email});

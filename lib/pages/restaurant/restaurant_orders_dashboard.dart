@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/pages/restaurant/restaurant_dashboard.dart';
-import 'package:food_delivery_platform/pages/restaurant/restaurant_order_detail_screen.dart';
-import 'package:food_delivery_platform/pages/restaurant/restaurant_order_status.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/order.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/pages/restaurant/restaurant_dashboard.dart';
+import 'package:yjeek/pages/restaurant/restaurant_order_detail_screen.dart';
+import 'package:yjeek/pages/restaurant/restaurant_order_status.dart';
 
 class RestaurantOrdersDashboard extends StatefulWidget {
   const RestaurantOrdersDashboard({

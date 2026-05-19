@@ -1,15 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/cart/cart_scope.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/models/family_wallet.dart';
-import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/pages/customer/order_detail_screen.dart';
-import 'package:food_delivery_platform/themes/app_theme.dart';
-import 'package:food_delivery_platform/widgets/confirm_dialog.dart';
+import 'package:yjeek/cart/cart_scope.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/customer.dart';
+import 'package:yjeek/models/family_wallet.dart';
+import 'package:yjeek/models/order.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/pages/customer/order_detail_screen.dart';
+import 'package:yjeek/themes/app_theme.dart';
+import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class CustomerOrdersScreen extends StatefulWidget {
   const CustomerOrdersScreen({
@@ -143,7 +143,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  'GroupBite',
+                  'Yjeek',
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: scheme.primary,
                     fontWeight: FontWeight.w800,

@@ -1,12 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/customer.dart';
-import 'package:food_delivery_platform/models/customer_address.dart';
-import 'package:food_delivery_platform/pages/customer/address_widgets.dart';
-import 'package:food_delivery_platform/pages/customer/customer_home_screen.dart';
-import 'package:food_delivery_platform/pages/customer/customer_orders_screen.dart';
-import 'package:food_delivery_platform/pages/customer/customer_profile_screen.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/customer.dart';
+import 'package:yjeek/models/customer_address.dart';
+import 'package:yjeek/pages/customer/address_widgets.dart';
+import 'package:yjeek/pages/customer/customer_home_screen.dart';
+import 'package:yjeek/pages/customer/customer_orders_screen.dart';
+import 'package:yjeek/pages/customer/customer_profile_screen.dart';
 
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({super.key, required this.customer});

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/models/restaurant.dart';
-import 'package:food_delivery_platform/pages/restaurant/menu_management_screen.dart';
-import 'package:food_delivery_platform/pages/restaurant/promotions_screen.dart';
-import 'package:food_delivery_platform/pages/restaurant/restaurant_orders_dashboard.dart';
-import 'package:food_delivery_platform/pages/restaurant/restaurant_profile.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/pages/restaurant/menu_management_screen.dart';
+import 'package:yjeek/pages/restaurant/promotions_screen.dart';
+import 'package:yjeek/pages/restaurant/restaurant_orders_dashboard.dart';
+import 'package:yjeek/pages/restaurant/restaurant_profile.dart';
 
-/// Inline "Restaurant Name | GroupBite" header used at the top of every
+/// Inline "Restaurant Name | Yjeek" header used at the top of every
 /// restaurant dashboard tab. Mirrors the customer dashboard's per-tab headers.
 class RestaurantPageHeader extends StatelessWidget {
   const RestaurantPageHeader({super.key, required this.title});
@@ -37,7 +37,7 @@ class RestaurantPageHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'GroupBite',
+                  'Yjeek',
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: scheme.primary,
                     fontWeight: FontWeight.w800,

@@ -1,4 +1,4 @@
-import 'package:food_delivery_platform/models/abstract_user.dart';
+import 'package:yjeek/models/abstract_user.dart';
 import 'mock_users.dart';
 
 //? who can login?

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/pages/customer/customer_register_screen.dart';
-import 'package:food_delivery_platform/pages/driver/driver_register_screen.dart';
-import 'package:food_delivery_platform/pages/restaurant/restaurant_register_screen.dart';
-import 'package:food_delivery_platform/utils/validators.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/pages/customer/customer_register_screen.dart';
+import 'package:yjeek/pages/driver/driver_register_screen.dart';
+import 'package:yjeek/pages/restaurant/restaurant_register_screen.dart';
+import 'package:yjeek/utils/validators.dart';
 
 enum UserRole {
   customer,

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:food_delivery_platform/utils/validators.dart';
+import 'package:yjeek/utils/validators.dart';
 
 void main() {
   group('Validators', () {

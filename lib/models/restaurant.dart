@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:food_delivery_platform/models/abstract_user.dart';
-import 'package:food_delivery_platform/models/restaurant_tag.dart';
+import 'package:yjeek/models/abstract_user.dart';
+import 'package:yjeek/models/restaurant_tag.dart';
 
 class Restaurant extends User {
   final String createdAt;

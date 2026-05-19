@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/abstract_user.dart';
-import 'package:food_delivery_platform/models/order.dart';
-import 'package:food_delivery_platform/pages/restaurant/restaurant_order_status.dart';
-import 'package:food_delivery_platform/utils/tax.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/abstract_user.dart';
+import 'package:yjeek/models/order.dart';
+import 'package:yjeek/pages/restaurant/restaurant_order_status.dart';
+import 'package:yjeek/utils/tax.dart';
 
 class RestaurantOrderDetailScreen extends StatefulWidget {
   const RestaurantOrderDetailScreen({

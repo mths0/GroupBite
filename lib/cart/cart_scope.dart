@@ -1,6 +1,6 @@
 // lib/cart/cart_scope.dart
 import 'package:flutter/widgets.dart';
-import 'package:food_delivery_platform/cart/cart_controller.dart';
+import 'package:yjeek/cart/cart_controller.dart';
 
 class CartScope extends InheritedNotifier<CartController> {
   const CartScope({

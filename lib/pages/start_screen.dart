@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
-import 'package:food_delivery_platform/pages/login_screen.dart';
-import 'package:food_delivery_platform/pages/register_screen.dart';
+import 'package:yjeek/pages/login_screen.dart';
+import 'package:yjeek/pages/register_screen.dart';
 
 class StartScreen extends StatelessWidget {
   const StartScreen({

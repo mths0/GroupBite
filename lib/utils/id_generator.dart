@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:food_delivery_platform/models/abstract_user.dart';
+import 'package:yjeek/models/abstract_user.dart';
 
 class IdGenerator {
   static String generateUserId(UserRole role) {

@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:food_delivery_platform/cart/cart_state.dart';
-import 'package:food_delivery_platform/models/cart_item.dart';
-import 'package:food_delivery_platform/models/menu_item.dart';
-import 'package:food_delivery_platform/models/selected_option_choice.dart';
+import 'package:yjeek/cart/cart_state.dart';
+import 'package:yjeek/models/cart_item.dart';
+import 'package:yjeek/models/menu_item.dart';
+import 'package:yjeek/models/selected_option_choice.dart';
 
 class CartController extends ValueNotifier<CartState> {
   CartController() : super(CartState.empty());

@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import 'package:flutter/material.dart';
-import 'package:food_delivery_platform/database_service.dart';
-import 'package:food_delivery_platform/models/driver.dart';
-import 'package:food_delivery_platform/pages/driver/driver_dashboard.dart';
+import 'package:yjeek/database_service.dart';
+import 'package:yjeek/models/driver.dart';
+import 'package:yjeek/pages/driver/driver_dashboard.dart';
 import 'package:geolocator/geolocator.dart';
 
 class DriverLocationGate extends StatefulWidget {
