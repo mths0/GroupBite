@@ -1889,13 +1889,18 @@ class DatabaseService {
         ? (data['discountValue'] as num).toDouble()
         : double.tryParse('${data['discountValue']}') ?? 0.0;
 
+    final mappedType = switch (discountType) {
+      'fixed' => cart_models.CouponDiscountType.fixed,
+      'free_delivery' => cart_models.CouponDiscountType.freeDelivery,
+      _ => cart_models.CouponDiscountType.percentage,
+    };
     return cart_models.Coupon(
       code: (data['code'] ?? '').toString(),
       label: (data['title'] ?? '').toString(),
-      discountType: discountType == 'fixed'
-          ? cart_models.CouponDiscountType.fixed
-          : cart_models.CouponDiscountType.percentage,
-      discountValue: discountType == 'free_delivery' ? 0.0 : discountValue,
+      discountType: mappedType,
+      discountValue: mappedType == cart_models.CouponDiscountType.freeDelivery
+          ? 0.0
+          : discountValue,
     );
   }
 

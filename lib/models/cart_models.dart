@@ -111,6 +111,7 @@ class Address {
 enum CouponDiscountType {
   percentage,
   fixed,
+  freeDelivery,
 }
 
 class Coupon {
@@ -133,14 +134,20 @@ class Coupon {
     'discountValue': discountValue,
   };
 
-  factory Coupon.fromMap(Map<String, dynamic> map) => Coupon(
-    code: (map['code'] ?? '').toString(),
-    label: (map['label'] ?? '').toString(),
-    discountType: (map['discountType'] ?? 'percentage') == 'fixed'
-        ? CouponDiscountType.fixed
-        : CouponDiscountType.percentage,
-    discountValue: (map['discountValue'] as num).toDouble(),
-  );
+  factory Coupon.fromMap(Map<String, dynamic> map) {
+    final raw = (map['discountType'] ?? 'percentage').toString();
+    final type = switch (raw) {
+      'fixed' => CouponDiscountType.fixed,
+      'free_delivery' || 'freeDelivery' => CouponDiscountType.freeDelivery,
+      _ => CouponDiscountType.percentage,
+    };
+    return Coupon(
+      code: (map['code'] ?? '').toString(),
+      label: (map['label'] ?? '').toString(),
+      discountType: type,
+      discountValue: (map['discountValue'] as num).toDouble(),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

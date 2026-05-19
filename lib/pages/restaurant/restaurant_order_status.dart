@@ -1,22 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/models/order.dart';
+import 'package:food_delivery_platform/themes/app_theme.dart';
 
-Color restaurantStatusColor(OrderStatus status) {
+({Color background, Color foreground}) restaurantStatusColors(
+  BuildContext context,
+  OrderStatus status,
+) {
+  final scheme = Theme.of(context).colorScheme;
+  final brand = Theme.of(context).extension<BrandColors>()!;
   switch (status) {
     case OrderStatus.pending:
-      return Colors.orange;
+      return (background: brand.offer, foreground: brand.onOffer);
     case OrderStatus.accepted:
-      return Colors.blue;
-    case OrderStatus.rejected:
-      return Colors.red;
-    case OrderStatus.pickedUp:
-      return Colors.deepPurple;
-    case OrderStatus.delivered:
-      return Colors.green;
+      return (
+        background: const Color(0xFFDDEBFF),
+        foreground: const Color(0xFF1A3D7A),
+      );
     case OrderStatus.assigned:
-      return Colors.cyan;
+      return (
+        background: const Color(0xFFD4EEF1),
+        foreground: const Color(0xFF0F5E66),
+      );
+    case OrderStatus.pickedUp:
+      return (
+        background: const Color(0xFFFFDDB5),
+        foreground: const Color(0xFF7A3E00),
+      );
+    case OrderStatus.delivered:
+      return (
+        background: brand.openStatus,
+        foreground: brand.onOpenStatus,
+      );
+    case OrderStatus.rejected:
     case OrderStatus.cancelled:
-      return Colors.grey;
+      return (
+        background: scheme.errorContainer,
+        foreground: scheme.onErrorContainer,
+      );
   }
 }
 

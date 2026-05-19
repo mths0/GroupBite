@@ -28,6 +28,8 @@ class DriverDashboard extends StatefulWidget {
 class _DriverDashboardState extends State<DriverDashboard>
     with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  final PageController _pageController = PageController();
+  bool _isProgrammaticNav = false;
   late Stream<List<Order>> _availableOrdersStream;
   late Stream<List<Order>> _driverOrdersStream;
   StreamSubscription? _locationSubscription;
@@ -157,7 +159,22 @@ class _DriverDashboardState extends State<DriverDashboard>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _locationSubscription?.cancel();
+    _pageController.dispose();
     super.dispose();
+  }
+
+  void _goToPage(int index) async {
+    setState(() {
+      _selectedIndex = index;
+      _isProgrammaticNav = true;
+    });
+    await _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+    if (!mounted) return;
+    setState(() => _isProgrammaticNav = false);
   }
 
   @override
@@ -308,6 +325,61 @@ class _DriverDashboardState extends State<DriverDashboard>
     return distanceInKm;
   }
 
+  Widget _buildOrdersTab() {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final status = _statusColors(context, widget.driver.status);
+    final statusLabel = widget.driver.status.name;
+    final statusText = statusLabel.isEmpty
+        ? statusLabel
+        : statusLabel[0].toUpperCase() + statusLabel.substring(1);
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: status.background,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      color: status.foreground,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'GroupBite',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: scheme.outlineVariant),
+          Expanded(child: _buildOrdersBody()),
+        ],
+      ),
+    );
+  }
+
   Widget _buildOrdersBody() {
     return SafeArea(
       child: StreamBuilder<List<Order>>(
@@ -356,70 +428,26 @@ class _DriverDashboardState extends State<DriverDashboard>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final status = _statusColors(context, widget.driver.status);
-    final statusLabel = widget.driver.status.name;
-    final statusText = statusLabel.isEmpty
-        ? statusLabel
-        : statusLabel[0].toUpperCase() + statusLabel.substring(1);
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: status.background,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                statusText,
-                style: TextStyle(
-                  color: status.foreground,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ),
-            const Spacer(),
-            Text(
-              'GroupBite',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: scheme.primary,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
-        ),
-        centerTitle: false,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Divider(height: 1, color: scheme.outlineVariant),
-        ),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          if (_isProgrammaticNav) return;
+          setState(() => _selectedIndex = index);
+        },
+        children: [
+          _buildOrdersTab(),
+          DriverProfileTab(driver: widget.driver),
+        ],
       ),
-      body: _selectedIndex == 0
-          ? _buildOrdersBody()
-          : DriverProfileTab(driver: widget.driver),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Divider(height: 1, color: scheme.outlineVariant),
           NavigationBar(
             selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
-              setState(() {
-                _selectedIndex = index;
-              });
-            },
+            onDestinationSelected: _goToPage,
             destinations: const [
               NavigationDestination(
                 icon: Icon(Icons.receipt_long_outlined),

@@ -5,6 +5,7 @@ import 'package:food_delivery_platform/models/restaurant_tag.dart';
 class Restaurant extends User {
   final String createdAt;
   final GeoPoint? location;
+  final String locationAddress;
   final String imageUrl;
   final double rating;
   final int ratingCount;
@@ -20,6 +21,7 @@ class Restaurant extends User {
     required super.email,
     required this.createdAt,
     required this.location,
+    this.locationAddress = '',
     required this.imageUrl,
     required this.rating,
     required this.ratingCount,
@@ -40,6 +42,7 @@ class Restaurant extends User {
       createdAt: (map['createdAt'] ?? '').toString(),
       email: (map['email'] ?? '').toString(),
       location: locationValue is GeoPoint ? locationValue : null,
+      locationAddress: (map['locationAddress'] ?? '').toString(),
       imageUrl: (map['imageUrl'] ?? '').toString(),
       rating: (map['rating'] ?? 0).toDouble(),
       ratingCount: (map['ratingCount'] ?? 0) as int,
@@ -66,6 +69,7 @@ class Restaurant extends User {
     'createdAt': createdAt,
     'email': email,
     'location': location,
+    'locationAddress': locationAddress,
     'imageUrl': imageUrl,
     'rating': rating,
     'ratingCount': ratingCount,

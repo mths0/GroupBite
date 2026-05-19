@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:food_delivery_platform/database_service.dart';
 import 'package:food_delivery_platform/models/order.dart';
 import 'package:food_delivery_platform/models/restaurant.dart';
+import 'package:food_delivery_platform/pages/restaurant/restaurant_dashboard.dart';
 import 'package:food_delivery_platform/pages/restaurant/restaurant_order_detail_screen.dart';
 import 'package:food_delivery_platform/pages/restaurant/restaurant_order_status.dart';
 
@@ -38,6 +39,13 @@ int _compareOrders(Order a, Order b) {
   return b.createdAt.compareTo(a.createdAt);
 }
 
+bool _isPastStatus(OrderStatus status) {
+  return status == OrderStatus.pickedUp ||
+      status == OrderStatus.delivered ||
+      status == OrderStatus.cancelled ||
+      status == OrderStatus.rejected;
+}
+
 class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
     with SingleTickerProviderStateMixin {
   final DatabaseService _db = DatabaseService();
@@ -47,18 +55,31 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
   final Map<String, Future<String>> _customerNameFutures = {};
   final Set<String> _autoRejectInFlight = {};
   final Set<String> _autoCancelInFlight = {};
+
+  List<Order>? _orders;
   Restaurant? _restaurant;
+  StreamSubscription<List<Order>>? _ordersSub;
+
+  DateTime _now = DateTime.now();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _refreshRestaurant();
-    _tick = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (mounted) {
-        _refreshRestaurant();
-        setState(() {});
-      }
+    _ordersSub = _db.getOrdersForRestaurant(widget.restaurantId).listen((
+      data,
+    ) {
+      if (!mounted) return;
+      setState(() => _orders = data);
+    });
+    // Re-evaluate time-based filters periodically without triggering a
+    // full rebuild of the StreamBuilder/TabBarView — the bumped interval
+    // keeps the cancel-window filter fresh while preserving scroll
+    // position between updates.
+    _tick = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
     });
   }
 
@@ -102,6 +123,7 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
   @override
   void dispose() {
     _tick?.cancel();
+    _ordersSub?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -130,13 +152,20 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Scaffold(
       body: Column(
         children: [
+          const RestaurantPageHeader(title: 'Orders'),
           Material(
-            color: Theme.of(context).colorScheme.surface,
+            color: theme.scaffoldBackgroundColor,
             child: TabBar(
               controller: _tabController,
+              labelColor: scheme.primary,
+              unselectedLabelColor: scheme.onSurfaceVariant,
+              indicatorColor: scheme.primary,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w800),
               tabs: const [
                 Tab(text: 'Orders'),
                 Tab(text: 'Scheduled'),
@@ -144,21 +173,14 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
             ),
           ),
           Expanded(
-            child: StreamBuilder<List<Order>>(
-              stream: _db.getOrdersForRestaurant(widget.restaurantId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+            child: Builder(
+              builder: (context) {
+                final orders = _orders;
+                if (orders == null) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error: ${snapshot.error}'),
-                  );
-                }
-
-                final orders = snapshot.data ?? [];
-                final now = DateTime.now();
+                final now = _now;
 
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _autoRejectIfClosed(orders);
@@ -223,21 +245,83 @@ class _RestaurantOrdersDashboardState extends State<RestaurantOrdersDashboard>
     if (orders.isEmpty) {
       return Center(child: Text(emptyText));
     }
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: orders.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 18),
-      itemBuilder: (context, index) {
-        final order = orders[index];
-        return _OrderCard(
-          order: order,
-          customerNameFuture: _customerNameFuture(order.customerId),
-          scheduledLine: isScheduledTab && order.scheduledFor != null
-              ? 'Scheduled: ${_formatScheduledFor(order.scheduledFor!)}'
-              : null,
-          onTap: () => _openDetail(order),
-        );
-      },
+
+    String? scheduledLineFor(Order order) =>
+        isScheduledTab && order.scheduledFor != null
+            ? 'Scheduled: ${_formatScheduledFor(order.scheduledFor!)}'
+            : null;
+
+    if (isScheduledTab) {
+      return ListView.separated(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        itemCount: orders.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 14),
+        itemBuilder: (context, i) {
+          final order = orders[i];
+          return _OrderCard(
+            order: order,
+            customerNameFuture: _customerNameFuture(order.customerId),
+            scheduledLine: scheduledLineFor(order),
+            onTap: () => _openDetail(order),
+          );
+        },
+      );
+    }
+
+    final active = orders.where((o) => !_isPastStatus(o.status)).toList();
+    final past = orders.where((o) => _isPastStatus(o.status)).toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        if (active.isNotEmpty) ...[
+          _SectionLabel(text: 'Active Orders'),
+          const SizedBox(height: 12),
+          for (final order in active) ...[
+            _OrderCard(
+              order: order,
+              customerNameFuture: _customerNameFuture(order.customerId),
+              scheduledLine: scheduledLineFor(order),
+              onTap: () => _openDetail(order),
+            ),
+            const SizedBox(height: 14),
+          ],
+          const SizedBox(height: 12),
+        ],
+        if (past.isNotEmpty) ...[
+          _SectionLabel(text: 'Past Orders'),
+          const SizedBox(height: 12),
+          for (final order in past) ...[
+            _OrderCard(
+              order: order,
+              customerNameFuture: _customerNameFuture(order.customerId),
+              scheduledLine: scheduledLineFor(order),
+              onTap: () => _openDetail(order),
+            ),
+            const SizedBox(height: 14),
+          ],
+        ],
+      ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(left: 2),
+      child: Text(
+        text,
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
 }
@@ -265,7 +349,7 @@ class _OrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final statusColor = restaurantStatusColor(order.status);
+    final status = restaurantStatusColors(context, order.status);
 
     return FutureBuilder<String>(
       future: customerNameFuture,
@@ -283,94 +367,106 @@ class _OrderCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: scheme.surface,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: scheme.outlineVariant,
-                  width: 1,
-                ),
+                border: Border.all(color: scheme.outlineVariant, width: 1),
                 boxShadow: [
                   BoxShadow(
                     blurRadius: 14,
                     offset: const Offset(0, 4),
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                   ),
                 ],
               ),
               child: Padding(
                 padding: const EdgeInsets.all(14),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
                             'Order #${order.id}',
-                            style: theme.textTheme.titleMedium?.copyWith(
+                            style: theme.textTheme.bodyMedium?.copyWith(
                               fontWeight: FontWeight.w800,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            customerName,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: scheme.outline,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
                           ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              restaurantStatusLabel(order.status),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: statusColor,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                          decoration: BoxDecoration(
+                            color: status.background,
+                            borderRadius: BorderRadius.circular(999),
                           ),
-                          if (scheduledLine != null) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              scheduledLine!,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: scheme.outline,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          child: Text(
+                            restaurantStatusLabel(order.status),
+                            style: TextStyle(
+                              color: status.foreground,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
                             ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          _formatTime(order.createdAt),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.outline,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${order.totalPrice.toStringAsFixed(2)} SAR',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: scheme.primary,
-                            fontWeight: FontWeight.w800,
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                customerName,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (scheduledLine != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  scheduledLine!,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ],
                           ),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${order.totalPrice.toStringAsFixed(2)} SAR',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: scheme.primary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _formatTime(order.createdAt),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

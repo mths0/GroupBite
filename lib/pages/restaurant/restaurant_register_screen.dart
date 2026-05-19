@@ -8,6 +8,7 @@ import 'package:food_delivery_platform/models/restaurant.dart';
 import 'package:food_delivery_platform/models/restaurant_tag.dart';
 import 'package:food_delivery_platform/pages/customer/add_address_screen.dart';
 import 'package:food_delivery_platform/pages/start_screen.dart';
+import 'package:food_delivery_platform/themes/app_theme.dart';
 import 'package:food_delivery_platform/utils/id_generator.dart';
 import 'package:food_delivery_platform/utils/validators.dart';
 
@@ -171,29 +172,58 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final brand = theme.extension<BrandColors>()!;
+    final hasLocation = _selectedLocation?.location != null;
     return Scaffold(
-      appBar: AppBar(title: const Text("Restaurant Registration")),
+      appBar: AppBar(
+        title: Text(
+          'Restaurant Registration',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: scheme.primary,
+          ),
+        ),
+        centerTitle: true,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
+      ),
       body: AbsorbPointer(
         absorbing: isLoading,
         child: SafeArea(
           child: Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
               children: [
-                const Text(
-                  "Fill restaurant details",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Text(
+                  'Fill restaurant details',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   widget.email,
-                  style: TextStyle(color: Colors.grey[700]),
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
 
                 if (errorText != null) ...[
-                  Text(errorText!, style: const TextStyle(color: Colors.red)),
+                  Text(
+                    errorText!,
+                    style: TextStyle(color: scheme.error),
+                  ),
                   const SizedBox(height: 12),
                 ],
 
@@ -206,37 +236,42 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
                     LengthLimitingTextInputFormatter(9),
                   ],
                   decoration: InputDecoration(
-                    labelText: "Phone number",
-                    hintText: "5XXXXXXXX",
-                    prefixIcon: const Icon(Icons.phone),
+                    hintText: 'Phone number (5XXXXXXXX)',
+                    prefixIcon: const Icon(Icons.phone_outlined),
                     errorText: phoneErrorText,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
 
                 TextFormField(
                   controller: _nameCtrl,
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
-                    labelText: "Restaurant name",
-                    hintText: "Chapati & Karak",
-                    prefixIcon: const Icon(Icons.storefront),
+                    hintText: 'Restaurant name',
+                    prefixIcon: const Icon(Icons.storefront_outlined),
                     errorText: nameErrorText,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 18),
 
-                Text(
-                  "Restaurant categories",
-                  style: Theme.of(context).textTheme.titleSmall,
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 8),
+                  child: Text(
+                    'Restaurant categories',
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 8),
 
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(12),
+                    color: scheme.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: scheme.outlineVariant, width: 1),
                   ),
                   child: Column(
                     children: RestaurantTag.values.map((tag) {
@@ -263,41 +298,71 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
 
                 if (tagsErrorText != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: 8, left: 4),
                     child: Text(
                       tagsErrorText!,
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                      style: TextStyle(color: scheme.error, fontSize: 12),
                     ),
                   ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 18),
 
-                OutlinedButton.icon(
-                  onPressed: _pickLocation,
-                  icon: Icon(
-                    _selectedLocation?.location != null
-                        ? Icons.location_on
-                        : Icons.map_outlined,
-                    color: _selectedLocation?.location != null
-                        ? Colors.green
-                        : null,
-                  ),
-                  label: Text(
-                    _selectedLocation?.location != null
-                        ? "Location Selected"
-                        : "Choose Location on Map",
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _selectedLocation?.location != null
-                        ? Colors.green
-                        : null,
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton.icon(
+                    onPressed: _pickLocation,
+                    icon: Icon(
+                      hasLocation ? Icons.location_on : Icons.map_outlined,
+                      size: 18,
+                      color: hasLocation ? brand.success : null,
+                    ),
+                    label: Text(
+                      hasLocation
+                          ? 'Location Selected'
+                          : 'Choose Location on Map',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: scheme.surfaceContainerLowest,
+                      foregroundColor: hasLocation
+                          ? brand.success
+                          : scheme.onSurface,
+                      side: BorderSide(
+                        color: hasLocation
+                            ? brand.success.withValues(alpha: 0.4)
+                            : scheme.outlineVariant,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
                   ),
                 ),
-                if (_selectedLocation?.location != null) ...[
-                  const SizedBox(height: 8),
-                  Card(
+                if (hasLocation) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: scheme.outlineVariant,
+                        width: 1,
+                      ),
+                    ),
                     child: ListTile(
-                      leading: const Icon(Icons.place_outlined),
-                      title: const Text('Restaurant location'),
+                      leading: Icon(
+                        Icons.place_outlined,
+                        color: scheme.primary,
+                      ),
+                      title: Text(
+                        'Restaurant location',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       subtitle: Text(
                         _selectedLocation!.fullAddress,
                         maxLines: 2,
@@ -312,25 +377,40 @@ class _RestaurantRegisterScreenState extends State<RestaurantRegisterScreen> {
                 ],
                 if (_locationError != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
+                    padding: const EdgeInsets.only(top: 8, left: 4),
                     child: Text(
                       _locationError!,
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                      style: TextStyle(color: scheme.error, fontSize: 12),
                     ),
                   ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 28),
 
                 SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
+                  width: double.infinity,
+                  height: 54,
+                  child: FilledButton(
                     onPressed: validateData,
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
                     child: isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 22,
                             height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: scheme.onPrimary,
+                            ),
                           )
-                        : const Text("Register"),
+                        : const Text(
+                            'Register',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
                 ),
               ],

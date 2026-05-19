@@ -211,6 +211,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ),
         ),
         centerTitle: true,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
       ),
       body: StreamBuilder<Order?>(
         stream: _db.streamOrderById(widget.order.id),
@@ -668,34 +675,24 @@ class _RestaurantDetailsCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: scheme.surfaceContainer,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              size: 14,
-                              color: Color(0xFFE9C176),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.star_rounded,
+                            color: scheme.secondary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            restaurant.rating.toStringAsFixed(1),
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              restaurant.rating.toStringAsFixed(1),
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: scheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -981,6 +978,8 @@ class _OrderSummaryCard extends StatelessWidget {
     final deliveryFee = (order.totalPrice - itemsInclTax)
         .clamp(0, double.infinity)
         .toDouble();
+    final gross = itemsInclTax + deliveryFee;
+    final totalPaid = order.totalPrice;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
@@ -1039,7 +1038,29 @@ class _OrderSummaryCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '${order.totalPrice.toStringAsFixed(2)} SAR',
+                '${gross.toStringAsFixed(2)} SAR',
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total Paid',
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                '${totalPaid.toStringAsFixed(2)} SAR',
                 style: TextStyle(
                   color: scheme.primary,
                   fontSize: 22,

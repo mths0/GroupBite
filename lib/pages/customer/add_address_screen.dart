@@ -5,6 +5,30 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart' as loc;
 import 'package:food_delivery_platform/models/customer_address.dart';
 
+/// Reverse-geocodes a LatLng into a human-readable address string.
+/// Returns 'Selected location' if no placemark was found, or
+/// 'Could not resolve address' on error.
+Future<String> resolveAddressFromLatLng(LatLng position) async {
+  try {
+    final placemarks = await placemarkFromCoordinates(
+      position.latitude,
+      position.longitude,
+    );
+    if (placemarks.isEmpty) return 'Selected location';
+    final p = placemarks.first;
+    final parts = [
+      p.street,
+      p.subLocality,
+      p.locality,
+      p.administrativeArea,
+      p.country,
+    ].where((e) => e != null && e.trim().isNotEmpty).cast<String>().toList();
+    return parts.isEmpty ? 'Selected location' : parts.join(', ');
+  } catch (_) {
+    return 'Could not resolve address';
+  }
+}
+
 class AddAddressScreen extends StatefulWidget {
   const AddAddressScreen({
     super.key,
@@ -14,6 +38,7 @@ class AddAddressScreen extends StatefulWidget {
     this.showBuildingDetailsField = true,
     this.showDefaultToggle = true,
     this.saveButtonText = 'Save Address',
+    this.startWithFullMap = false,
     this.onSubmit,
   });
 
@@ -23,6 +48,7 @@ class AddAddressScreen extends StatefulWidget {
   final bool showBuildingDetailsField;
   final bool showDefaultToggle;
   final String saveButtonText;
+  final bool startWithFullMap;
 
   /// Optional async callback that persists the address before the screen
   /// pops. When provided, the Save button waits for this to complete so
@@ -44,7 +70,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     final picked = await Navigator.push<LatLng>(
       context,
       MaterialPageRoute(
-        builder: (_) => _LocationPickerScreen(
+        builder: (_) => LocationPickerScreen(
           initialTarget: initialTarget,
           initialSelection: _selectedLatLng,
         ),
@@ -82,6 +108,20 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       _resolvedAddress = widget.existing!.fullAddress.trim().isEmpty
           ? 'Selected location'
           : widget.existing!.fullAddress;
+    }
+
+    if (widget.startWithFullMap) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final hadPriorLocation = _selectedLatLng != null;
+        await _openFullScreenMap();
+        if (!mounted) return;
+        if (_selectedLatLng != null) {
+          await _save();
+        } else if (!hadPriorLocation) {
+          Navigator.pop(context);
+        }
+      });
     }
   }
 
@@ -419,8 +459,8 @@ class _MapPreviewCard extends StatelessWidget {
   }
 }
 
-class _LocationPickerScreen extends StatefulWidget {
-  const _LocationPickerScreen({
+class LocationPickerScreen extends StatefulWidget {
+  const LocationPickerScreen({
     required this.initialTarget,
     required this.initialSelection,
   });
@@ -429,10 +469,10 @@ class _LocationPickerScreen extends StatefulWidget {
   final LatLng? initialSelection;
 
   @override
-  State<_LocationPickerScreen> createState() => _LocationPickerScreenState();
+  State<LocationPickerScreen> createState() => LocationPickerScreenState();
 }
 
-class _LocationPickerScreenState extends State<_LocationPickerScreen> {
+class LocationPickerScreenState extends State<LocationPickerScreen> {
   GoogleMapController? _controller;
   late LatLng? _selected;
   final loc.Location _locationService = loc.Location();
