@@ -231,60 +231,62 @@ class _InviteListView extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ...rest.map(
-            (invite) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerLowest,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: scheme.outlineVariant),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      '${invite.ownerName} invited you',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                (invite) =>
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: scheme.outlineVariant),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => _reject(context, invite.id),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              side: BorderSide(color: scheme.outlineVariant),
-                              foregroundColor: scheme.onSurface,
-                            ),
-                            child: const Text('Decline'),
+                        Text(
+                          '${invite.ownerName} invited you',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () => _accept(context, invite.id),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => _reject(context, invite.id),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(48),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  side: BorderSide(
+                                      color: scheme.outlineVariant),
+                                  foregroundColor: scheme.onSurface,
+                                ),
+                                child: const Text('Decline'),
                               ),
                             ),
-                            child: const Text('Accept'),
-                          ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () => _accept(context, invite.id),
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(48),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                child: const Text('Accept'),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
           ),
         ],
       ],
@@ -622,9 +624,9 @@ class _WalletView extends StatelessWidget {
                   _MemberTile(
                     memberId: memberId,
                     member:
-                        (isOwner || memberId == currentUserId)
-                            ? byId[memberId]
-                            : null,
+                    (isOwner || memberId == currentUserId)
+                        ? byId[memberId]
+                        : null,
                     isCurrentUser: memberId == currentUserId,
                     isOwnerView: isOwner,
                     onRemove: () => _removeMember(context, memberId),
@@ -716,103 +718,103 @@ class _MemberTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        _RoleBadge(
-                          label: 'Member',
-                          background: scheme.surfaceContainerHigh,
-                          foreground: scheme.onSurfaceVariant,
-                        ),
-                      ],
-                    ),
-                  ),
-                  ...actions,
-                ],
-              ),
-              if (m != null) ...[
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Text(
-                      'Spending',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (hasLimit)
-                      Text.rich(
-                        TextSpan(
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            TextSpan(
-                              text: spent.toStringAsFixed(0),
-                              style: TextStyle(
+                            Text(
+                              name,
+                              style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w800,
-                                color: atOrOverLimit
-                                    ? scheme.error
-                                    : scheme.onSurface,
                               ),
                             ),
-                            TextSpan(
-                              text: ' / ${m.limit!.toStringAsFixed(0)} SAR',
-                              style: TextStyle(
-                                color: scheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            const SizedBox(height: 6),
+                            _RoleBadge(
+                              label: 'Member',
+                              background: scheme.surfaceContainerHigh,
+                              foreground: scheme.onSurfaceVariant,
                             ),
                           ],
                         ),
-                        style: theme.textTheme.bodyMedium,
-                      )
-                    else
-                      Text(
-                        'No limit',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
+                      ),
+                      ...actions,
+                    ],
+                  ),
+                  if (m != null) ...[
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Text(
+                          'Spending',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (hasLimit)
+                          Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: spent.toStringAsFixed(0),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: atOrOverLimit
+                                        ? scheme.error
+                                        : scheme.onSurface,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: ' / ${m.limit!.toStringAsFixed(0)} SAR',
+                                  style: TextStyle(
+                                    color: scheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                        ),
+                            style: theme.textTheme.bodyMedium,
+                          )
+                        else
+                          Text(
+                            'No limit',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (hasLimit) ...[
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 6,
+                          backgroundColor: scheme.surfaceContainerHigh,
+                          valueColor: AlwaysStoppedAnimation(
+                            atOrOverLimit ? scheme.error : scheme.secondary,
+                          ),
                         ),
                       ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          limitPeriodLabel(m.period),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ),
-                if (hasLimit) ...[
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 6,
-                      backgroundColor: scheme.surfaceContainerHigh,
-                      valueColor: AlwaysStoppedAnimation(
-                        atOrOverLimit ? scheme.error : scheme.secondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      limitPeriodLabel(m.period),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
                 ],
-              ],
-            ],
               ),
             ),
           ),
@@ -1075,18 +1077,19 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
                 initialValue: _period,
                 onChanged: _hasLimit
                     ? (v) =>
-                        setState(() => _period = v ?? LimitPeriod.manual)
+                    setState(() => _period = v ?? LimitPeriod.manual)
                     : null,
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.restart_alt_outlined),
                 ),
                 items: LimitPeriod.values
                     .map(
-                      (p) => DropdownMenuItem(
+                      (p) =>
+                      DropdownMenuItem(
                         value: p,
                         child: Text(_resetCadenceLabel(p)),
                       ),
-                    )
+                )
                     .toList(),
               ),
               const SizedBox(height: 24),
@@ -1096,20 +1099,20 @@ class _AddMemberSheetState extends State<_AddMemberSheet> {
                   onPressed: _busy ? null : _submit,
                   child: _busy
                       ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: Colors.white,
-                          ),
-                        )
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
                       : const Text(
-                          'Send Invite',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                    'Send Invite',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1140,7 +1143,9 @@ class _SheetLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Padding(
       padding: const EdgeInsets.only(left: 4),
       child: Text(
@@ -1327,18 +1332,19 @@ class _EditLimitSheetState extends State<_EditLimitSheet> {
                 initialValue: _period,
                 onChanged: _hasLimit
                     ? (v) =>
-                        setState(() => _period = v ?? LimitPeriod.manual)
+                    setState(() => _period = v ?? LimitPeriod.manual)
                     : null,
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.restart_alt_outlined),
                 ),
                 items: LimitPeriod.values
                     .map(
-                      (p) => DropdownMenuItem(
+                      (p) =>
+                      DropdownMenuItem(
                         value: p,
                         child: Text(_resetCadenceLabel(p)),
                       ),
-                    )
+                )
                     .toList(),
               ),
               if (showResetButton) ...[
@@ -1398,20 +1404,20 @@ class _EditLimitSheetState extends State<_EditLimitSheet> {
                   onPressed: _busy ? null : _save,
                   child: _busy
                       ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: Colors.white,
-                          ),
-                        )
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
                       : const Text(
-                          'Save',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                    'Save',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ],

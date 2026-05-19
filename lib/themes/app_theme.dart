@@ -198,6 +198,7 @@ class AppTheme {
 
   static ThemeData get lightTheme =>
       _build(lightColorScheme, _lightTextTheme, BrandColors.light);
+
   static ThemeData get darkTheme =>
       _build(darkColorScheme, _darkTextTheme, BrandColors.dark);
 

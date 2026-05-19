@@ -29,7 +29,7 @@ class StartScreen extends StatelessWidget {
                 height: 20,
               ),
               Text(
-                "Welcome to FoodFlow",
+                "Welcome to Yjeek",
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               SizedBox(

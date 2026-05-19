@@ -427,7 +427,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: filtered.length,
           separatorBuilder: (_, __) => const SizedBox(height: 16),
-          itemBuilder: (context, i) => _buildRestaurantCard(filtered[i], scheme),
+          itemBuilder: (context, i) =>
+              _buildRestaurantCard(filtered[i], scheme),
         );
       },
     );
@@ -436,10 +437,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   Widget _buildRestaurantCard(Restaurant restaurant, ColorScheme scheme) {
     final brand = Theme.of(context).extension<BrandColors>()!;
     final isClosed = !restaurant.isOpen;
-    final cuisine = restaurant.tags
-        .take(2)
-        .map((t) => t.label)
-        .join('  •  ');
+    final cuisine = restaurant.tags.take(2).map((t) => t.label).join('  •  ');
     final distance = _distanceLabel(restaurant);
 
     return InkWell(

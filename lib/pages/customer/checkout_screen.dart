@@ -690,8 +690,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         isSelected: _useWallet,
                         isToggle: true,
                         disabled: balance <= 0,
-                        onTap: () =>
-                            setState(() => _useWallet = !_useWallet),
+                        onTap: () => setState(() => _useWallet = !_useWallet),
                       ),
                     );
                     if (family != null) {
@@ -713,8 +712,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       children: [
                         for (var i = 0; i < rows.length; i++) ...[
                           rows[i],
-                          if (i < rows.length - 1)
-                            const SizedBox(height: 10),
+                          if (i < rows.length - 1) const SizedBox(height: 10),
                         ],
                       ],
                     );
@@ -796,8 +794,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ? 'Place Order  •  $amount SAR'
         : widget.isGroupHost
         ? (widget.total <= 0.005
-            ? 'Place Order'
-            : 'Pay Last & Place Order  •  $amount SAR')
+              ? 'Place Order'
+              : 'Pay Last & Place Order  •  $amount SAR')
         : 'Pay My Part  •  $amount SAR';
 
     final scheme = Theme.of(context).colorScheme;
@@ -1128,9 +1126,7 @@ class _PaymentRow extends StatelessWidget {
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: disabled
-                        ? scheme.error
-                        : scheme.onSurfaceVariant,
+                    color: disabled ? scheme.error : scheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -1275,7 +1271,8 @@ class _CheckoutSummary extends StatelessWidget {
     final scheme = theme.colorScheme;
     final displaySubtotal = ownSubtotal ?? subtotal;
     final displayTax = ownTax ?? tax;
-    final lineItemsTotal = displaySubtotal + displayTax + deliveryFee - discount;
+    final lineItemsTotal =
+        displaySubtotal + displayTax + deliveryFee - discount;
     final adjustment = total - lineItemsTotal;
     final showAdjustment = adjustment.abs() > 0.005;
     final paidByOthersTotal = othersPaid == null
@@ -1476,7 +1473,6 @@ class _CheckoutItemRow extends StatelessWidget {
     );
   }
 }
-
 
 class _SummaryRow extends StatelessWidget {
   const _SummaryRow({

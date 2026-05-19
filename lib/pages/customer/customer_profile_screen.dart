@@ -92,10 +92,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _SavedAddressesPage(
-          customerId: _current.id,
-          onDefaultAddressChanged: widget.onDefaultAddressChanged,
-        ),
+        builder: (_) =>
+            _SavedAddressesPage(
+              customerId: _current.id,
+              onDefaultAddressChanged: widget.onDefaultAddressChanged,
+            ),
       ),
     );
   }
@@ -104,10 +105,11 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _PaymentMethodsPage(
-          customerId: _current.id,
-          customerName: _current.name,
-        ),
+        builder: (_) =>
+            _PaymentMethodsPage(
+              customerId: _current.id,
+              customerName: _current.name,
+            ),
       ),
     );
   }
@@ -116,12 +118,13 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => SupportScreen(
-          userId: _current.id,
-          userRole: 'customer',
-          userName: _current.name,
-          userEmail: _current.email,
-        ),
+        builder: (_) =>
+            SupportScreen(
+              userId: _current.id,
+              userRole: 'customer',
+              userName: _current.name,
+              userEmail: _current.email,
+            ),
       ),
     );
   }
@@ -163,89 +166,89 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
               children: [
-          Center(
-            child: Column(
-              children: [
-                Text(
-                  _current.name,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+                Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        _current.name,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _current.email,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  _current.email,
-                  style: TextStyle(
-                    color: scheme.onSurfaceVariant,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                const SizedBox(height: 32),
+
+                _SectionCard(
+                  children: [
+                    _SectionRow(
+                      icon: Icons.person_outline,
+                      label: 'Account Information',
+                      onTap: _openPersonalInformation,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                _SectionCard(
+                  children: [
+                    _SectionRow(
+                      icon: Icons.location_on_outlined,
+                      label: 'Saved Addresses',
+                      onTap: _openSavedAddresses,
+                    ),
+                    const _SectionRowDivider(),
+                    _SectionRow(
+                      icon: Icons.credit_card_outlined,
+                      label: 'Payment Methods',
+                      onTap: _openPaymentMethods,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                _SectionCard(
+                  children: [
+                    _SectionRow(
+                      icon: Icons.support_agent_outlined,
+                      label: 'Contact Support',
+                      onTap: _openSupport,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 28),
+
+                OutlinedButton.icon(
+                  onPressed: _signOut,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: scheme.error,
+                    side: BorderSide(
+                      color: scheme.error.withValues(alpha: 0.45),
+                      width: 1.2,
+                    ),
+                    minimumSize: const Size.fromHeight(52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  icon: const Icon(Icons.logout_rounded, size: 18),
+                  label: const Text(
+                    'Sign Out',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 32),
-
-          _SectionCard(
-            children: [
-              _SectionRow(
-                icon: Icons.person_outline,
-                label: 'Account Information',
-                onTap: _openPersonalInformation,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          _SectionCard(
-            children: [
-              _SectionRow(
-                icon: Icons.location_on_outlined,
-                label: 'Saved Addresses',
-                onTap: _openSavedAddresses,
-              ),
-              const _SectionRowDivider(),
-              _SectionRow(
-                icon: Icons.credit_card_outlined,
-                label: 'Payment Methods',
-                onTap: _openPaymentMethods,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          _SectionCard(
-            children: [
-              _SectionRow(
-                icon: Icons.support_agent_outlined,
-                label: 'Contact Support',
-                onTap: _openSupport,
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-
-          OutlinedButton.icon(
-            onPressed: _signOut,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: scheme.error,
-              side: BorderSide(
-                color: scheme.error.withValues(alpha: 0.45),
-                width: 1.2,
-              ),
-              minimumSize: const Size.fromHeight(52),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            icon: const Icon(Icons.logout_rounded, size: 18),
-            label: const Text(
-              'Sign Out',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
           ),
         ],
       ),
@@ -287,7 +290,9 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Container(
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLowest,
@@ -317,7 +322,9 @@ class _SectionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -366,7 +373,9 @@ class _SectionRowDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Divider(
       height: 1,
       thickness: 1,
@@ -403,7 +412,9 @@ class _PersonalInformationPageState extends State<_PersonalInformationPage> {
     _nameController = TextEditingController(text: widget.customer.name);
     _phoneController = TextEditingController(text: widget.customer.phone);
     _nameController.addListener(() {
-      if (_nameError != null && _nameController.text.trim().isNotEmpty) {
+      if (_nameError != null && _nameController.text
+          .trim()
+          .isNotEmpty) {
         setState(() => _nameError = null);
       }
     });
@@ -559,17 +570,17 @@ class _PersonalInformationPageState extends State<_PersonalInformationPage> {
                   onPressed: _isSaving ? null : _save,
                   child: _isSaving
                       ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2.2),
-                        )
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  )
                       : const Text(
-                          'Save Changes',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                    'Save Changes',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -588,7 +599,9 @@ class _LabeledField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -659,21 +672,22 @@ class _SavedAddressesPageState extends State<_SavedAddressesPage> {
     await Navigator.push<CustomerAddress>(
       context,
       MaterialPageRoute(
-        builder: (_) => AddAddressScreen(
-          onSubmit: (address) async {
-            await _db.addCustomerAddress(
-              customerId: widget.customerId,
-              address: address,
-            );
-            if (address.isDefault) {
-              await _db.setDefaultCustomerAddress(
-                customerId: widget.customerId,
-                addressId: address.id,
-              );
-              widget.onDefaultAddressChanged?.call();
-            }
-          },
-        ),
+        builder: (_) =>
+            AddAddressScreen(
+              onSubmit: (address) async {
+                await _db.addCustomerAddress(
+                  customerId: widget.customerId,
+                  address: address,
+                );
+                if (address.isDefault) {
+                  await _db.setDefaultCustomerAddress(
+                    customerId: widget.customerId,
+                    addressId: address.id,
+                  );
+                  widget.onDefaultAddressChanged?.call();
+                }
+              },
+            ),
       ),
     );
   }
@@ -682,27 +696,29 @@ class _SavedAddressesPageState extends State<_SavedAddressesPage> {
     await Navigator.push<CustomerAddress>(
       context,
       MaterialPageRoute(
-        builder: (_) => AddAddressScreen(
-          existing: address,
-          onSubmit: (updated) async {
-            await _db.updateCustomerAddress(
-              customerId: widget.customerId,
-              address: updated,
-            );
-            if (updated.isDefault && !address.isDefault) {
-              await _db.setDefaultCustomerAddress(
-                customerId: widget.customerId,
-                addressId: updated.id,
-              );
-              widget.onDefaultAddressChanged?.call();
-            }
-          },
-        ),
+        builder: (_) =>
+            AddAddressScreen(
+              existing: address,
+              onSubmit: (updated) async {
+                await _db.updateCustomerAddress(
+                  customerId: widget.customerId,
+                  address: updated,
+                );
+                if (updated.isDefault && !address.isDefault) {
+                  await _db.setDefaultCustomerAddress(
+                    customerId: widget.customerId,
+                    addressId: updated.id,
+                  );
+                  widget.onDefaultAddressChanged?.call();
+                }
+              },
+            ),
       ),
     );
   }
 
-  Future<void> _delete(CustomerAddress address, List<CustomerAddress> all) async {
+  Future<void> _delete(CustomerAddress address,
+      List<CustomerAddress> all) async {
     if (all.length <= 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -835,7 +851,9 @@ class _AddressTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return InkWell(
       onTap: onEdit,
       borderRadius: BorderRadius.circular(16),
@@ -1009,7 +1027,7 @@ class _PaymentMethodsPageState extends State<_PaymentMethodsPage> {
       context: context,
       title: 'Delete card?',
       message:
-          'Remove card ending in ${card.last4} from your payment methods?',
+      'Remove card ending in ${card.last4} from your payment methods?',
       confirmLabel: 'Delete',
     );
     if (confirmed != true || !mounted) return;
@@ -1168,7 +1186,9 @@ class _WalletCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
       decoration: BoxDecoration(

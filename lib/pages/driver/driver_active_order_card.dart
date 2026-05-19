@@ -218,8 +218,7 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
             onDelivered: canMarkDelivered
                 ? confirmDialog(
                     title: 'Mark as delivered?',
-                    message:
-                        'Confirm you handed the order to the customer.',
+                    message: 'Confirm you handed the order to the customer.',
                     confirmLabel: 'Mark delivered',
                     onPress: widget.onDelivered,
                   )

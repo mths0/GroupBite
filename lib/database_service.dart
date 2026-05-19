@@ -797,7 +797,8 @@ class DatabaseService {
     await updateGroupOrder(groupOrderId, {
       'promoCode': coupon.code,
       'promoLabel': coupon.label,
-      'promoDiscountType': coupon.discountType == cart_models.CouponDiscountType.fixed
+      'promoDiscountType':
+          coupon.discountType == cart_models.CouponDiscountType.fixed
           ? 'fixed'
           : 'percentage',
       'promoDiscountValue': coupon.discountValue,
@@ -2477,6 +2478,7 @@ class DatabaseService {
     required String message,
     String? orderId,
     String? orderStatus,
+    Map<String, dynamic>? deviceInfo,
   }) async {
     final doc = _db.collection('support_tickets').doc();
 
@@ -2491,6 +2493,7 @@ class DatabaseService {
       'message': message.trim(),
       'orderId': orderId,
       'orderStatus': orderStatus,
+      'deviceInfo': deviceInfo,
       'status': 'open',
       'createdAt': firestore.FieldValue.serverTimestamp(),
     });

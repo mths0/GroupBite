@@ -153,7 +153,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
     final renderObject = keyContext.findRenderObject();
     if (renderObject is! RenderBox) return;
     final position = renderObject.localToGlobal(Offset.zero);
-    final topInset = MediaQuery.of(context).padding.top;
+    final topInset = MediaQuery
+        .of(context)
+        .padding
+        .top;
     final pinned = position.dy <= topInset + _chipBarTopPadding;
     if (pinned != _isChipBarPinned) {
       setState(() => _isChipBarPinned = pinned);
@@ -189,9 +192,14 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
     final renderObject = keyContext.findRenderObject();
     if (renderObject is! RenderBox) return;
     final viewport = RenderAbstractViewport.of(renderObject);
-    final revealOffset = viewport.getOffsetToReveal(renderObject, 0).offset;
+    final revealOffset = viewport
+        .getOffsetToReveal(renderObject, 0)
+        .offset;
     final position = _scrollController.position;
-    final topInset = MediaQuery.of(context).padding.top;
+    final topInset = MediaQuery
+        .of(context)
+        .padding
+        .top;
     final pinnedHeight = _chipBarHeight + topInset + _chipBarTopPadding;
     final target = (revealOffset - pinnedHeight).clamp(
       position.minScrollExtent,
@@ -241,7 +249,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                 final items = snapshot.data ?? const <MenuItem>[];
 
                 return StreamBuilder<
-                  firestore.DocumentSnapshot<Map<String, dynamic>>
+                    firestore.DocumentSnapshot<Map<String, dynamic>>
                 >(
                   stream: _restaurantStream,
                   builder: (context, restaurantSnap) {
@@ -265,9 +273,12 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                       );
                     }
 
-                final topInset = MediaQuery.of(context).padding.top;
+                    final topInset = MediaQuery
+                        .of(context)
+                        .padding
+                        .top;
 
-                return StreamBuilder<List<GroupOrderItem>>(
+                    return StreamBuilder<List<GroupOrderItem>>(
                       stream: widget.groupOrderId == null
                           ? null
                           : DatabaseService()
@@ -284,7 +295,8 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                             rows.add(
                               Padding(
                                 key: _sectionKey(cat),
-                                padding: const EdgeInsets.fromLTRB(0, 20, 0, 12),
+                                padding: const EdgeInsets.fromLTRB(
+                                    0, 20, 0, 12),
                                 child: Text(
                                   cat,
                                   style: theme.textTheme.headlineSmall
@@ -312,27 +324,27 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                               final item = filtered[i];
 
                               Future<void> handleTap() async {
-                                  final customization =
-                                      await showModalBottomSheet<
-                                        ItemCustomizationResult
-                                      >(
-                                        context: context,
-                                        isScrollControlled: true,
-                                        useSafeArea: true,
-                                        clipBehavior: Clip.antiAlias,
-                                        shape: const RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.vertical(
-                                            top: Radius.circular(20),
-                                          ),
-                                        ),
-                                        builder: (_) =>
-                                            ItemCustomizationScreen(
-                                              item: item,
-                                            ),
-                                      );
+                                final customization =
+                                await showModalBottomSheet<
+                                    ItemCustomizationResult
+                                >(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  useSafeArea: true,
+                                  clipBehavior: Clip.antiAlias,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(20),
+                                    ),
+                                  ),
+                                  builder: (_) =>
+                                      ItemCustomizationScreen(
+                                        item: item,
+                                      ),
+                                );
 
-                                  if (customization == null) {
-                                    return;
+                                if (customization == null) {
+                                  return;
                                   }
 
                                   if (widget.groupOrderId == null) {
@@ -340,9 +352,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                       restaurantId: restaurantId,
                                       item: item,
                                       selectedOptions:
-                                          customization.selectedOptions,
+                                      customization.selectedOptions,
                                       customUnitPrice:
-                                          customization.finalUnitPrice,
+                                      customization.finalUnitPrice,
                                     );
 
                                     if (!context.mounted) return;
@@ -397,9 +409,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                     memberId: widget.customer.id,
                                     menuItem: item,
                                     selectedOptions:
-                                        customization.selectedOptions,
+                                    customization.selectedOptions,
                                     customUnitPrice:
-                                        customization.finalUnitPrice,
+                                    customization.finalUnitPrice,
                                   );
 
                                   if (!context.mounted) return;
@@ -547,121 +559,124 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                   );
                                 }
 
-                                rows.add(
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: 12,
-                                    ),
-                                    child: AnimatedBuilder(
-                                      animation: cart,
-                                      builder: (_, _) => _MenuItemTile(
-                                        item: item,
-                                        count: cart.quantityForMenuItem(
-                                          restaurantId: restaurantId,
-                                          menuItemId: item.id,
+                              rows.add(
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: 12,
+                                  ),
+                                  child: AnimatedBuilder(
+                                    animation: cart,
+                                    builder: (_, _) =>
+                                        _MenuItemTile(
+                                          item: item,
+                                          count: cart.quantityForMenuItem(
+                                            restaurantId: restaurantId,
+                                            menuItemId: item.id,
+                                          ),
+                                          onAdd: handleTap,
+                                          onIncrement: handleIncrement,
                                         ),
-                                        onAdd: handleTap,
-                                        onIncrement: handleIncrement,
-                                      ),
-                                    ),
+                                  ),
                                   ),
                                 );
-                              }
                             }
+                        }
 
                         return Stack(
                           children: [
                             CustomScrollView(
-                          controller: _scrollController,
-                          cacheExtent: 10000,
-                          slivers: [
-                            SliverToBoxAdapter(
-                              child: Column(
-                                children: [
-                                  _RestaurantHero(
-                                    imageUrl: widget.restaurant.imageUrl,
-                                  ),
-                                  Transform.translate(
-                                    offset: const Offset(0, -32),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
+                              controller: _scrollController,
+                              cacheExtent: 10000,
+                              slivers: [
+                                SliverToBoxAdapter(
+                                  child: Column(
+                                    children: [
+                                      _RestaurantHero(
+                                        imageUrl: widget.restaurant.imageUrl,
                                       ),
-                                      child: HeaderCard(
-                                        restaurant: widget.restaurant,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SliverToBoxAdapter(
-                              child: widget.groupOrderId == null
-                                  ? Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                      ),
-                                      child: SizedBox(
-                                        width: double.infinity,
-                                        child: FilledButton.icon(
-                                          onPressed: _startGroupOrder,
-                                          icon: const Icon(Icons.group_add),
-                                          label: const Text(
-                                            'Start Group Order',
+                                      Transform.translate(
+                                        offset: const Offset(0, -32),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                          ),
+                                          child: HeaderCard(
+                                            restaurant: widget.restaurant,
                                           ),
                                         ),
                                       ),
-                                    )
-                                  : _GroupOrderStatusBar(
-                                      groupOrderId: widget.groupOrderId!,
-                                      customerId: widget.customer.id,
-                                      autoShowQr: widget.showGroupQrOnOpen,
-                                      onSummaryTap:
-                                          _navigateToGroupOrderSummary,
-                                    ),
-                            ),
-                            SliverToBoxAdapter(
-                              child: Container(
-                                key: _naturalChipBarKey,
-                                color: scheme.surface,
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 12,
-                                      ),
-                                      child: _CategoryChipBar(
-                                        tabs: tabs,
-                                        selectedIndex: _selectedTabIndex.clamp(
-                                          0,
-                                          tabs.length - 1,
-                                        ),
-                                        onSelect: (i) => _onChipTap(tabs, i),
-                                      ),
-                                    ),
-                                    Divider(
-                                      height: 1,
-                                      color: scheme.outlineVariant,
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
+                                SliverToBoxAdapter(
+                                  child: widget.groupOrderId == null
+                                      ? Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      child: FilledButton.icon(
+                                        onPressed: _startGroupOrder,
+                                        icon: const Icon(Icons.group_add),
+                                        label: const Text(
+                                          'Start Group Order',
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                      : _GroupOrderStatusBar(
+                                    groupOrderId: widget.groupOrderId!,
+                                    customerId: widget.customer.id,
+                                    autoShowQr: widget.showGroupQrOnOpen,
+                                    onSummaryTap:
+                                    _navigateToGroupOrderSummary,
+                                  ),
+                                ),
+                                SliverToBoxAdapter(
+                                  child: Container(
+                                    key: _naturalChipBarKey,
+                                    color: scheme.surface,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                          ),
+                                          child: _CategoryChipBar(
+                                            tabs: tabs,
+                                            selectedIndex: _selectedTabIndex
+                                                .clamp(
+                                              0,
+                                              tabs.length - 1,
+                                            ),
+                                            onSelect: (i) =>
+                                                _onChipTap(tabs, i),
+                                          ),
+                                        ),
+                                        Divider(
+                                          height: 1,
+                                          color: scheme.outlineVariant,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                SliverPadding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    0,
+                                    16,
+                                    120,
+                                  ),
+                                  sliver: SliverList(
+                                    delegate: SliverChildListDelegate(rows),
+                                  ),
+                                ),
+                              ],
                             ),
-                            SliverPadding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                0,
-                                16,
-                                120,
-                              ),
-                              sliver: SliverList(
-                                delegate: SliverChildListDelegate(rows),
-                              ),
-                            ),
-                          ],
-                        ),
                             if (_isChipBarPinned)
                               Positioned(
                                 top: 0,
@@ -674,7 +689,7 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                   ),
                                   child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
+                                    CrossAxisAlignment.stretch,
                                     children: [
                                       Padding(
                                         padding: const EdgeInsets.symmetric(
@@ -705,7 +720,10 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
           },
         ),
             Positioned(
-              top: MediaQuery.of(context).padding.top + 8,
+              top: MediaQuery
+                  .of(context)
+                  .padding
+                  .top + 8,
               left: 16,
               child: _StickyBackButton(
                 onTap: () async {
@@ -728,18 +746,19 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                     count: count,
                     label: 'View Cart',
                     trailing:
-                        '${cart.subtotal(restaurantId).toStringAsFixed(2)} SAR',
+                    '${cart.subtotal(restaurantId).toStringAsFixed(2)} SAR',
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => CartScope(
-                            notifier: cart,
-                            child: CartScreen(
-                              restaurantId: restaurantId,
-                              customerId: widget.customer.id,
-                            ),
-                          ),
+                          builder: (_) =>
+                              CartScope(
+                                notifier: cart,
+                                child: CartScreen(
+                                  restaurantId: restaurantId,
+                                  customerId: widget.customer.id,
+                                ),
+                              ),
                         ),
                       );
                     },
@@ -755,12 +774,12 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                       .toList();
                   final myCount = myItems.fold<int>(
                     0,
-                    (sum, item) => sum + item.quantity,
+                        (sum, item) => sum + item.quantity,
                   );
                   if (myCount == 0) return const SizedBox.shrink();
                   final mySubtotal = myItems.fold<double>(
                     0,
-                    (sum, item) => sum + (item.unitPrice * item.quantity),
+                        (sum, item) => sum + (item.unitPrice * item.quantity),
                   );
                   return _ViewCartBar(
                     count: myCount,
@@ -824,8 +843,13 @@ class _RestaurantHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final topInset = MediaQuery.of(context).padding.top;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
+    final topInset = MediaQuery
+        .of(context)
+        .padding
+        .top;
 
     return SizedBox(
       height: 260 + topInset,
@@ -833,15 +857,16 @@ class _RestaurantHero extends StatelessWidget {
       child: Image.network(
         imageUrl,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Container(
-          color: scheme.surfaceContainerHighest,
-          child: Center(
-            child: Icon(
-              Icons.image_not_supported_outlined,
-              color: scheme.outline,
+        errorBuilder: (_, _, _) =>
+            Container(
+              color: scheme.surfaceContainerHighest,
+              child: Center(
+                child: Icon(
+                  Icons.image_not_supported_outlined,
+                  color: scheme.outline,
+                ),
+              ),
             ),
-          ),
-        ),
       ),
     );
   }
@@ -854,7 +879,9 @@ class _StickyBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Material(
       color: scheme.surfaceContainerLowest.withValues(alpha: 0.95),
       shape: CircleBorder(
@@ -908,93 +935,47 @@ class HeaderCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          restaurant.name,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        if (cuisine.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            cuisine,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: scheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _HeaderBadge(
-                        label: restaurant.isOpen ? 'Open' : 'Closed',
-                        background: restaurant.isOpen
-                            ? brand.openStatus
-                            : scheme.outline,
-                        foreground: restaurant.isOpen
-                            ? brand.onOpenStatus
-                            : scheme.surface,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      restaurant.name,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
-                      if (restaurant.hasOffer) ...[
-                        const SizedBox(height: 6),
-                        _HeaderBadge(
-                          label: 'Offer',
-                          background: brand.offer,
-                          foreground: brand.onOffer,
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Divider(height: 1, color: scheme.outlineVariant),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Icon(
-                    Icons.local_shipping_outlined,
-                    size: 20,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                    ),
+                    if (cuisine.isNotEmpty) ...[
+                      const SizedBox(height: 4),
                       Text(
-                        'Delivery Fee',
+                        cuisine,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: scheme.onSurfaceVariant,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      Text(
-                        restaurant.deliveryFee == 0
-                            ? 'Free'
-                            : '${restaurant.deliveryFee.toStringAsFixed(2)} SAR',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: scheme.onSurface,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
                     ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _HeaderBadge(
+                    label: restaurant.isOpen ? 'Open' : 'Closed',
+                    background: restaurant.isOpen
+                        ? brand.openStatus
+                        : scheme.outline,
+                    foreground: restaurant.isOpen
+                        ? brand.onOpenStatus
+                        : scheme.surface,
                   ),
                   const Spacer(),
                   Row(
@@ -1020,6 +1001,8 @@ class HeaderCard extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
     );
   }
 }
@@ -1114,7 +1097,9 @@ class _CategoryChipBarState extends State<_CategoryChipBar> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
 
     return SizedBox(
       height: 40,
@@ -1193,53 +1178,53 @@ class _ViewCartBar extends StatelessWidget {
               clipBehavior: Clip.antiAlias,
               child: InkWell(
                 onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: scheme.onPrimary.withValues(alpha: 0.18),
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '$count',
-                      style: TextStyle(
-                        color: scheme.onPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: scheme.onPrimary.withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '$count',
+                          style: TextStyle(
+                            color: scheme.onPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        label,
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              color: scheme.onPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        trailing,
                         style: TextStyle(
                           color: scheme.onPrimary,
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  Text(
-                    trailing,
-                    style: TextStyle(
-                      color: scheme.onPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
         ),
       ],
     );
@@ -1288,11 +1273,11 @@ class _MenuItemTile extends StatelessWidget {
                   child: item.imageUrl.isNotEmpty
                       ? Image.network(
                           item.imageUrl,
-                          width: 88,
-                          height: 88,
+                    width: 88,
+                    height: 88,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              _MenuItemPlaceholder(scheme: scheme),
+                    errorBuilder: (_, _, _) =>
+                        _MenuItemPlaceholder(scheme: scheme),
                         )
                       : _MenuItemPlaceholder(scheme: scheme),
                 ),
@@ -1376,7 +1361,9 @@ class _CountPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Material(
       color: scheme.primary,
       borderRadius: BorderRadius.circular(999),
@@ -1385,8 +1372,8 @@ class _CountPill extends StatelessWidget {
         onTap: onTap == null
             ? null
             : () async {
-                await onTap!();
-              },
+          await onTap!();
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
           child: Row(

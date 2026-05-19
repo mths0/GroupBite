@@ -221,8 +221,7 @@ class _ItemCustomizationScreenState extends State<ItemCustomizationScreen> {
                       onMultiChanged: (choiceId, selected) {
                         final groupId = widget.item.optionGroups[i].id;
                         setState(() {
-                          final set =
-                              _multiSelections[groupId] ?? <String>{};
+                          final set = _multiSelections[groupId] ?? <String>{};
                           if (selected) {
                             set.add(choiceId);
                           } else {

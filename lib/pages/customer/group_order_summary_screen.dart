@@ -118,9 +118,9 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                   }
                 }
                 final grandTotal =
-                    (grandTotalBeforeDiscount - promoDiscount)
-                        .clamp(0.0, double.infinity)
-                        .toDouble();
+                (grandTotalBeforeDiscount - promoDiscount)
+                    .clamp(0.0, double.infinity)
+                    .toDouble();
 
                 // Per-member items totals (used by all strategies).
                 final Map<String, double> mSubtotalById = {};
@@ -207,9 +207,9 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                   }
 
                   final percentBase =
-                      (distributable - sumFixed - sumOwn)
-                          .clamp(0.0, double.infinity)
-                          .toDouble();
+                  (distributable - sumFixed - sumOwn)
+                      .clamp(0.0, double.infinity)
+                      .toDouble();
 
                   for (final m in nonHostMembers) {
                     double share;
@@ -232,7 +232,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                       'subtotal': mSubtotalById[m.customerId] ?? 0,
                       'tax': mTaxById[m.customerId] ?? 0,
                       'delivery':
-                          m.paymentMode == 'own' ? perMemberDeliveryShare : 0.0,
+                      m.paymentMode == 'own' ? perMemberDeliveryShare : 0.0,
                       'baseShare': share,
                     };
                   }
@@ -241,12 +241,12 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                       sumOwn +
                       (percentBase * sumPercent.clamp(0, 100) / 100);
                   final hostLeftover =
-                      (distributable - declaredTotal)
-                          .clamp(0.0, double.infinity)
-                          .toDouble();
+                  (distributable - declaredTotal)
+                      .clamp(0.0, double.infinity)
+                      .toDouble();
                   memberDetails[groupOrder.hostCustomerId] = {
                     'subtotal':
-                        mSubtotalById[groupOrder.hostCustomerId] ?? 0,
+                    mSubtotalById[groupOrder.hostCustomerId] ?? 0,
                     'tax': mTaxById[groupOrder.hostCustomerId] ?? 0,
                     'delivery': 0.0,
                     'baseShare': hostLeftover,
@@ -562,7 +562,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                 if (promoDiscount > 0) ...[
                                   _BillRow(
                                     label: groupOrder.promoLabel != null &&
-                                            groupOrder.promoLabel!.isNotEmpty
+                                        groupOrder.promoLabel!.isNotEmpty
                                         ? 'Discount (${groupOrder.promoLabel})'
                                         : 'Discount',
                                     value: -promoDiscount,
@@ -656,7 +656,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
 
     // Group-wide totals (full order; used for the host's summary view).
     final fullSubtotal =
-        allItems.fold<double>(0, (s, i) => s + i.lineTotal);
+    allItems.fold<double>(0, (s, i) => s + i.lineTotal);
     final fullTax = fullSubtotal * kTaxRate;
     final fullDelivery = restaurant.deliveryFee;
 
@@ -675,27 +675,27 @@ class GroupOrderSummaryScreen extends StatelessWidget {
 
     final appliedCoupon = (groupOrder.promoCode ?? '').isNotEmpty
         ? cart_models.Coupon(
-            code: groupOrder.promoCode!,
-            label: groupOrder.promoLabel ?? '',
-            discountType: groupOrder.promoDiscountType == 'fixed'
-                ? cart_models.CouponDiscountType.fixed
-                : cart_models.CouponDiscountType.percentage,
-            discountValue: groupOrder.promoDiscountValue ?? 0,
-          )
+      code: groupOrder.promoCode!,
+      label: groupOrder.promoLabel ?? '',
+      discountType: groupOrder.promoDiscountType == 'fixed'
+          ? cart_models.CouponDiscountType.fixed
+          : cart_models.CouponDiscountType.percentage,
+      discountValue: groupOrder.promoDiscountValue ?? 0,
+    )
         : null;
 
     // Items shown on the checkout cart list.
     final itemsUserPaysFor = isHost
         ? allItems
         : allItems.where((item) {
-            if (item.memberId == me) {
-              return myMember.paidBy == null;
-            }
-            final itemOwner = members.firstWhere(
-              (m) => m.customerId == item.memberId,
-            );
-            return itemOwner.paidBy == me;
-          }).toList();
+      if (item.memberId == me) {
+        return myMember.paidBy == null;
+      }
+      final itemOwner = members.firstWhere(
+            (m) => m.customerId == item.memberId,
+      );
+      return itemOwner.paidBy == me;
+    }).toList();
 
     double paySubtotal = 0;
     double payTax = 0;
@@ -713,15 +713,15 @@ class GroupOrderSummaryScreen extends StatelessWidget {
       if (groupOrder.totalSplitStrategy == 'host') {
         payTotal = grandTotal;
         contributionNote =
-            'Host Covers All — you are paying for everyone\'s share.';
+        'Host Covers All — you are paying for everyone\'s share.';
       } else if (groupOrder.totalSplitStrategy == 'equal') {
         payTotal = members.isEmpty ? 0 : grandTotal / members.length;
         contributionNote =
-            'Split Equally — your share is 1/${members.length} of the group total.';
+        'Split Equally — your share is 1/${members.length} of the group total.';
       } else {
         payTotal = memberDetails[me]?['baseShare'] ?? 0;
         contributionNote =
-            'Per-User split — you cover whatever members didn\'t declare.';
+        'Per-User split — you cover whatever members didn\'t declare.';
       }
     } else if (groupOrder.totalSplitStrategy == 'equal' &&
         myMember.paidBy == null) {
@@ -729,7 +729,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
       paySubtotal = payTotal / (1 + kTaxRate);
       payTax = payTotal - paySubtotal;
       contributionNote =
-          'Split Equally — your share is 1/${members.length} of the group total.';
+      'Split Equally — your share is 1/${members.length} of the group total.';
     } else if (myMember.paidBy == null) {
       final mine = memberDetails[me]!;
       paySubtotal += mine['subtotal']!;
@@ -740,16 +740,18 @@ class GroupOrderSummaryScreen extends StatelessWidget {
       switch (myMember.paymentMode) {
         case 'fixed':
           contributionNote =
-              'You declared a fixed contribution of ${(myMember.paymentValue ?? 0).toStringAsFixed(2)} SAR. The host covers the rest.';
+          'You declared a fixed contribution of ${(myMember.paymentValue ?? 0)
+              .toStringAsFixed(2)} SAR. The host covers the rest.';
           break;
         case 'percent':
           contributionNote =
-              'You declared ${(myMember.paymentValue ?? 0).toStringAsFixed(0)}% of the remaining group total.';
+          'You declared ${(myMember.paymentValue ?? 0).toStringAsFixed(
+              0)}% of the remaining group total.';
           break;
         case 'own':
         default:
           contributionNote =
-              'Paying your own items + tax + your share of the delivery fee.';
+          'Paying your own items + tax + your share of the delivery fee.';
           break;
       }
     }
@@ -781,10 +783,10 @@ class GroupOrderSummaryScreen extends StatelessWidget {
         final coveredAmt = members
             .where((o) => o.paidBy == m.customerId)
             .fold<double>(
-              0,
+          0,
               (s, o) =>
-                  s + (memberDetails[o.customerId]?['baseShare'] ?? 0),
-            );
+          s + (memberDetails[o.customerId]?['baseShare'] ?? 0),
+        );
         final amt = own + coveredAmt;
         if (amt <= 0.005) continue;
         paid.add(MapEntry(m.name, amt));
@@ -915,7 +917,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
       context: context,
       title: 'Cover Payment?',
       message:
-          "Do you want to pay for ${member.name}'s part of the order?",
+      "Do you want to pay for ${member.name}'s part of the order?",
       confirmLabel: 'Yes, Cover Them',
     );
 
@@ -1089,7 +1091,9 @@ class _QrJoinDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
@@ -1543,78 +1547,80 @@ class _PromoCodeControlState extends State<_PromoCodeControl> {
                 ],
               ),
             ),
-          ] else if (widget.enabled) ...[
-            Container(
-              height: 52,
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: scheme.outlineVariant),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      textCapitalization: TextCapitalization.characters,
-                      style: theme.textTheme.bodyMedium,
-                      decoration: InputDecoration(
-                        hintText: 'Enter promo code',
-                        hintStyle: TextStyle(
-                          color: scheme.onSurfaceVariant,
+          ] else
+            if (widget.enabled) ...[
+              Container(
+                height: 52,
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: scheme.outlineVariant),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        textCapitalization: TextCapitalization.characters,
+                        style: theme.textTheme.bodyMedium,
+                        decoration: InputDecoration(
+                          hintText: 'Enter promo code',
+                          hintStyle: TextStyle(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          filled: false,
                         ),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        filled: false,
-                      ),
-                      onSubmitted: (_) => _busy ? null : _apply(),
-                    ),
-                  ),
-                  Material(
-                    color: scheme.primary,
-                    child: InkWell(
-                      onTap: _busy ? null : _apply,
-                      child: Container(
-                        height: 52,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        alignment: Alignment.center,
-                        child: _busy
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: scheme.onPrimary,
-                                ),
-                              )
-                            : Text(
-                                'Apply',
-                                style: TextStyle(
-                                  color: scheme.onPrimary,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                        onSubmitted: (_) => _busy ? null : _apply(),
                       ),
                     ),
-                  ),
-                ],
+                    Material(
+                      color: scheme.primary,
+                      child: InkWell(
+                        onTap: _busy ? null : _apply,
+                        child: Container(
+                          height: 52,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          alignment: Alignment.center,
+                          child: _busy
+                              ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: scheme.onPrimary,
+                            ),
+                          )
+                              : Text(
+                            'Apply',
+                            style: TextStyle(
+                              color: scheme.onPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ] else ...[
-            Text(
-              'No promo code applied.',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ],
+            ] else
+              ...[
+                Text(
+                  'No promo code applied.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ],
         ],
       ),
     );
@@ -2949,11 +2955,11 @@ class _BillRow extends StatelessWidget {
                 label,
                 style: isTotal
                     ? theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w800,
                       )
                     : theme.textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
               if (suffix != null)
                 Text(
@@ -2966,13 +2972,13 @@ class _BillRow extends StatelessWidget {
             '${value.toStringAsFixed(2)} SAR',
             style: isTotal
                 ? theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w800,
                     color: scheme.primary,
                   )
                 : theme.textTheme.titleSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -3099,14 +3105,14 @@ class _BottomActions extends StatelessWidget {
                       ? 'Your Share is Covered — Tap to Finish'
                       : isPaid
                       ? isHost
-                            ? 'Place Order'
-                            : 'Payment Completed'
+                      ? 'Place Order'
+                      : 'Payment Completed'
                       : !isHost && hostPaysAll
                       ? 'Covered by Host'
                       : isHost
                       ? hostPaysAll
-                            ? 'Pay Full Order'
-                            : 'Pay & Place Order'
+                      ? 'Pay Full Order'
+                      : 'Pay & Place Order'
                       : 'Proceed to Payment',
                 ),
               ),

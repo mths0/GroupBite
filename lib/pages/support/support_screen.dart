@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:yjeek/database_service.dart';
 import 'package:yjeek/models/order.dart';
+import 'package:yjeek/pages/support/support_device_info_collector.dart';
 import 'package:yjeek/themes/app_theme.dart';
 import 'package:intl/intl.dart';
 
@@ -28,6 +29,8 @@ class _SupportScreenState extends State<SupportScreen> {
   final _messageController = TextEditingController();
 
   final DatabaseService _db = DatabaseService();
+  final SupportDeviceInfoCollector _deviceInfoCollector =
+      SupportDeviceInfoCollector();
 
   bool _isSending = false;
 
@@ -92,6 +95,8 @@ class _SupportScreenState extends State<SupportScreen> {
     setState(() => _isSending = true);
 
     try {
+      final deviceInfo = await _deviceInfoCollector.collect(context);
+
       await _db.createSupportTicket(
         userId: widget.userId,
         userRole: widget.userRole,
@@ -102,6 +107,7 @@ class _SupportScreenState extends State<SupportScreen> {
         message: _messageController.text.trim(),
         orderId: _selectedOrder?.id,
         orderStatus: _selectedOrder?.status.name,
+        deviceInfo: deviceInfo,
       );
 
       if (!mounted) return;
@@ -172,9 +178,10 @@ class _SupportScreenState extends State<SupportScreen> {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         'Select Order',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                     ),
                   ),
@@ -304,101 +311,104 @@ class _SupportScreenState extends State<SupportScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
                 children: [
-            Center(
-              child: Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: scheme.secondaryContainer,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.contact_support_rounded,
-                  size: 36,
-                  color: scheme.onSecondaryContainer,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'How can we help?',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Please fill out the form below and our team will get back to you shortly.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: scheme.onSurfaceVariant,
-                fontSize: 14,
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 28),
-
-            _FieldLabel(label: 'Issue Category'),
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: _PillSelector(
-                    icon: currentType['icon'] as IconData,
-                    label: currentType['label'] as String,
-                    trailingIcon: Icons.keyboard_arrow_down,
-                    onTap: _pickIssueCategory,
-                    bold: true,
-                  ),
-                ),
-                if (isOrderProblem) ...[
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _OrderSelector(
-                      order: _selectedOrder,
-                      shortId: _selectedOrder == null
-                          ? null
-                          : _shortOrderId(_selectedOrder!.id),
-                      onTap: _showOrderPicker,
+                  Center(
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: scheme.secondaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.contact_support_rounded,
+                        size: 36,
+                        color: scheme.onSecondaryContainer,
+                      ),
                     ),
                   ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+                  Text(
+                    'How can we help?',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please fill out the form below and our team will get back to you shortly.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 14,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
 
-            _FieldLabel(label: 'Subject'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _subjectController,
-              decoration: const InputDecoration(
-                hintText: 'Brief description of the issue',
-                prefixIcon: Icon(Icons.title),
-              ),
-              validator: (v) =>
-                  v?.trim().isEmpty ?? true ? 'Please enter a subject' : null,
-            ),
-            const SizedBox(height: 22),
+                  _FieldLabel(label: 'Issue Category'),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: _PillSelector(
+                          icon: currentType['icon'] as IconData,
+                          label: currentType['label'] as String,
+                          trailingIcon: Icons.keyboard_arrow_down,
+                          onTap: _pickIssueCategory,
+                          bold: true,
+                        ),
+                      ),
+                      if (isOrderProblem) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _OrderSelector(
+                            order: _selectedOrder,
+                            shortId: _selectedOrder == null
+                                ? null
+                                : _shortOrderId(_selectedOrder!.id),
+                            onTap: _showOrderPicker,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 24),
 
-            _FieldLabel(label: 'Details'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _messageController,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                hintText: 'Please provide as much detail as possible...',
-                alignLabelWithHint: true,
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Message is required';
-                if (v.trim().length < 10) {
-                  return 'Detail needs 10 characters minimum';
-                }
-                return null;
-              },
-            ),
+                  _FieldLabel(label: 'Subject'),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _subjectController,
+                    decoration: const InputDecoration(
+                      hintText: 'Brief description of the issue',
+                      prefixIcon: Icon(Icons.title),
+                    ),
+                    validator: (v) => v?.trim().isEmpty ?? true
+                        ? 'Please enter a subject'
+                        : null,
+                  ),
+                  const SizedBox(height: 22),
+
+                  _FieldLabel(label: 'Details'),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _messageController,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      hintText: 'Please provide as much detail as possible...',
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Message is required';
+                      }
+                      if (v.trim().length < 10) {
+                        return 'Detail needs 10 characters minimum';
+                      }
+                      return null;
+                    },
+                  ),
                 ],
               ),
             ),

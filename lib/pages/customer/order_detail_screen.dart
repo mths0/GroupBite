@@ -242,7 +242,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     final isCancelled =
         order.status == OrderStatus.cancelled ||
         order.status == OrderStatus.rejected;
-    final showMap = _canTrack(order.status) &&
+    final showMap =
+        _canTrack(order.status) &&
         (order.driverId != null && order.driverId!.isNotEmpty);
 
     return ListView(

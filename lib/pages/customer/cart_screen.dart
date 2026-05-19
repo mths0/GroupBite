@@ -72,7 +72,7 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _loadData() async {
     final checkoutData = await _repo.getCheckoutData();
     final restaurant =
-        await DatabaseService().getRestaurantById(widget.restaurantId);
+    await DatabaseService().getRestaurantById(widget.restaurantId);
 
     if (!mounted) return;
 
@@ -276,7 +276,9 @@ class _CartScreenState extends State<CartScreen> {
       builder: (context, _) {
         final cartItems = _cart.itemsForRestaurant(widget.restaurantId);
 
-        final scheme = Theme.of(context).colorScheme;
+        final scheme = Theme
+            .of(context)
+            .colorScheme;
         return Scaffold(
           backgroundColor: bg,
           appBar: AppBar(
@@ -362,7 +364,9 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildCheckoutBar(List<app_models.CartItem> cartItems) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -417,7 +421,9 @@ class _CartItemsListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Container(
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLowest,
@@ -467,7 +473,9 @@ class _CartItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     final theme = Theme.of(context);
 
     return Padding(
@@ -482,19 +490,20 @@ class _CartItemRow extends StatelessWidget {
               width: 76,
               height: 76,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.fastfood_rounded,
-                  color: scheme.primary,
-                  size: 32,
-                ),
-              ),
+              errorBuilder: (_, _, _) =>
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.fastfood_rounded,
+                      color: scheme.primary,
+                      size: 32,
+                    ),
+                  ),
             ),
           ),
           const SizedBox(width: 12),
@@ -594,7 +603,9 @@ class _QuantityStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Container(
       height: 34,
       decoration: BoxDecoration(
@@ -642,7 +653,9 @@ class _StepperButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(9),
@@ -782,7 +795,10 @@ class _PromoCodeCard extends StatelessWidget {
                       child: TextField(
                         controller: controller,
                         textCapitalization: TextCapitalization.characters,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: Theme
+                            .of(context)
+                            .textTheme
+                            .bodyMedium,
                         decoration: InputDecoration(
                           hintText: 'Enter promo code',
                           hintStyle: TextStyle(
@@ -810,21 +826,21 @@ class _PromoCodeCard extends StatelessWidget {
                           alignment: Alignment.center,
                           child: isValidating
                               ? SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: colorScheme.onPrimary,
-                                  ),
-                                )
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onPrimary,
+                            ),
+                          )
                               : Text(
-                                  'Apply',
-                                  style: TextStyle(
-                                    color: colorScheme.onPrimary,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                            'Apply',
+                            style: TextStyle(
+                              color: colorScheme.onPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -882,7 +898,11 @@ class _BillSummaryCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   'Order Summary',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  style: Theme
+                      .of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -920,13 +940,21 @@ class _BillSummaryCard extends StatelessWidget {
               children: [
                 Text(
                   'Total',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  style: Theme
+                      .of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 Text(
                   '${total.toStringAsFixed(2)} SAR',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  style: Theme
+                      .of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(
                     fontWeight: FontWeight.w800,
                     color: colorScheme.primary,
                   ),

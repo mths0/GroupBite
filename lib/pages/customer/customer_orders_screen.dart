@@ -124,8 +124,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final isOwner =
-        _wallet != null && _wallet!.isOwner(widget.customer.id);
+    final isOwner = _wallet != null && _wallet!.isOwner(widget.customer.id);
     return SafeArea(
       bottom: false,
       child: Column(
@@ -158,33 +157,33 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
             child: !_walletLoaded
                 ? const Center(child: CircularProgressIndicator())
                 : !isOwner
-                    ? _myOrdersList()
-                    : DefaultTabController(
-                        length: 2,
-                        child: Column(
-                          children: [
-                            Material(
-                              color: theme.scaffoldBackgroundColor,
-                              child: TabBar(
-                                labelColor: scheme.primary,
-                                indicatorColor: scheme.primary,
-                                tabs: const [
-                                  Tab(text: 'My Orders'),
-                                  Tab(text: 'Family'),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: TabBarView(
-                                children: [
-                                  _myOrdersList(),
-                                  _familyOrdersList(),
-                                ],
-                              ),
-                            ),
-                          ],
+                ? _myOrdersList()
+                : DefaultTabController(
+                    length: 2,
+                    child: Column(
+                      children: [
+                        Material(
+                          color: theme.scaffoldBackgroundColor,
+                          child: TabBar(
+                            labelColor: scheme.primary,
+                            indicatorColor: scheme.primary,
+                            tabs: const [
+                              Tab(text: 'My Orders'),
+                              Tab(text: 'Family'),
+                            ],
+                          ),
                         ),
-                      ),
+                        Expanded(
+                          child: TabBarView(
+                            children: [
+                              _myOrdersList(),
+                              _familyOrdersList(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:yjeek/auth_service.dart';
 import 'package:yjeek/database_service.dart';
+import 'package:yjeek/components/loading_indicator.dart';
 import 'package:yjeek/utils/validators.dart';
 
 class LoginScreen extends StatefulWidget {

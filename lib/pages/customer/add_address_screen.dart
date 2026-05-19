@@ -228,13 +228,19 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   Widget build(BuildContext context) {
     final initialTarget = _selectedLatLng ?? _initialRiyadh;
 
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: Text(
           widget.title ??
               (widget.existing == null ? 'Add Address' : 'Edit Address'),
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          style: Theme
+              .of(context)
+              .textTheme
+              .titleLarge
+              ?.copyWith(
             fontWeight: FontWeight.w800,
             color: scheme.primary,
           ),
@@ -316,12 +322,12 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                                 _resolvedAddress.isEmpty
                                     ? 'Tap on the map to choose location'
                                     : _resolvedAddress,
-                                style: TextStyle(
-                                  color: scheme.onSurface,
-                                  fontSize: 14,
-                                  height: 1.4,
-                                ),
-                              ),
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 14,
+                            height: 1.4,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -347,20 +353,20 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                           onPressed: _isSaving ? null : _save,
                           child: _isSaving
                               ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.2,
-                                    color: Colors.white,
-                                  ),
-                                )
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
+                            ),
+                          )
                               : Text(
-                                  widget.saveButtonText,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                            widget.saveButtonText,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -388,7 +394,9 @@ class _MapPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
@@ -410,11 +418,11 @@ class _MapPreviewCard extends StatelessWidget {
                   markers: selected == null
                       ? {}
                       : {
-                          Marker(
-                            markerId: const MarkerId('selected_location'),
-                            position: selected!,
-                          ),
-                        },
+                    Marker(
+                      markerId: const MarkerId('selected_location'),
+                      position: selected!,
+                    ),
+                  },
                 ),
               ),
               Positioned(
@@ -509,7 +517,8 @@ class LocationPickerScreenState extends State<LocationPickerScreen> {
       if (!mounted) return;
       setState(() => _selected = latLng);
       await _controller?.animateCamera(
-        CameraUpdate.newCameraPosition(CameraPosition(target: latLng, zoom: 16)),
+        CameraUpdate.newCameraPosition(
+            CameraPosition(target: latLng, zoom: 16)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -523,8 +532,13 @@ class LocationPickerScreenState extends State<LocationPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final topInset = MediaQuery.of(context).padding.top;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
+    final topInset = MediaQuery
+        .of(context)
+        .padding
+        .top;
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Stack(
@@ -543,11 +557,11 @@ class LocationPickerScreenState extends State<LocationPickerScreen> {
             markers: _selected == null
                 ? {}
                 : {
-                    Marker(
-                      markerId: const MarkerId('selected_location'),
-                      position: _selected!,
-                    ),
-                  },
+              Marker(
+                markerId: const MarkerId('selected_location'),
+                position: _selected!,
+              ),
+            },
           ),
           Positioned(
             top: topInset + 8,
@@ -573,13 +587,13 @@ class LocationPickerScreenState extends State<LocationPickerScreen> {
               backgroundColor: Colors.white,
               foregroundColor: scheme.primary,
               onPressed:
-                  _isGettingCurrentLocation ? null : _goToCurrentLocation,
+              _isGettingCurrentLocation ? null : _goToCurrentLocation,
               child: _isGettingCurrentLocation
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
                   : const Icon(Icons.my_location),
             ),
           ),
@@ -616,7 +630,9 @@ class _FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Padding(
       padding: const EdgeInsets.only(left: 4),
       child: Text(
@@ -639,7 +655,9 @@ class _DefaultToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = Theme
+        .of(context)
+        .colorScheme;
     return Material(
       color: active ? scheme.primary : scheme.surfaceContainerLowest,
       shape: RoundedRectangleBorder(

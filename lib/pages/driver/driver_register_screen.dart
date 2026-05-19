@@ -4,6 +4,10 @@ import 'package:yjeek/auth_service.dart';
 import 'package:yjeek/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:yjeek/pages/start_screen.dart';
+import 'package:yjeek/themes/app_theme.dart';
+import 'package:geolocator/geolocator.dart';
+
+import 'package:yjeek/components/loading_indicator.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:yjeek/utils/validators.dart';

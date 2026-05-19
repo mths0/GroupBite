@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:yjeek/auth_service.dart';
 import 'package:yjeek/database_service.dart';
 import 'package:yjeek/models/abstract_user.dart';
+import 'package:yjeek/models/customer_address.dart';
 import 'package:yjeek/models/restaurant.dart';
 import 'package:yjeek/models/restaurant_tag.dart';
 import 'package:yjeek/pages/customer/add_address_screen.dart';
