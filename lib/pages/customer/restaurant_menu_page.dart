@@ -977,81 +977,27 @@ class HeaderCard extends StatelessWidget {
                         ? brand.onOpenStatus
                         : scheme.surface,
                   ),
-                  if (restaurant.hasOffer) ...[
-                    const SizedBox(height: 6),
-                    _HeaderBadge(
-                      label: 'Offer',
-                      background: brand.offer,
-                      foreground: brand.onOffer,
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Divider(height: 1, color: scheme.outlineVariant),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Icon(
-                Icons.local_shipping_outlined,
-                size: 20,
-                color: scheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Delivery Fee',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: scheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    restaurant.deliveryFee == 0
-                        ? 'Free'
-                        : '${restaurant.deliveryFee.toStringAsFixed(2)} SAR',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: scheme.onSurface,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  const Spacer(),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.star_rounded,
+                        color: scheme.secondary,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        restaurant.rating.toStringAsFixed(1),
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.star,
-                          size: 14,
-                          color: Color(0xFFE9C176),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          restaurant.rating.toStringAsFixed(1),
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: scheme.onSurface,
-                          ),
-                        ),
-                      ],
-                ),
               ),
             ],
           ),

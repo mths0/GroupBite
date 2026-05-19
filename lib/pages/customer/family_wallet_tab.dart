@@ -201,10 +201,7 @@ class _InviteListView extends StatelessWidget {
               side: BorderSide(color: scheme.outlineVariant),
               foregroundColor: scheme.onSurface,
             ),
-            child: const Text(
-              'Decline',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
+            child: const Text('Decline'),
           ),
         ),
         const SizedBox(height: 12),
@@ -218,10 +215,7 @@ class _InviteListView extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
-            child: const Text(
-              'Accept Invitation',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
+            child: const Text('Accept Invitation'),
           ),
         ),
         if (rest.isNotEmpty) ...[

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:yjeek/models/menu_item.dart';
 import 'package:yjeek/models/menu_item_option.dart';
 import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/pages/restaurant/restaurant_dashboard.dart';
+import 'package:yjeek/themes/app_theme.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -71,7 +73,7 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
       showDragHandle: true,
       clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => _AddEditItemSheet(
         restaurantId: widget.restaurant.id,
@@ -164,30 +166,20 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
           initialIndex: currentIndex,
           child: Builder(
             builder: (context) {
+              final theme = Theme.of(context);
+              final scheme = theme.colorScheme;
               return Scaffold(
-                appBar: AppBar(
-                  title: const Text("Menu Management"),
-                  bottom: TabBar(
-                    isScrollable: true,
-                    tabs: tabs.map((t) => Tab(text: t)).toList(),
-                    onTap: (index) {
-                      _selectedTabIndex = index;
-                    },
-                  ),
-                ),
-
                 body: Column(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => _openManageCategories(tabs),
-                          icon: const Icon(Icons.line_weight_rounded),
-                          label: const Text("Manage Categories"),
-                        ),
-                      ),
+                    const RestaurantPageHeader(title: 'Menu'),
+                    _CategoryPillBar(
+                      tabs: tabs,
+                      onSelected: (i) => _selectedTabIndex = i,
+                    ),
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: scheme.outlineVariant,
                     ),
                     Expanded(
                       child: TabBarView(
@@ -222,7 +214,7 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
                                   .toList();
 
                               return ListView.separated(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                                 itemCount: items.length,
                                 separatorBuilder: (_, _) =>
                                     const SizedBox(height: 12),
@@ -259,21 +251,81 @@ class _MenuManagementScreenState extends State<MenuManagementScreen> {
                             : tabController.index;
                         final activeCategory = tabs[activeIndex];
 
-                        return SafeArea(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                            child: SizedBox(
-                              height: 52,
-                              child: ElevatedButton.icon(
-                                onPressed: () =>
-                                    _addOrEditItem(category: activeCategory),
-                                icon: const Icon(Icons.add),
-                                label: Text(
-                                  "Add New Item to $activeCategory",
-                                ),
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Divider(
+                              height: 1,
+                              color: scheme.outlineVariant,
+                            ),
+                            SafeArea(
+                              top: false,
+                              minimum: const EdgeInsets.fromLTRB(
+                                20,
+                                12,
+                                20,
+                                12,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 54,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () =>
+                                            _openManageCategories(tabs),
+                                        icon: const Icon(Icons.tune, size: 18),
+                                        label: const Text(
+                                          'Manage Categories',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          backgroundColor:
+                                              scheme.surfaceContainerLowest,
+                                          foregroundColor: scheme.onSurface,
+                                          side: BorderSide(
+                                            color: scheme.outlineVariant,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 54,
+                                      child: FilledButton.icon(
+                                        onPressed: () => _addOrEditItem(
+                                          category: activeCategory,
+                                        ),
+                                        icon: const Icon(Icons.add, size: 18),
+                                        label: const Text(
+                                          'Add Item',
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        style: FilledButton.styleFrom(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
+                          ],
                         );
                       },
                     );
@@ -305,6 +357,7 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
   late final TextEditingController controller;
   late List<String> _tabs;
   final Set<String> _removedCategories = {};
+  final Map<String, String> _renames = {};
 
   firestore.DocumentReference<Map<String, dynamic>> get _restaurantDoc =>
       firestore.FirebaseFirestore.instance
@@ -352,19 +405,12 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
 
   Future<void> _promptDeleteCategory(int index) async {
     if (_tabs.length <= 1) {
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Cannot delete category'),
-          content: const Text(
-            'You must have at least one category. Add another category before removing this one.',
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'You must have at least one category. Add another before removing this one.',
           ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('OK'),
-            ),
-          ],
         ),
       );
       return;
@@ -383,9 +429,106 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
     if (shouldDelete != true || !mounted) return;
 
     setState(() {
-      _removedCategories.add(category);
       _tabs.removeAt(index);
+      _markCategoryRemoved(category);
     });
+  }
+
+  void _markCategoryRemoved(String category) {
+    if (widget.initialTabs.contains(category)) {
+      _removedCategories.add(category);
+      return;
+    }
+    final originalEntry = _renames.entries.firstWhere(
+      (e) => e.value == category,
+      orElse: () => const MapEntry('', ''),
+    );
+    if (originalEntry.key.isNotEmpty) {
+      _removedCategories.add(originalEntry.key);
+      _renames.remove(originalEntry.key);
+    }
+  }
+
+  Future<void> _editCategory(int index) async {
+    final newName = await _showRenameSheet(_tabs[index]);
+    if (newName == null || newName.isEmpty) return;
+
+    final oldName = _tabs[index];
+    if (newName == oldName) return;
+
+    for (var i = 0; i < _tabs.length; i++) {
+      if (i == index) continue;
+      if (_tabs[i].toLowerCase() == newName.toLowerCase()) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This category already exists.')),
+        );
+        return;
+      }
+    }
+
+    setState(() {
+      _tabs[index] = newName;
+      if (widget.initialTabs.contains(oldName)) {
+        _renames[oldName] = newName;
+      } else {
+        final originalEntry = _renames.entries.firstWhere(
+          (e) => e.value == oldName,
+          orElse: () => const MapEntry('', ''),
+        );
+        if (originalEntry.key.isNotEmpty) {
+          _renames[originalEntry.key] = newName;
+        }
+      }
+    });
+  }
+
+  Future<String?> _showRenameSheet(String currentName) {
+    final ctrl = TextEditingController(text: currentName);
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 8, 20, 16 + bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Rename Category',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(hintText: 'Category name'),
+                onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                  child: const Text('Save'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _saveCategories() async {
@@ -394,6 +537,16 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
         const SnackBar(content: Text("You need at least one category.")),
       );
       return;
+    }
+
+    for (final entry in _renames.entries) {
+      if (entry.key == entry.value) continue;
+      final snapshot = await _itemsCol
+          .where("category", isEqualTo: entry.key)
+          .get();
+      for (final doc in snapshot.docs) {
+        await doc.reference.update({"category": entry.value});
+      }
     }
 
     for (final removedCategory in _removedCategories) {
@@ -426,65 +579,61 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
+        padding: EdgeInsets.fromLTRB(20, 8, 20, 16 + bottom),
         child: SafeArea(
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  "Manage Categories",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Text(
+                  'Manage Categories',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 250,
-                  child: _tabs.isEmpty
-                      ? const Center(child: Text("No categories yet"))
-                      : ReorderableListView(
-                          buildDefaultDragHandles: false,
-                          children: [
-                            for (int index = 0; index < _tabs.length; index++)
-                              ListTile(
-                                key: ValueKey(_tabs[index]),
-                                title: Text("${index + 1} - ${_tabs[index]}"),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.delete_outline,
-                                        color: Colors.red,
-                                      ),
-                                      tooltip: 'Delete category',
-                                      onPressed: () =>
-                                          _promptDeleteCategory(index),
-                                    ),
-                                    ReorderableDragStartListener(
-                                      index: index,
-                                      child: const Icon(
-                                        Icons.format_line_spacing_sharp,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
-                          onReorder: (oldIndex, newIndex) {
-                            setState(() {
-                              if (newIndex > oldIndex) {
-                                newIndex -= 1;
-                              }
-                              final tab = _tabs.removeAt(oldIndex);
-                              _tabs.insert(newIndex, tab);
-                            });
-                          },
-                        ),
-                ),
-
+                const SizedBox(height: 14),
+                if (_tabs.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    child: Center(
+                      child: Text(
+                        'No categories yet',
+                        style: TextStyle(color: scheme.onSurfaceVariant),
+                      ),
+                    ),
+                  )
+                else
+                  ReorderableListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    buildDefaultDragHandles: false,
+                    itemCount: _tabs.length,
+                    itemBuilder: (context, index) {
+                      return _CategoryManageRow(
+                        key: ValueKey(_tabs[index]),
+                        index: index,
+                        label: _tabs[index],
+                        onEdit: () => _editCategory(index),
+                        onDelete: () => _promptDeleteCategory(index),
+                      );
+                    },
+                    onReorder: (oldIndex, newIndex) {
+                      setState(() {
+                        if (newIndex > oldIndex) {
+                          newIndex -= 1;
+                        }
+                        final tab = _tabs.removeAt(oldIndex);
+                        _tabs.insert(newIndex, tab);
+                      });
+                    },
+                  ),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
@@ -493,29 +642,191 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
                         textCapitalization: TextCapitalization.words,
                         controller: controller,
                         decoration: const InputDecoration(
-                          labelText: "Category",
+                          hintText: 'New category',
                         ),
+                        onSubmitted: (_) => _addNewCategory(),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     TextButton.icon(
                       onPressed: _addNewCategory,
-                      label: const Text("Add Category"),
-                      icon: const Icon(Icons.add),
+                      label: const Text(
+                        'Add',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      icon: const Icon(Icons.add, size: 18),
                     ),
                   ],
                 ),
-
-                const SizedBox(height: 12),
-
+                const SizedBox(height: 18),
                 SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton.icon(
+                  height: 52,
+                  child: FilledButton(
                     onPressed: _saveCategories,
-                    icon: const Icon(Icons.download_done_outlined),
-                    label: const Text("Save"),
+                    child: const Text('Save'),
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryManageRow extends StatelessWidget {
+  const _CategoryManageRow({
+    super.key,
+    required this.index,
+    required this.label,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final int index;
+  final String label;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          ReorderableDragStartListener(
+            index: index,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
+              child: Icon(
+                Icons.drag_indicator,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: onEdit,
+            icon: Icon(Icons.edit_outlined, color: scheme.primary, size: 22),
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Edit',
+          ),
+          IconButton(
+            onPressed: onDelete,
+            icon: Icon(Icons.delete_outline, color: scheme.error, size: 22),
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Delete',
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryPillBar extends StatelessWidget {
+  const _CategoryPillBar({required this.tabs, required this.onSelected});
+
+  final List<String> tabs;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = DefaultTabController.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: SizedBox(
+        height: 40,
+        child: AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) {
+            return ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: tabs.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, i) {
+                return Builder(
+                  builder: (pillContext) {
+                    final selected = i == controller.index;
+                    return _CategoryPill(
+                      label: tabs[i],
+                      selected: selected,
+                      onTap: () {
+                        controller.animateTo(i);
+                        onSelected(i);
+                        Scrollable.ensureVisible(
+                          pillContext,
+                          alignment: 0.5,
+                          duration: const Duration(milliseconds: 280),
+                          curve: Curves.easeOut,
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryPill extends StatelessWidget {
+  const _CategoryPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: selected ? scheme.primary : scheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(999),
+        side: BorderSide(
+          color: selected ? Colors.transparent : scheme.outlineVariant,
+          width: 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? scheme.onPrimary : scheme.onSurface,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
             ),
           ),
         ),
@@ -541,235 +852,169 @@ class _MenuItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final priceText = "${item.price.toStringAsFixed(0)} SAR";
+    final brand = theme.extension<BrandColors>()!;
+    final priceText = '${item.price.toStringAsFixed(0)} SAR';
+    final availableBg = item.isAvailable
+        ? brand.success
+        : scheme.surfaceContainerHigh;
+    final availableFg = item.isAvailable
+        ? brand.onSuccess
+        : scheme.onSurfaceVariant;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 14,
-            offset: Offset(0, 6),
-            color: Colors.black12,
-          ),
-        ],
+    return Material(
+      color: scheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outlineVariant, width: 1),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Image
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: item.imageUrl.isNotEmpty
-                        ? Image.network(
-                            item.imageUrl,
-                            width: 96,
-                            height: 96,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
-                              width: 96,
-                              height: 96,
-                              color: scheme.surfaceContainerHighest,
-                              child: Icon(
-                                Icons.image_not_supported,
-                                color: scheme.outline,
-                              ),
-                            ),
-                          )
-                        : Container(
-                            width: 96,
-                            height: 96,
-                            color: scheme.surfaceContainerHighest,
-                            child: Icon(Icons.fastfood, color: scheme.outline),
+      child: InkWell(
+        onTap: onEdit,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: IntrinsicHeight(
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: item.imageUrl.isNotEmpty
+                    ? Image.network(
+                        item.imageUrl,
+                        width: 110,
+                        height: 110,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(
+                          width: 110,
+                          height: 110,
+                          color: scheme.surfaceContainerHigh,
+                          child: Icon(
+                            Icons.image_not_supported,
+                            color: scheme.onSurfaceVariant,
                           ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Texts
-                  Expanded(
-                    child: Column(
+                        ),
+                      )
+                    : Container(
+                        width: 110,
+                        height: 110,
+                        color: scheme.surfaceContainerHigh,
+                        child: Icon(
+                          Icons.fastfood,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                item.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
                             ),
-                            const SizedBox(width: 10),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: scheme.primary.withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: Text(
-                                    priceText,
-                                    style: TextStyle(
-                                      color: scheme.primary,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item.description.trim().isEmpty
-                              ? "No description."
-                              : item.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: scheme.outline,
                           ),
                         ),
-                        const SizedBox(height: 10),
-
-                        // Availability row
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: item.isAvailable
-                                    ? const Color(0xFF16A34A).withOpacity(0.12)
-                                    : Colors.grey.withOpacity(0.18),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.circle,
-                                    size: 10,
-                                    color: item.isAvailable
-                                        ? const Color(0xFF16A34A)
-                                        : Colors.grey,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    item.isAvailable
-                                        ? "Available"
-                                        : "Unavailable",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: item.isAvailable
-                                          ? const Color(0xFF16A34A)
-                                          : Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: availableBg,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            item.isAvailable ? 'Available' : 'Unavailable',
+                            style: TextStyle(
+                              color: availableFg,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
                             ),
-                            const Spacer(),
-                            Switch(
-                              value: item.isAvailable,
-                              onChanged: onToggleAvailable,
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Bottom actions bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHighest.withOpacity(0.35),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(18),
-                  bottomRight: Radius.circular(18),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.description.trim().isEmpty
+                                ? 'No description.'
+                                : item.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: onDelete,
+                          icon: Icon(
+                            Icons.delete_outline,
+                            color: scheme.error,
+                            size: 24,
+                          ),
+                          tooltip: 'Delete',
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: scheme.primary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            priceText,
+                            style: TextStyle(
+                              color: scheme.onPrimary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Transform.scale(
+                          scale: 0.9,
+                          child: Switch(
+                            value: item.isAvailable,
+                            onChanged: onToggleAvailable,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              child: Row(
-                children: [
-                  _actionChip(
-                    icon: Icons.edit,
-                    label: "Edit",
-                    fg: scheme.primary,
-                    bg: const Color(0xFFE8F1FF),
-                    onTap: onEdit,
-                  ),
-                  const SizedBox(width: 10),
-                  _actionChip(
-                    icon: Icons.delete,
-                    label: "Delete",
-                    fg: const Color(0xFFFF3B30),
-                    bg: const Color(0xFFFFE9E9),
-                    onTap: onDelete,
-                  ),
-                  const Spacer(),
-                  Text(
-                    item.category,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: scheme.outline,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _actionChip({
-    required IconData icon,
-    required String label,
-    required Color fg,
-    required Color bg,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: fg),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(color: fg, fontWeight: FontWeight.w900),
-            ),
-          ],
+            ],
+          ),
+          ),
         ),
       ),
     );
@@ -837,6 +1082,12 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
     final result = await showModalBottomSheet<MenuItemOptionGroup>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (_) => const _OptionGroupSheet(),
     );
 
@@ -851,6 +1102,12 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
     final result = await showModalBottomSheet<MenuItemOptionGroup>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (_) => _OptionGroupSheet(existing: _optionGroups[index]),
     );
 
@@ -861,7 +1118,16 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
     });
   }
 
-  void _removeOptionGroup(int index) {
+  Future<void> _removeOptionGroup(int index) async {
+    final group = _optionGroups[index];
+    final confirmed = await showDestructiveConfirmDialog(
+      context: context,
+      title: 'Delete Group',
+      message:
+          'Delete "${group.title}"? This customization group will be removed from this item.',
+      confirmLabel: 'Delete',
+    );
+    if (confirmed != true || !mounted) return;
     setState(() {
       _optionGroups.removeAt(index);
     });
@@ -931,207 +1197,445 @@ class _AddEditItemSheetState extends State<_AddEditItemSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final viewInsets = MediaQuery.of(context).viewInsets.bottom;
     final maxHeight = MediaQuery.of(context).size.height * 0.92;
+    final priceValue = double.tryParse(_priceCtrl.text.trim()) ?? 0.0;
+    final priceLabel = priceValue > 0
+        ? '${priceValue.toStringAsFixed(2)} SAR'
+        : '— SAR';
 
-    return SafeArea(
-      top: false,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: Padding(
-          padding: EdgeInsets.only(bottom: viewInsets),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text(
-                    widget.existing == null ? "Add Item" : "Edit Item",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    children: [
-                      // Item NAME
-                      TextFormField(
-                        controller: _nameCtrl,
-                        decoration: const InputDecoration(
-                          labelText: "Item name",
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? "Required" : null,
-                      ),
-                      const SizedBox(height: 10),
-                      // Item DESCRIPTION
-                      TextFormField(
-                        controller: _descriptionCtrl,
-                        decoration: const InputDecoration(
-                          labelText: "Description",
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? "Required" : null,
-                      ),
-                      const SizedBox(height: 10),
-                      // Item PRICE
-                      TextFormField(
-                        controller: _priceCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: "Price (SAR, incl. tax)",
-                        ),
-                        validator: (v) {
-                          final t = (v ?? "").trim();
-                          if (t.isEmpty) return "Required";
-                          final d = double.tryParse(t);
-                          if (d == null || d <= 0) return "Enter a valid price";
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      // Item IMAGE
-                      Column(
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: viewInsets),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _PreviewHeroImage(
+                imageFile: _selectedImageFile,
+                existingUrl: _existingImageUrl,
+                isUploading: _isUploadingImage,
+                onTap: _isUploadingImage ? null : _pickImage,
+              ),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            "Item Image",
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 10),
-                          Center(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: _selectedImageFile != null
-                                  ? Image.file(
-                                      _selectedImageFile!,
-                                      width: 120,
-                                      height: 120,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : (_existingImageUrl != null &&
-                                        _existingImageUrl!.isNotEmpty)
-                                  ? Image.network(
-                                      _existingImageUrl!,
-                                      width: 120,
-                                      height: 120,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => Container(
-                                        width: 120,
-                                        height: 120,
-                                        color: Colors.grey.shade200,
-                                        child: const Icon(
-                                          Icons.image_not_supported,
-                                        ),
-                                      ),
-                                    )
-                                  : Container(
-                                      width: 120,
-                                      height: 120,
-                                      color: Colors.grey.shade200,
-                                      child: const Icon(Icons.fastfood),
-                                    ),
+                          Text(
+                            'Item Name',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: _isUploadingImage ? null : _pickImage,
-                              icon: const Icon(Icons.upload),
-                              label: Text(
-                                _isUploadingImage
-                                    ? "Uploading..."
-                                    : "Upload Image",
-                              ),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _nameCtrl,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
                             ),
+                            decoration: const InputDecoration(
+                              hintText: 'e.g. Cappuccino',
+                            ),
+                            validator: (v) =>
+                                (v == null || v.trim().isEmpty)
+                                ? 'Required'
+                                : null,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
-
-                      SwitchListTile(
-                        value: _available,
-                        onChanged: (v) => setState(() => _available = v),
-                        title: const Text("Available"),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Customization Options',
-                            style: TextStyle(fontWeight: FontWeight.bold),
+                          Text(
+                            'Description',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: _addOptionGroup,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add Group'),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _descriptionCtrl,
+                            maxLines: 2,
+                            decoration: const InputDecoration(
+                              hintText: 'Short description',
+                            ),
+                            validator: (v) =>
+                                (v == null || v.trim().isEmpty)
+                                ? 'Required'
+                                : null,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-
-                      if (_optionGroups.isEmpty)
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text('No customization groups yet.'),
-                        )
-                      else
-                        ..._optionGroups.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final group = entry.value;
-
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            child: ListTile(
-                              title: Text(group.title),
-                              subtitle: Text(
-                                '${group.isRequired ? "Required" : "Optional"} • '
-                                '${group.multiSelect ? "Multi select" : "Single select"} • '
-                                '${group.choices.length} choices',
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
+                    ),
+                    const SizedBox(height: 28),
+                    Divider(
+                      height: 1,
+                      color: scheme.outlineVariant,
+                      indent: 20,
+                      endIndent: 20,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                      child: IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  IconButton(
-                                    onPressed: () => _editOptionGroup(index),
-                                    icon: const Icon(Icons.edit),
+                                  Text(
+                                    'Price (SAR)',
+                                    style: theme.textTheme.labelMedium
+                                        ?.copyWith(
+                                          color: scheme.onSurfaceVariant,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                   ),
-                                  IconButton(
-                                    onPressed: () => _removeOptionGroup(index),
-                                    icon: const Icon(Icons.delete_outline),
+                                  const SizedBox(height: 6),
+                                  TextFormField(
+                                    controller: _priceCtrl,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Price incl. tax',
+                                    ),
+                                    validator: (v) {
+                                      final t = (v ?? '').trim();
+                                      if (t.isEmpty) return 'Required';
+                                      final d = double.tryParse(t);
+                                      if (d == null || d <= 0) {
+                                        return 'Invalid';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                 ],
                               ),
                             ),
-                          );
-                        }),
-
-                      const SizedBox(height: 10),
-                    ],
-                  ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Available',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Switch(
+                                      value: _available,
+                                      onChanged: (v) =>
+                                          setState(() => _available = v),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    Divider(
+                      height: 1,
+                      color: scheme.outlineVariant,
+                      indent: 20,
+                      endIndent: 20,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 14, 12, 0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Customization Options',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _addOptionGroup,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Add Group'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: scheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_optionGroups.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                        child: Text(
+                          'No customization groups yet.',
+                          style: TextStyle(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    else
+                      for (var i = 0; i < _optionGroups.length; i++)
+                        _PreviewGroupCard(
+                          group: _optionGroups[i],
+                          onEdit: () => _editOptionGroup(i),
+                          onDelete: () => _removeOptionGroup(i),
+                        ),
+                    const SizedBox(height: 16),
+                  ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: _save,
-                      child: const Text("Save"),
+              ),
+              SafeArea(
+                top: false,
+                minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: _isUploadingImage ? null : _save,
+                    child: Text(
+                      _isUploadingImage
+                          ? 'Uploading...'
+                          : 'Save  •  $priceLabel',
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PreviewHeroImage extends StatelessWidget {
+  const _PreviewHeroImage({
+    required this.imageFile,
+    required this.existingUrl,
+    required this.isUploading,
+    required this.onTap,
+  });
+
+  final File? imageFile;
+  final String? existingUrl;
+  final bool isUploading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    Widget child;
+    if (imageFile != null) {
+      child = Image.file(imageFile!, fit: BoxFit.cover);
+    } else if (existingUrl != null && existingUrl!.isNotEmpty) {
+      child = Image.network(
+        existingUrl!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _placeholder(scheme),
+      );
+    } else {
+      child = _placeholder(scheme);
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        children: [
+          AspectRatio(aspectRatio: 16 / 10, child: child),
+          Positioned(
+            right: 12,
+            bottom: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isUploading ? Icons.cloud_upload_outlined : Icons.edit,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    isUploading ? 'Uploading' : 'Change',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(ColorScheme scheme) => Container(
+    color: scheme.surfaceContainerHighest,
+    child: Center(
+      child: Icon(
+        Icons.add_a_photo_outlined,
+        color: scheme.onSurfaceVariant,
+        size: 36,
+      ),
+    ),
+  );
+}
+
+class _PreviewGroupCard extends StatelessWidget {
+  const _PreviewGroupCard({
+    required this.group,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final MenuItemOptionGroup group;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(14, 12, 6, 8),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  group.title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Text(
+                  group.isRequired ? 'Required' : 'Optional',
+                  style: TextStyle(
+                    color: group.isRequired
+                        ? scheme.error
+                        : scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: onEdit,
+                icon: Icon(Icons.edit_outlined, color: scheme.primary),
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Edit',
+              ),
+              IconButton(
+                onPressed: onDelete,
+                icon: Icon(Icons.delete_outline, color: scheme.error),
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Delete',
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (group.choices.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 4, 8, 8),
+              child: Text(
+                'No choices yet.',
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+            )
+          else
+            ...group.choices.map(
+              (choice) => Padding(
+                padding: const EdgeInsets.fromLTRB(4, 6, 14, 6),
+                child: Row(
+                  children: [
+                    _PreviewIndicator(multi: group.multiSelect),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        choice.name,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: scheme.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (choice.extraPrice > 0)
+                      Text(
+                        '+${choice.extraPrice.toStringAsFixed(2)} SAR',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewIndicator extends StatelessWidget {
+  const _PreviewIndicator({required this.multi});
+
+  final bool multi;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        shape: multi ? BoxShape.rectangle : BoxShape.circle,
+        borderRadius: multi ? BorderRadius.circular(4) : null,
+        border: Border.all(color: scheme.outline, width: 2),
       ),
     );
   }
@@ -1200,8 +1704,18 @@ class _OptionGroupSheetState extends State<_OptionGroupSheet> {
     });
   }
 
-  void _removeChoice(int index) {
+  Future<void> _removeChoice(int index) async {
     if (_choices.length == 1) return;
+
+    final name = _choices[index].nameCtrl.text.trim();
+    final label = name.isEmpty ? 'this choice' : '"$name"';
+    final confirmed = await showDestructiveConfirmDialog(
+      context: context,
+      title: 'Delete Choice',
+      message: 'Delete $label?',
+      confirmLabel: 'Delete',
+    );
+    if (confirmed != true || !mounted) return;
 
     setState(() {
       _choices[index].dispose();
@@ -1256,168 +1770,330 @@ class _OptionGroupSheetState extends State<_OptionGroupSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
-      child: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.existing == null
-                      ? 'Add Option Group'
-                      : 'Edit Option Group',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+      padding: EdgeInsets.only(bottom: bottom),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+              child: Text(
+                widget.existing == null
+                    ? 'Add Option Group'
+                    : 'Edit Option Group',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(height: 12),
-
-                TextFormField(
-                  controller: _titleCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Group title',
-                    hintText: 'Example: Choose Size',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Required';
-                    }
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 10),
-
-                SwitchListTile(
-                  value: _isRequired,
-                  onChanged: (value) {
-                    setState(() {
-                      _isRequired = value;
-                    });
-                  },
-                  title: const Text('Required'),
-                  subtitle: const Text('Customer must select from this group'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-
-                SwitchListTile(
-                  value: _multiSelect,
-                  onChanged: (value) {
-                    setState(() {
-                      _multiSelect = value;
-                    });
-                  },
-                  title: const Text('Multi select'),
-                  subtitle: const Text('Allow selecting more than one choice'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-
-                const SizedBox(height: 8),
-
-                Row(
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Choices',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    Text(
+                      'Group Title',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: _addChoice,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Choice'),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: _titleCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'e.g. Choose Size',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Required';
+                        }
+                        return null;
+                      },
                     ),
-                  ],
-                ),
-
-                const SizedBox(height: 6),
-
-                ..._choices.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final choice = entry.value;
-
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
+                    const SizedBox(height: 26),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerLowest,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: scheme.outlineVariant),
+                      ),
                       child: Column(
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Choice ${index + 1}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const Spacer(),
-                              IconButton(
-                                onPressed: () => _removeChoice(index),
-                                icon: const Icon(Icons.delete_outline),
-                              ),
-                            ],
+                          _ToggleRow(
+                            title: 'Required',
+                            subtitle: 'Customer must select from this group',
+                            value: _isRequired,
+                            onChanged: (v) =>
+                                setState(() => _isRequired = v),
                           ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: choice.nameCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Choice name',
-                              hintText: 'Example: Large',
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Required';
-                              }
-                              return null;
-                            },
+                          Divider(
+                            height: 1,
+                            color: scheme.outlineVariant,
+                            indent: 14,
+                            endIndent: 14,
                           ),
-                          const SizedBox(height: 10),
-                          TextFormField(
-                            controller: choice.priceCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'Extra price (SAR)',
-                              hintText: '0',
-                            ),
-                            validator: (value) {
-                              final text = (value ?? '').trim();
-                              if (text.isEmpty) return null;
-
-                              final parsed = double.tryParse(text);
-                              if (parsed == null || parsed < 0) {
-                                return 'Enter valid price';
-                              }
-                              return null;
-                            },
+                          _ToggleRow(
+                            title: 'Multi select',
+                            subtitle: 'Allow selecting more than one choice',
+                            value: _multiSelect,
+                            onChanged: (v) =>
+                                setState(() => _multiSelect = v),
                           ),
                         ],
                       ),
                     ),
-                  );
-                }),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Choices',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: _addChoice,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Add Choice'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: scheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ..._choices.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final choice = entry.value;
+                      return _ChoiceEditorRow(
+                        nameCtrl: choice.nameCtrl,
+                        priceCtrl: choice.priceCtrl,
+                        multi: _multiSelect,
+                        onDelete: () => _removeChoice(index),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ),
+            SafeArea(
+              top: false,
+              minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: _save,
+                  child: const Text('Save Group'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-                const SizedBox(height: 12),
+class _ToggleRow extends StatelessWidget {
+  const _ToggleRow({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
 
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _save,
-                    child: const Text('Save Group'),
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
                 ),
               ],
             ),
           ),
-        ),
+          Switch(value: value, onChanged: onChanged),
+        ],
       ),
+    );
+  }
+}
+
+class _ChoiceEditorRow extends StatefulWidget {
+  const _ChoiceEditorRow({
+    required this.nameCtrl,
+    required this.priceCtrl,
+    required this.multi,
+    required this.onDelete,
+  });
+
+  final TextEditingController nameCtrl;
+  final TextEditingController priceCtrl;
+  final bool multi;
+  final VoidCallback onDelete;
+
+  @override
+  State<_ChoiceEditorRow> createState() => _ChoiceEditorRowState();
+}
+
+class _ChoiceEditorRowState extends State<_ChoiceEditorRow> {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return FormField<String>(
+      validator: (_) {
+        if (widget.nameCtrl.text.trim().isEmpty) {
+          return 'Name required';
+        }
+        final priceText = widget.priceCtrl.text.trim();
+        if (priceText.isNotEmpty) {
+          final parsed = double.tryParse(priceText);
+          if (parsed == null || parsed < 0) {
+            return 'Invalid price';
+          }
+        }
+        return null;
+      },
+      builder: (state) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 6, 4, 6),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: state.hasError
+                        ? scheme.error
+                        : scheme.outlineVariant,
+                    width: state.hasError ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _PreviewIndicator(multi: widget.multi),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: widget.nameCtrl,
+                        onChanged: (_) => state.didChange(widget.nameCtrl.text),
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Choice name',
+                          isCollapsed: true,
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 96,
+                      child: TextField(
+                        controller: widget.priceCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        onChanged: (_) =>
+                            state.didChange(widget.nameCtrl.text),
+                        textAlign: TextAlign.right,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '+0 SAR',
+                          hintStyle: TextStyle(
+                            color: scheme.onSurfaceVariant.withValues(
+                              alpha: 0.5,
+                            ),
+                          ),
+                          isCollapsed: true,
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: widget.onDelete,
+                      icon: Icon(
+                        Icons.delete_outline,
+                        color: scheme.error,
+                        size: 22,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Delete',
+                    ),
+                  ],
+                ),
+              ),
+              if (state.hasError)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 6, 0, 0),
+                  child: Text(
+                    state.errorText!,
+                    style: TextStyle(
+                      color: scheme.error,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

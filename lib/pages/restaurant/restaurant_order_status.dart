@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:yjeek/models/order.dart';
+import 'package:yjeek/themes/app_theme.dart';
 
-Color restaurantStatusColor(OrderStatus status) {
+({Color background, Color foreground}) restaurantStatusColors(
+  BuildContext context,
+  OrderStatus status,
+) {
+  final scheme = Theme.of(context).colorScheme;
+  final brand = Theme.of(context).extension<BrandColors>()!;
   switch (status) {
     case OrderStatus.pending:
-      return Colors.orange;
+      return (background: brand.offer, foreground: brand.onOffer);
     case OrderStatus.accepted:
-      return Colors.blue;
-    case OrderStatus.rejected:
-      return Colors.red;
-    case OrderStatus.pickedUp:
-      return Colors.deepPurple;
-    case OrderStatus.delivered:
-      return Colors.green;
+      return (background: brand.accepted, foreground: brand.onAccepted);
     case OrderStatus.assigned:
-      return Colors.cyan;
+      return (background: brand.assigned, foreground: brand.onAssigned);
+    case OrderStatus.pickedUp:
+      return (background: brand.pickedUp, foreground: brand.onPickedUp);
+    case OrderStatus.delivered:
+      return (background: brand.openStatus, foreground: brand.onOpenStatus);
+    case OrderStatus.rejected:
     case OrderStatus.cancelled:
-      return Colors.grey;
+      return (
+        background: scheme.errorContainer,
+        foreground: scheme.onErrorContainer,
+      );
   }
 }
 

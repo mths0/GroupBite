@@ -121,19 +121,24 @@ class _CartScreenState extends State<CartScreen> {
   double get _subtotalExclTax => _subtotalInclTax - _tax;
 
   double get _discount {
-    if (_appliedCoupon == null) return 0.0;
+    final coupon = _appliedCoupon;
+    if (coupon == null) return 0.0;
+    final base = _subtotalInclTax + _deliveryFee;
 
-    if (_appliedCoupon!.discountType ==
-        cart_models.CouponDiscountType.percentage) {
-      return _subtotalInclTax * (_appliedCoupon!.discountValue / 100);
+    switch (coupon.discountType) {
+      case cart_models.CouponDiscountType.freeDelivery:
+        return _deliveryFee;
+      case cart_models.CouponDiscountType.percentage:
+        return base * (coupon.discountValue / 100);
+      case cart_models.CouponDiscountType.fixed:
+        return coupon.discountValue > base ? base : coupon.discountValue;
     }
-
-    return _appliedCoupon!.discountValue > _subtotalInclTax
-        ? _subtotalInclTax
-        : _appliedCoupon!.discountValue;
   }
 
-  double get _total => _subtotalInclTax + _deliveryFee - _discount;
+  double get _total {
+    final result = _subtotalInclTax + _deliveryFee - _discount;
+    return result < 0 ? 0 : result;
+  }
 
   // ---------------------------------------------------------------------------
   // Promo Code

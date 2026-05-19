@@ -96,17 +96,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  String roleLabel(UserRole role) {
-    switch (role) {
-      case UserRole.customer:
-        return 'Customer';
-      case UserRole.restaurant:
-        return 'Restaurant';
-      case UserRole.driver:
-        return 'Driver';
-    }
-  }
-
   @override
   void dispose() {
     emailController.dispose();
@@ -115,104 +104,188 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Scaffold(
-      appBar: AppBar(),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                const Icon(
-                  Icons.food_bank,
-                  size: 100,
+      appBar: AppBar(
+        title: Text(
+          'Sign Up',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: scheme.primary,
+          ),
+        ),
+        centerTitle: true,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
+      ),
+      body: AbsorbPointer(
+        absorbing: isLoading,
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            children: [
+              Text(
+                'Create your account',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(height: 16),
-
-                const Text(
-                  "Create your account",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Choose your role and enter your email.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 28),
+              Text(
+                'I am a',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _RoleCard(
+                      icon: Icons.person_outline,
+                      label: 'Customer',
+                      selected: selectedRole == UserRole.customer,
+                      onTap: () => setState(() {
+                        selectedRole = UserRole.customer;
+                      }),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-
-                const Text(
-                  "Enter your email and choose your role",
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-
-                TextField(
-                  controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    hintText: 'example@gmail.com',
-                    errorText: errorText,
-                    border: const OutlineInputBorder(),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _RoleCard(
+                      icon: Icons.storefront_outlined,
+                      label: 'Restaurant',
+                      selected: selectedRole == UserRole.restaurant,
+                      onTap: () => setState(() {
+                        selectedRole = UserRole.restaurant;
+                      }),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-
-                DropdownButtonFormField<UserRole>(
-                  value: selectedRole,
-                  decoration: const InputDecoration(
-                    labelText: 'Role',
-                    border: OutlineInputBorder(),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _RoleCard(
+                      icon: Icons.local_shipping_outlined,
+                      label: 'Driver',
+                      selected: selectedRole == UserRole.driver,
+                      onTap: () => setState(() {
+                        selectedRole = UserRole.driver;
+                      }),
+                    ),
                   ),
-                  items: UserRole.values.map((role) {
-                    IconData icon;
-
-                    switch (role) {
-                      case UserRole.customer:
-                        icon = Icons.person_outline;
-                        break;
-                      case UserRole.restaurant:
-                        icon = Icons.storefront_outlined;
-                        break;
-                      case UserRole.driver:
-                        icon = Icons.local_shipping_outlined;
-                        break;
-                    }
-
-                    return DropdownMenuItem<UserRole>(
-                      value: role,
-                      child: Row(
-                        children: [
-                          Icon(icon, size: 20),
-                          const SizedBox(width: 10),
-                          Text(roleLabel(role)),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() {
-                      selectedRole = value;
-                    });
-                  },
+                ],
+              ),
+              const SizedBox(height: 22),
+              Text(
+                'Email',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
                 ),
-
-                const SizedBox(height: 24),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: FilledButton(
-                    onPressed: isLoading ? null : continueRegistration,
-                    child: isLoading
-                        ? const CircularProgressIndicator()
-                        : const Text(
-                            'Continue',
-                            style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                onChanged: (_) {
+                  if (errorText != null) {
+                    setState(() => errorText = null);
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: 'you@example.com',
+                  errorText: errorText,
+                ),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: isLoading ? null : continueRegistration,
+                  child: isLoading
+                      ? SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: scheme.onPrimary,
                           ),
-                  ),
+                        )
+                      : const Text('Continue'),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleCard extends StatelessWidget {
+  const _RoleCard({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: selected ? scheme.primary : scheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: selected ? Colors.transparent : scheme.outlineVariant,
+          width: 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 28,
+                color: selected ? scheme.onPrimary : scheme.onSurface,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: selected ? scheme.onPrimary : scheme.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
         ),
       ),

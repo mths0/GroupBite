@@ -8,13 +8,20 @@ import 'package:yjeek/models/customer_address.dart';
 import 'package:yjeek/models/restaurant.dart';
 import 'package:yjeek/models/restaurant_tag.dart';
 import 'package:yjeek/pages/customer/add_address_screen.dart';
+import 'package:flutter/services.dart';
+import 'package:yjeek/auth_service.dart';
+import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/models/restaurant_tag.dart';
+import 'package:yjeek/pages/customer/add_address_screen.dart';
+import 'package:yjeek/pages/restaurant/restaurant_dashboard.dart';
 import 'package:yjeek/pages/start_screen.dart';
 import 'package:yjeek/pages/support/support_screen.dart';
 import 'package:yjeek/utils/validators.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 
-class RestaurantProfile extends StatefulWidget {
+class RestaurantProfile extends StatelessWidget {
   const RestaurantProfile({
     super.key,
     required this.restaurant,
@@ -22,24 +29,385 @@ class RestaurantProfile extends StatefulWidget {
 
   final Restaurant restaurant;
 
+  Future<void> _signOut(BuildContext context) async {
+    final shouldSignOut = await showDestructiveConfirmDialog(
+      context: context,
+      title: 'Sign out?',
+      message: 'Are you sure you want to sign out?',
+      confirmLabel: 'Sign out',
+    );
+
+    if (shouldSignOut != true) return;
+
+    try {
+      await AuthService().signOut();
+      if (!context.mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const StartScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to sign out: $e')),
+      );
+    }
+  }
+
+  void _openRestaurantInformation(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _RestaurantInformationPage(restaurant: restaurant),
+      ),
+    );
+  }
+
+  void _openSupport(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SupportScreen(
+          userId: restaurant.id,
+          userRole: 'restaurant',
+          userName: restaurant.name,
+          userEmail: restaurant.email,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateField(String field, Object value) async {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(restaurant.id)
+        .update({field: value});
+  }
+
   @override
-  State<RestaurantProfile> createState() => _RestaurantProfileState();
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Scaffold(
+      body: Column(
+        children: [
+          const RestaurantPageHeader(title: 'Account'),
+          Expanded(
+            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(restaurant.id)
+                  .snapshots(),
+              builder: (context, snap) {
+                final data = snap.data?.data();
+                final current = data != null
+                    ? Restaurant.fromMap(data)
+                    : restaurant;
+
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
+                  children: [
+                    Center(
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 110,
+                            height: 110,
+                            decoration: BoxDecoration(
+                              color: scheme.surfaceContainerHigh,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: scheme.outlineVariant,
+                                width: 1,
+                              ),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: current.imageUrl.isNotEmpty
+                                ? Image.network(
+                                    current.imageUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Icon(
+                                      Icons.storefront,
+                                      size: 44,
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.storefront,
+                                    size: 44,
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            current.name,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            current.email,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (current.ratingCount > 0) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.star_rounded,
+                                  color: scheme.secondary,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  current.rating.toStringAsFixed(1),
+                                  style: TextStyle(
+                                    color: scheme.onSurfaceVariant,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    _SectionCard(
+                      children: [
+                        _SectionRow(
+                          icon: Icons.person_outline,
+                          label: 'Account Information',
+                          onTap: () => _openRestaurantInformation(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _SectionCard(
+                      children: [
+                        _SwitchRow(
+                          icon: Icons.storefront_outlined,
+                          label: 'Restaurant Open',
+                          value: current.isOpen,
+                          onChanged: (v) => _updateField('isOpen', v),
+                        ),
+                        const _SectionRowDivider(),
+                        _SwitchRow(
+                          icon: Icons.local_offer_outlined,
+                          label: 'Has Active Offer',
+                          value: current.hasOffer,
+                          onChanged: (v) => _updateField('hasOffer', v),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _SectionCard(
+                      children: [
+                        _SectionRow(
+                          icon: Icons.support_agent_outlined,
+                          label: 'Contact Support',
+                          onTap: () => _openSupport(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                    OutlinedButton.icon(
+                      onPressed: () => _signOut(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: scheme.error,
+                        side: BorderSide(
+                          color: scheme.error.withValues(alpha: 0.45),
+                          width: 1.2,
+                        ),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.logout_rounded, size: 18),
+                      label: const Text(
+                        'Sign Out',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _RestaurantProfileState extends State<RestaurantProfile> {
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outlineVariant, width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: children),
+    );
+  }
+}
+
+class _SectionRow extends StatelessWidget {
+  const _SectionRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainer,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 20, color: scheme.onSurface),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: scheme.onSurfaceVariant,
+              size: 22,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainer,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 20, color: scheme.onSurface),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: scheme.onSurface,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Switch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionRowDivider extends StatelessWidget {
+  const _SectionRowDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Divider(
+      height: 1,
+      indent: 52,
+      color: Theme.of(context).colorScheme.outlineVariant,
+    );
+  }
+}
+
+class _RestaurantInformationPage extends StatefulWidget {
+  const _RestaurantInformationPage({required this.restaurant});
+
+  final Restaurant restaurant;
+
+  @override
+  State<_RestaurantInformationPage> createState() =>
+      _RestaurantInformationPageState();
+}
+
+class _RestaurantInformationPageState
+    extends State<_RestaurantInformationPage> {
   late final TextEditingController _nameController;
   late final TextEditingController _phoneController;
   late final TextEditingController _deliveryFeeController;
   late Set<RestaurantTag> _selectedTags;
 
-  late bool _isOpen;
-  late bool _hasOffer;
   bool _isInitialLoading = true;
   String? _loadError;
 
   bool _isSaving = false;
   bool _isUploadingImage = false;
   String? _nameErrorText;
+  String? _phoneErrorText;
+  String? _deliveryFeeErrorText;
   String? _locationErrorText;
 
   String? _imageUrl;
@@ -64,8 +432,6 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
     _deliveryFeeController = TextEditingController();
 
     _selectedTags = {};
-    _isOpen = false;
-    _hasOffer = false;
     _imageUrl = null;
 
     _loadRestaurantData();
@@ -107,10 +473,9 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
       _restaurantLocation = restaurant.location;
       _locationPreview = restaurant.location == null
           ? null
-          : 'Restaurant location selected';
-      _isOpen = restaurant.isOpen;
-      _hasOffer = restaurant.hasOffer;
-
+          : (restaurant.locationAddress.isNotEmpty
+              ? restaurant.locationAddress
+              : 'Restaurant location selected');
       setState(() {
         _isInitialLoading = false;
       });
@@ -119,39 +484,6 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
         _loadError = 'Failed to load restaurant data';
         _isInitialLoading = false;
       });
-    }
-  }
-
-  Future<void> _signOut() async {
-    final shouldSignOut = await showDestructiveConfirmDialog(
-      context: context,
-      title: 'Sign out?',
-      message: 'Are you sure you want to sign out?',
-      confirmLabel: 'Sign out',
-    );
-
-    if (shouldSignOut != true) return;
-
-    try {
-      await AuthService().signOut();
-
-      if (!mounted) return;
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const StartScreen(),
-        ),
-        (route) => false,
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to sign out: $e'),
-        ),
-      );
     }
   }
 
@@ -212,45 +544,76 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
     }
   }
 
+  Future<void> _openCategoriesSheet() async {
+    final updated = await showModalBottomSheet<Set<RestaurantTag>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
+      builder: (_) => _CategoriesPickerSheet(initial: _selectedTags),
+    );
+    if (updated == null || !mounted) return;
+    setState(() => _selectedTags = updated);
+  }
+
   Future<void> _pickLocation() async {
-    final existingLocation = _restaurantLocation;
-    final result = await Navigator.push<CustomerAddress>(
+    final existing = _restaurantLocation;
+    final initialTarget = existing == null
+        ? const LatLng(24.7136, 46.6753)
+        : LatLng(existing.latitude, existing.longitude);
+    final initialSelection = existing == null
+        ? null
+        : LatLng(existing.latitude, existing.longitude);
+
+    final picked = await Navigator.push<LatLng>(
       context,
       MaterialPageRoute(
-        builder: (_) => AddAddressScreen(
-          existing: existingLocation == null
-              ? null
-              : CustomerAddress(
-                  id: 'restaurant_location',
-                  label: '',
-                  fullAddress: _locationPreview ?? '',
-                  buildingDetails: '',
-                  location: existingLocation,
-                  isDefault: false,
-                ),
-          title: 'Restaurant Location',
-          showLabelField: false,
-          showBuildingDetailsField: false,
-          showDefaultToggle: false,
-          saveButtonText: 'Save Location',
+        builder: (_) => LocationPickerScreen(
+          initialTarget: initialTarget,
+          initialSelection: initialSelection,
         ),
       ),
     );
 
-    if (result == null) return;
+    if (picked == null || !mounted) return;
+
+    final address = await resolveAddressFromLatLng(picked);
+    if (!mounted) return;
 
     setState(() {
-      _restaurantLocation = result.location;
-      _locationPreview = result.fullAddress;
+      _restaurantLocation = GeoPoint(picked.latitude, picked.longitude);
+      _locationPreview = address;
       _locationErrorText = null;
     });
   }
 
   Future<void> _saveProfile() async {
     final nameError = Validators.validateRestaurantName(_nameController.text);
-    if (nameError != null || _restaurantLocation == null) {
+    final phoneError = Validators.validatePhone(_phoneController.text);
+    final feeText = _deliveryFeeController.text.trim();
+    final fee = double.tryParse(feeText);
+    String? feeError;
+    if (feeText.isEmpty) {
+      feeError = 'Delivery fee is required';
+    } else if (fee == null) {
+      feeError = 'Enter a valid number';
+    } else if (fee < 0) {
+      feeError = 'Delivery fee cannot be negative';
+    }
+
+    if (nameError != null ||
+        phoneError != null ||
+        feeError != null ||
+        _restaurantLocation == null) {
       setState(() {
         _nameErrorText = nameError;
+        _phoneErrorText = phoneError;
+        _deliveryFeeErrorText = feeError;
         _locationErrorText = _restaurantLocation == null
             ? 'Please choose restaurant location on the map.'
             : null;
@@ -261,8 +624,7 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
     setState(() => _isSaving = true);
 
     try {
-      final deliveryFee =
-          double.tryParse(_deliveryFeeController.text.trim()) ?? 0.0;
+      final deliveryFee = fee!;
 
       final tags = _selectedTags.map((e) => e.name).toList();
 
@@ -280,8 +642,7 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
         'deliveryFee': deliveryFee,
         'tags': tags,
         'location': _restaurantLocation,
-        'isOpen': _isOpen,
-        'hasOffer': _hasOffer,
+        'locationAddress': _locationPreview ?? '',
         'imageUrl': uploadedImageUrl ?? _imageUrl ?? '',
       });
 
@@ -291,6 +652,8 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
         _imageUrl = uploadedImageUrl;
         _selectedImageFile = null;
         _nameErrorText = null;
+        _phoneErrorText = null;
+        _deliveryFeeErrorText = null;
         _locationErrorText = null;
       });
 
@@ -301,11 +664,8 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
       );
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update profile: $e'),
-        ),
+        SnackBar(content: Text('Failed to update profile: $e')),
       );
     } finally {
       if (mounted) {
@@ -314,257 +674,347 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
     }
   }
 
-  void _toggleOpen(bool value) {
-    setState(() => _isOpen = value);
-  }
-
-  void _toggleOffer(bool value) {
-    setState(() => _hasOffer = value);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final hasLocation = _restaurantLocation != null;
+
     if (_isInitialLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
+      return Scaffold(
+        appBar: _buildAppBar(theme, scheme),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_loadError != null) {
       return Scaffold(
-        body: Center(
-          child: Text(_loadError!),
-        ),
+        appBar: _buildAppBar(theme, scheme),
+        body: Center(child: Text(_loadError!)),
       );
     }
+
     return Scaffold(
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      appBar: _buildAppBar(theme, scheme),
+      body: Column(
         children: [
-          Center(
-            child: Column(
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: _selectedImageFile != null
-                      ? Image.file(
-                          _selectedImageFile!,
-                          width: 120,
-                          height: 120,
-                          fit: BoxFit.cover,
-                        )
-                      : (_imageUrl != null && _imageUrl!.isNotEmpty)
-                      ? Image.network(
-                          _imageUrl!,
-                          width: 120,
-                          height: 120,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => _imagePlaceholder(scheme),
-                        )
-                      : _imagePlaceholder(scheme),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _isUploadingImage ? null : _pickImage,
-                  icon: const Icon(Icons.upload),
-                  label: Text(
-                    _isUploadingImage ? 'Uploading...' : 'Upload Image',
+                Center(
+                  child: Column(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: _selectedImageFile != null
+                            ? Image.file(
+                                _selectedImageFile!,
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                              )
+                            : (_imageUrl != null && _imageUrl!.isNotEmpty)
+                            ? Image.network(
+                                _imageUrl!,
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) =>
+                                    _imagePlaceholder(scheme),
+                              )
+                            : _imagePlaceholder(scheme),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          onPressed: _isUploadingImage ? null : _pickImage,
+                          icon: const Icon(Icons.upload, size: 18),
+                          label: Text(
+                            _isUploadingImage ? 'Uploading…' : 'Upload Image',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: scheme.surfaceContainerLowest,
+                            foregroundColor: scheme.onSurface,
+                            side: BorderSide(color: scheme.outlineVariant),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.email_outlined),
-            title: const Text('Email'),
-            subtitle: Text(widget.restaurant.email),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.badge_outlined),
-            title: const Text('Restaurant ID'),
-            subtitle: Text(widget.restaurant.id),
-          ),
-          const SizedBox(height: 12),
-          _ProfileTextField(
-            controller: _nameController,
-            label: 'Restaurant Name',
-            icon: Icons.storefront_outlined,
-            errorText: _nameErrorText,
-          ),
-          const SizedBox(height: 12),
-
-          _ProfileTextField(
-            controller: _phoneController,
-            label: 'Phone',
-            icon: Icons.phone_outlined,
-            keyboardType: TextInputType.phone,
-          ),
-          const SizedBox(height: 12),
-
-          _ProfileTextField(
-            controller: _deliveryFeeController,
-            label: 'Delivery Fee (SAR)',
-            icon: Icons.attach_money,
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 12),
-
-          Card(
-            clipBehavior: Clip.antiAlias,
-            child: ExpansionTile(
-              leading: const Icon(Icons.category_outlined),
-              title: const Text(
-                'Restaurant Categories',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              subtitle: Text(
-                _selectedTags.isEmpty
-                    ? 'None selected'
-                    : _selectedTags.map((t) => t.label).join(', '),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              childrenPadding: const EdgeInsets.symmetric(horizontal: 12),
-              children: RestaurantTag.values.map((tag) {
-                final isSelected = _selectedTags.contains(tag);
-
-                return CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: isSelected,
-                  title: Text(tag.label),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  onChanged: (value) {
-                    setState(() {
-                      if (value == true) {
-                        _selectedTags.add(tag);
-                      } else {
-                        _selectedTags.remove(tag);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          OutlinedButton.icon(
-            onPressed: _pickLocation,
-            icon: Icon(
-              _restaurantLocation != null
-                  ? Icons.location_on
-                  : Icons.map_outlined,
-              color: _restaurantLocation != null ? Colors.green : null,
-            ),
-            label: Text(
-              _restaurantLocation != null
-                  ? 'Location Selected'
-                  : 'Choose Location on Map',
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _restaurantLocation != null
-                  ? Colors.green
-                  : null,
-            ),
-          ),
-          if (_restaurantLocation != null) ...[
-            const SizedBox(height: 8),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.place_outlined),
-                title: const Text('Restaurant location'),
-                subtitle: Text(
-                  _locationPreview ?? 'Restaurant location selected',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                _SheetLabel('Restaurant Name'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    hintText: 'Restaurant Name',
+                    prefixIcon: const Icon(Icons.storefront_outlined),
+                    errorText: _nameErrorText,
+                  ),
                 ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: _pickLocation,
-                ),
-              ),
-            ),
-          ],
-          if (_locationErrorText != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _locationErrorText!,
-                style: const TextStyle(color: Colors.red, fontSize: 12),
-              ),
-            ),
-          const SizedBox(height: 20),
+                const SizedBox(height: 14),
 
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  value: _isOpen,
-                  onChanged: _toggleOpen,
-                  title: const Text('Restaurant Open'),
+                _SheetLabel('Email Address'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: TextEditingController(
+                    text: widget.restaurant.email,
+                  ),
+                  enabled: false,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    filled: true,
+                    fillColor: scheme.surfaceContainer,
+                  ),
                 ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  value: _hasOffer,
-                  onChanged: _toggleOffer,
-                  title: const Text('Has Active Offer'),
+                const SizedBox(height: 14),
+
+                _SheetLabel('Phone Number'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  maxLength: 9,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(9),
+                  ],
+                  decoration: InputDecoration(
+                    hintText: '5XXXXXXXX',
+                    prefixIcon: const Icon(Icons.phone_outlined),
+                    errorText: _phoneErrorText,
+                  ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
+                const SizedBox(height: 14),
 
-          SizedBox(
-            height: 50,
-            child: ElevatedButton(
-              onPressed: (_isSaving || _isUploadingImage) ? null : _saveProfile,
-              child: _isSaving
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Save Changes'),
-            ),
-          ),
-          const SizedBox(height: 12),
+                _SheetLabel('Restaurant ID'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: TextEditingController(
+                    text: widget.restaurant.id,
+                  ),
+                  enabled: false,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.badge_outlined),
+                    filled: true,
+                    fillColor: scheme.surfaceContainer,
+                  ),
+                ),
+                const SizedBox(height: 14),
 
-          SizedBox(
-            height: 50,
-            child: OutlinedButton.icon(
-              onPressed: _signOut,
-              icon: const Icon(Icons.logout),
-              label: const Text('Sign Out'),
-            ),
-          ),
-          SizedBox(
-            height: 50,
-            child: TextButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SupportScreen(
-                      userId: widget.restaurant.id,
-                      userRole: 'restaurant',
-                      userName: widget.restaurant.name,
-                      userEmail: widget.restaurant.email,
+                _SheetLabel('Delivery Fee (SAR)'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _deliveryFeeController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: false,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  decoration: InputDecoration(
+                    hintText: '0',
+                    prefixIcon: const Icon(Icons.attach_money),
+                    errorText: _deliveryFeeErrorText,
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                _SheetLabel('Restaurant Categories'),
+                const SizedBox(height: 6),
+                Material(
+                  color: scheme.surfaceContainerLowest,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: scheme.outlineVariant, width: 1),
+                  ),
+                  child: InkWell(
+                    onTap: _openCategoriesSheet,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.local_offer_outlined,
+                            color: scheme.primary,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              _selectedTags.isEmpty
+                                  ? 'Tap to pick categories'
+                                  : _selectedTags.map((t) => t.label).join(', '),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: _selectedTags.isEmpty
+                                    ? scheme.onSurfaceVariant
+                                    : scheme.onSurface,
+                                fontWeight: _selectedTags.isEmpty
+                                    ? FontWeight.w500
+                                    : FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                            size: 22,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                );
-              },
-              icon: const Icon(Icons.support_agent),
-              label: const Text('Support'),
+                ),
+                const SizedBox(height: 14),
+
+                _SheetLabel('Restaurant Location'),
+                const SizedBox(height: 6),
+                Material(
+                  color: scheme.surfaceContainerLowest,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: scheme.outlineVariant, width: 1),
+                  ),
+                  child: InkWell(
+                    onTap: _pickLocation,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.place_outlined,
+                            color: scheme.primary,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  hasLocation
+                                      ? 'Restaurant location'
+                                      : 'No location set',
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  hasLocation
+                                      ? (_locationPreview ??
+                                          'Restaurant location selected')
+                                      : 'Tap to set the restaurant location on the map',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right,
+                            color: scheme.onSurfaceVariant,
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (_locationErrorText != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, left: 4),
+                    child: Text(
+                      _locationErrorText!,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: scheme.error,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Divider(height: 1, color: scheme.outlineVariant),
+              SafeArea(
+                top: false,
+                minimum: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: FilledButton(
+                    onPressed: (_isSaving || _isUploadingImage)
+                        ? null
+                        : _saveProfile,
+                    style: FilledButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: _isSaving
+                        ? SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: scheme.onPrimary,
+                            ),
+                          )
+                        : const Text(
+                            'Save Changes',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(ThemeData theme, ColorScheme scheme) {
+    return AppBar(
+      title: Text(
+        'Account Information',
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: scheme.primary,
+        ),
+      ),
+      centerTitle: true,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Divider(height: 1, color: scheme.outlineVariant),
       ),
     );
   }
@@ -573,37 +1023,119 @@ class _RestaurantProfileState extends State<RestaurantProfile> {
     return Container(
       width: 120,
       height: 120,
-      color: scheme.surfaceContainerHighest,
-      child: const Icon(Icons.image, size: 40),
+      color: scheme.surfaceContainerHigh,
+      alignment: Alignment.center,
+      child: Icon(Icons.image, size: 40, color: scheme.onSurfaceVariant),
     );
   }
 }
 
-class _ProfileTextField extends StatelessWidget {
-  const _ProfileTextField({
-    required this.controller,
-    required this.label,
-    required this.icon,
-    this.errorText,
-    this.keyboardType,
-  });
+class _SheetLabel extends StatelessWidget {
+  const _SheetLabel(this.text);
 
-  final TextEditingController controller;
-  final String label;
-  final IconData icon;
-  final String? errorText;
-  final TextInputType? keyboardType;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        errorText: errorText,
-        border: const OutlineInputBorder(),
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoriesPickerSheet extends StatefulWidget {
+  const _CategoriesPickerSheet({required this.initial});
+
+  final Set<RestaurantTag> initial;
+
+  @override
+  State<_CategoriesPickerSheet> createState() => _CategoriesPickerSheetState();
+}
+
+class _CategoriesPickerSheetState extends State<_CategoriesPickerSheet> {
+  late final Set<RestaurantTag> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = {...widget.initial};
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Restaurant Categories',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: RestaurantTag.values.map((tag) {
+                  final isSelected = _selected.contains(tag);
+                  return CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: isSelected,
+                    title: Text(
+                      tag.label,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    onChanged: (value) {
+                      setState(() {
+                        if (value == true) {
+                          _selected.add(tag);
+                        } else {
+                          _selected.remove(tag);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context, _selected),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Save',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

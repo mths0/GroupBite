@@ -68,7 +68,10 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
     final result = await Navigator.push<CustomerAddress>(
       context,
       MaterialPageRoute(
-        builder: (_) => const AddAddressScreen(),
+        builder: (_) => AddAddressScreen(
+          existing: _selectedAddress,
+          title: 'Delivery Address',
+        ),
       ),
     );
 
@@ -149,32 +152,59 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final hasAddress = _selectedAddress != null;
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Customer Registration")),
+      appBar: AppBar(
+        title: Text(
+          'Customer Registration',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: scheme.primary,
+          ),
+        ),
+        centerTitle: true,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
+      ),
       body: AbsorbPointer(
         absorbing: isLoading,
         child: SafeArea(
           child: Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
               children: [
-                const Text(
-                  "Fill customer details",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Text(
+                  'Tell us about you',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   widget.email,
-                  style: TextStyle(color: Colors.grey[700]),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
-                const SizedBox(height: 12),
-
+                const SizedBox(height: 24),
                 if (errorText != null) ...[
-                  Text(errorText!, style: const TextStyle(color: Colors.red)),
+                  Text(
+                    errorText!,
+                    style: TextStyle(color: scheme.error),
+                  ),
                   const SizedBox(height: 12),
                 ],
-
+                _FieldLabel('Phone number'),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
@@ -183,95 +213,177 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(9),
                   ],
+                  onChanged: (_) {
+                    if (phoneErrorText != null) {
+                      setState(() => phoneErrorText = null);
+                    }
+                  },
                   decoration: InputDecoration(
-                    labelText: "Phone number",
-                    hintText: "5XXXXXXXX",
-                    prefixIcon: const Icon(Icons.phone),
+                    hintText: '5XXXXXXXX',
                     errorText: phoneErrorText,
                   ),
                 ),
-                const SizedBox(height: 12),
-
+                const SizedBox(height: 18),
+                _FieldLabel('Full name'),
+                const SizedBox(height: 6),
                 TextFormField(
                   controller: _nameCtrl,
                   textCapitalization: TextCapitalization.words,
+                  onChanged: (_) {
+                    if (nameErrorText != null) {
+                      setState(() => nameErrorText = null);
+                    }
+                  },
                   decoration: InputDecoration(
-                    labelText: "Full name",
-                    hintText: "Cristiano Ronaldo",
-                    prefixIcon: const Icon(Icons.person_outline),
+                    hintText: 'Cristiano Ronaldo',
                     errorText: nameErrorText,
                   ),
                 ),
-                const SizedBox(height: 12),
-
-                OutlinedButton.icon(
-                  onPressed: _pickAddress,
-                  icon: Icon(
-                    _selectedAddress != null
-                        ? Icons.location_on
-                        : Icons.map_outlined,
-                    color: _selectedAddress != null ? Colors.green : null,
+                const SizedBox(height: 22),
+                _FieldLabel('Delivery address'),
+                const SizedBox(height: 6),
+                if (hasAddress)
+                  Material(
+                    color: scheme.surfaceContainerLowest,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(color: scheme.outlineVariant),
+                    ),
+                    child: InkWell(
+                      onTap: _pickAddress,
+                      borderRadius: BorderRadius.circular(14),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                        child: Row(
+                          children: [
+                            Icon(Icons.place_outlined, color: scheme.primary),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _selectedAddress!.label.trim().isEmpty
+                                        ? 'Selected address'
+                                        : _selectedAddress!.label,
+                                    style: theme.textTheme.bodyLarge?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    [
+                                      _selectedAddress!.fullAddress,
+                                      _selectedAddress!.buildingDetails,
+                                    ]
+                                        .where((e) => e.trim().isNotEmpty)
+                                        .join('\n'),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.edit_outlined,
+                              color: scheme.onSurfaceVariant,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: _pickAddress,
+                      icon: const Icon(Icons.map_outlined, size: 18),
+                      label: const Text(
+                        'Choose address on map',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: scheme.surfaceContainerLowest,
+                        foregroundColor: scheme.onSurface,
+                        side: BorderSide(color: scheme.outlineVariant),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
                   ),
-                  label: Text(
-                    _selectedAddress != null
-                        ? "Address Selected"
-                        : "Choose Address on Map",
+                if (_locationError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, left: 4),
+                    child: Text(
+                      _locationError!,
+                      style: TextStyle(
+                        color: scheme.error,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _selectedAddress != null
-                        ? Colors.green
-                        : null,
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: isLoading ? null : validateData,
+                    child: isLoading
+                        ? SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: scheme.onPrimary,
+                            ),
+                          )
+                        : const Text('Register'),
                   ),
                 ),
-                if (_selectedAddress != null) ...[
-                  const SizedBox(height: 8),
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.place_outlined),
-                      title: Text(_selectedAddress!.label),
-                      subtitle: Text(
-                        [
-                          _selectedAddress!.fullAddress,
-                          _selectedAddress!.buildingDetails,
-                        ].where((e) => e.trim().isNotEmpty).join('\n'),
-                      ),
-                      isThreeLine: _selectedAddress!.buildingDetails
-                          .trim()
-                          .isNotEmpty,
-                      trailing: IconButton(
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: _pickAddress,
+                if (hasAddress) ...[
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Text(
+                      'You can add more addresses later in your profile.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
                   ),
                 ],
-                if (_locationError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      _locationError!,
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
-                    ),
-                  ),
-                const SizedBox(height: 20),
-
-                SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: validateData,
-                    child: isLoading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text("Register"),
-                  ),
-                ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Text(
+      label,
+      style: theme.textTheme.labelMedium?.copyWith(
+        color: scheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
       ),
     );
   }

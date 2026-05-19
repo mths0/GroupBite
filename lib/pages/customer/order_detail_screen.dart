@@ -10,6 +10,7 @@ import 'package:yjeek/pages/customer/cart_screen.dart';
 import 'package:yjeek/pages/customer/customer_orders_screen.dart';
 import 'package:yjeek/pages/customer/map_track_screen.dart';
 import 'package:yjeek/pages/customer/rate_order_screen.dart';
+import 'package:yjeek/themes/app_theme.dart';
 import 'package:yjeek/utils/tax.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -64,17 +65,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   Color _statusPillBg(BuildContext context, OrderStatus status) {
     final scheme = Theme.of(context).colorScheme;
+    final brand = Theme.of(context).extension<BrandColors>()!;
     switch (status) {
       case OrderStatus.pending:
-        return const Color(0xFFFFF1C9);
+        return brand.offer;
       case OrderStatus.accepted:
-        return const Color(0xFFDDEBFF);
+        return brand.accepted;
       case OrderStatus.assigned:
-        return const Color(0xFFD4EEF1);
+        return brand.assigned;
       case OrderStatus.pickedUp:
-        return const Color(0xFFFFDDB5);
+        return brand.pickedUp;
       case OrderStatus.delivered:
-        return const Color(0xFFD7F0DC);
+        return brand.openStatus;
       case OrderStatus.rejected:
       case OrderStatus.cancelled:
         return scheme.errorContainer;
@@ -83,17 +85,18 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   Color _statusPillFg(BuildContext context, OrderStatus status) {
     final scheme = Theme.of(context).colorScheme;
+    final brand = Theme.of(context).extension<BrandColors>()!;
     switch (status) {
       case OrderStatus.pending:
-        return const Color(0xFF7A5500);
+        return brand.onOffer;
       case OrderStatus.accepted:
-        return const Color(0xFF1A3D7A);
+        return brand.onAccepted;
       case OrderStatus.assigned:
-        return const Color(0xFF0F5E66);
+        return brand.onAssigned;
       case OrderStatus.pickedUp:
-        return const Color(0xFF7A3E00);
+        return brand.onPickedUp;
       case OrderStatus.delivered:
-        return const Color(0xFF1A5E2A);
+        return brand.onOpenStatus;
       case OrderStatus.rejected:
       case OrderStatus.cancelled:
         return scheme.onErrorContainer;
@@ -211,6 +214,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ),
         ),
         centerTitle: true,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: scheme.outlineVariant),
+        ),
       ),
       body: StreamBuilder<Order?>(
         stream: _db.streamOrderById(widget.order.id),
@@ -306,10 +316,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ),
                 ),
                 icon: const Icon(Icons.star_outline),
-                label: const Text(
-                  'Rate Order',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                ),
+                label: const Text('Rate Order'),
               ),
             ),
             const SizedBox(height: 12),
@@ -325,10 +332,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 ),
               ),
               icon: const Icon(Icons.refresh),
-              label: const Text(
-                'Order again',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
+              label: const Text('Order again'),
             ),
           ),
           const SizedBox(height: 16),
@@ -669,34 +673,24 @@ class _RestaurantDetailsCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: scheme.surfaceContainer,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              size: 14,
-                              color: Color(0xFFE9C176),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.star_rounded,
+                            color: scheme.secondary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            restaurant.rating.toStringAsFixed(1),
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              restaurant.rating.toStringAsFixed(1),
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: scheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -982,6 +976,8 @@ class _OrderSummaryCard extends StatelessWidget {
     final deliveryFee = (order.totalPrice - itemsInclTax)
         .clamp(0, double.infinity)
         .toDouble();
+    final gross = itemsInclTax + deliveryFee;
+    final totalPaid = order.totalPrice;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
@@ -1040,7 +1036,29 @@ class _OrderSummaryCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '${order.totalPrice.toStringAsFixed(2)} SAR',
+                '${gross.toStringAsFixed(2)} SAR',
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total Paid',
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                '${totalPaid.toStringAsFixed(2)} SAR',
                 style: TextStyle(
                   color: scheme.primary,
                   fontSize: 22,

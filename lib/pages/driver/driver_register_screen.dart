@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:yjeek/auth_service.dart';
 import 'package:yjeek/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,6 +8,8 @@ import 'package:yjeek/themes/app_theme.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:yjeek/components/loading_indicator.dart';
+import 'package:geolocator/geolocator.dart';
+
 import 'package:yjeek/utils/validators.dart';
 import 'package:yjeek/models/abstract_user.dart';
 import 'package:yjeek/models/driver.dart';
@@ -35,6 +38,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
   String? generalErrorText;
 
   bool isLoading = false;
+  bool isCapturingLocation = false;
 
   @override
   void dispose() {
@@ -47,7 +51,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
   Future<void> _getLocation() async {
     if (!mounted) return;
     setState(() {
-      isLoading = true;
+      isCapturingLocation = true;
       locationError = null;
     });
 
@@ -57,7 +61,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
         if (!mounted) return;
         setState(() {
           locationError = "Location services are disabled.";
-          isLoading = false;
+          isCapturingLocation = false;
         });
         return;
       }
@@ -72,7 +76,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
         if (!mounted) return;
         setState(() {
           locationError = "Location permission denied.";
-          isLoading = false;
+          isCapturingLocation = false;
         });
         return;
       }
@@ -82,7 +86,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
         setState(() {
           locationError =
               "Location permissions are permanently denied. Please enable them from settings.";
-          isLoading = false;
+          isCapturingLocation = false;
         });
         return;
       }
@@ -95,7 +99,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
       setState(() {
         currentPosition = GeoPoint(position.latitude, position.longitude);
         locationError = null;
-        isLoading = false;
+        isCapturingLocation = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -105,7 +109,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
       if (!mounted) return;
       setState(() {
         locationError = "Could not get location.";
-        isLoading = false;
+        isCapturingLocation = false;
       });
     }
   }
@@ -150,10 +154,6 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
       location: currentPosition,
       rating: 5,
       ratingCount: 0,
-
-      // add these only if they exist in your model
-      // isVerified: false,
-      // status: DriverStatus.available,
     );
 
     setState(() {
@@ -171,22 +171,6 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
         });
         return;
       }
-
-      /*TODO : we should also check for national ID duplicates,
-       but currently we don't have a method for that in DatabaseService.
-       We can add getDriverByNationalId and use it here.
-      */
-
-      // final existingByNationalId = await db.getDriverByNationalId(
-      //   driver.nationalId,
-      // );
-      // if (existingByNationalId != null) {
-      //   setState(() {
-      //     nationalIdErrorText = "National ID already registered.";
-      //     isLoading = false;
-      //   });
-      //   return;
-      // }
 
       await db.createUser(driver.toJson());
 
@@ -209,9 +193,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (_) => const StartScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const StartScreen()),
         (route) => false,
       );
     } catch (e) {
@@ -227,8 +209,8 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final brand = theme.extension<BrandColors>()!;
     final hasLocation = currentPosition != null;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -247,152 +229,228 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
           child: Divider(height: 1, color: scheme.outlineVariant),
         ),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Column(
-                children: [
-                  Text(
-                    'Register as Driver',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+      body: AbsorbPointer(
+        absorbing: isLoading,
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            children: [
+              Text(
+                'Tell us about you',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                widget.email,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 24),
+              if (generalErrorText != null) ...[
+                Text(
+                  generalErrorText!,
+                  style: TextStyle(color: scheme.error),
+                ),
+                const SizedBox(height: 12),
+              ],
+              _FieldLabel('Phone number'),
+              const SizedBox(height: 6),
+              TextField(
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                maxLength: 9,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(9),
+                ],
+                onChanged: (_) {
+                  if (phoneErrorText != null) {
+                    setState(() => phoneErrorText = null);
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: '5XXXXXXXX',
+                  errorText: phoneErrorText,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _FieldLabel('National ID'),
+              const SizedBox(height: 6),
+              TextField(
+                controller: nationalIdController,
+                keyboardType: TextInputType.number,
+                maxLength: 10,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                onChanged: (_) {
+                  if (nationalIdErrorText != null) {
+                    setState(() => nationalIdErrorText = null);
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: '10-digit national ID',
+                  errorText: nationalIdErrorText,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _FieldLabel('Full name'),
+              const SizedBox(height: 6),
+              TextField(
+                controller: nameController,
+                textCapitalization: TextCapitalization.words,
+                onChanged: (_) {
+                  if (nameErrorText != null) {
+                    setState(() => nameErrorText = null);
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: 'Cristiano Ronaldo',
+                  errorText: nameErrorText,
+                ),
+              ),
+              const SizedBox(height: 22),
+              _FieldLabel('Current location'),
+              const SizedBox(height: 6),
+              if (hasLocation)
+                Material(
+                  color: scheme.surfaceContainerLowest,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(color: scheme.outlineVariant),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    widget.email,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  TextField(
-                    controller: phoneController,
-                    keyboardType: TextInputType.phone,
-                    maxLength: 9,
-                    decoration: InputDecoration(
-                      labelText: 'Phone Number',
-                      hintText: '5X XXX XXXX',
-                      prefixIcon: const Icon(Icons.phone_outlined),
-                      errorText: phoneErrorText,
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  TextField(
-                    controller: nationalIdController,
-                    keyboardType: TextInputType.number,
-                    maxLength: 10,
-                    decoration: InputDecoration(
-                      labelText: 'National ID',
-                      errorText: nationalIdErrorText,
-                      prefixIcon: const Icon(Icons.badge_outlined),
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  TextField(
-                    controller: nameController,
-                    keyboardType: TextInputType.text,
-                    decoration: InputDecoration(
-                      labelText: 'Full Name',
-                      hintText: 'Cristiano Ronaldo',
-                      errorText: nameErrorText,
-                      prefixIcon: const Icon(Icons.person_outline),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: OutlinedButton.icon(
-                      onPressed: isLoading ? null : _getLocation,
-                      icon: Icon(
-                        hasLocation ? Icons.location_on : Icons.my_location,
-                        size: 18,
-                        color: hasLocation ? brand.success : null,
-                      ),
-                      label: Text(
-                        hasLocation
-                            ? 'Location Captured'
-                            : 'Get Current Location',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: scheme.surfaceContainerLowest,
-                        foregroundColor: hasLocation
-                            ? brand.success
-                            : scheme.onSurface,
-                        side: BorderSide(
-                          color: hasLocation
-                              ? brand.success.withValues(alpha: 0.4)
-                              : scheme.outlineVariant,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  if (locationError != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        locationError!,
-                        style: TextStyle(color: scheme.error, fontSize: 12),
-                      ),
-                    ),
-
-                  if (generalErrorText != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text(
-                        generalErrorText!,
-                        style: TextStyle(color: scheme.error, fontSize: 12),
-                      ),
-                    ),
-
-                  const SizedBox(height: 28),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: isLoading
-                        ? const LoadingIndicator()
-                        : FilledButton(
-                            onPressed: validateData,
-                            style: FilledButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: const Text(
-                              'Register',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
+                  child: InkWell(
+                    onTap: isCapturingLocation ? null : _getLocation,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.my_location, color: scheme.primary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Location captured',
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${currentPosition!.latitude.toStringAsFixed(5)}, '
+                                  '${currentPosition!.longitude.toStringAsFixed(5)}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
+                          Icon(
+                            Icons.refresh,
+                            color: scheme.onSurfaceVariant,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                      ),
+                    ),
                   ),
-                ],
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton.icon(
+                    onPressed: isCapturingLocation ? null : _getLocation,
+                    icon: isCapturingLocation
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: scheme.onSurface,
+                            ),
+                          )
+                        : const Icon(Icons.my_location, size: 18),
+                    label: Text(
+                      isCapturingLocation
+                          ? 'Capturing...'
+                          : 'Get current location',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: scheme.surfaceContainerLowest,
+                      foregroundColor: scheme.onSurface,
+                      side: BorderSide(color: scheme.outlineVariant),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              if (locationError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, left: 4),
+                  child: Text(
+                    locationError!,
+                    style: TextStyle(
+                      color: scheme.error,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: isLoading ? null : validateData,
+                  child: isLoading
+                      ? SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: scheme.onPrimary,
+                          ),
+                        )
+                      : const Text('Register'),
+                ),
               ),
-            ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Text(
+      label,
+      style: theme.textTheme.labelMedium?.copyWith(
+        color: scheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
       ),
     );
   }

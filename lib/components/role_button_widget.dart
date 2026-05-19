@@ -20,6 +20,8 @@ class RoleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -27,19 +29,19 @@ class RoleButton extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: scheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: scheme.outlineVariant, width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black12,
-              blurRadius: 6,
-              offset: Offset(0, 3),
+              color: scheme.primary.withValues(alpha: 0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
-            // Icon Circle
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -52,26 +54,25 @@ class RoleButton extends StatelessWidget {
                 size: 28,
               ),
             ),
-
             const SizedBox(width: 16),
-
-            // Text
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 13, color: Colors.black87),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),

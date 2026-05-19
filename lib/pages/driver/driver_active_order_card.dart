@@ -5,6 +5,7 @@ import 'package:yjeek/models/customer.dart';
 import 'package:yjeek/models/driver.dart';
 import 'package:yjeek/models/order.dart';
 import 'package:yjeek/models/restaurant.dart';
+import 'package:yjeek/models/restaurant_tag.dart';
 import 'package:yjeek/themes/app_theme.dart';
 import 'package:yjeek/utils/location_service.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
@@ -161,75 +162,22 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
     return Column(
       children: [
         Expanded(
-          child: SingleChildScrollView(
+          child: ListView(
             padding: const EdgeInsets.all(16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: scheme.outlineVariant, width: 1),
-              ),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (isGoingToCustomer)
-                    _CustomerHeader(
-                      customerName: _customer?.name ?? 'Customer',
-                      orderId: widget.order.id,
-                    )
-                  else
-                    _RestaurantHeader(
-                      restaurant: _restaurant,
-                      orderId: widget.order.id,
-                    ),
-                  const SizedBox(height: 18),
-                  Text(
-                    'Items',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  for (final item in widget.order.items)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'x${item.quantity}',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: scheme.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.name,
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                                if (item.customizationSummary.isNotEmpty)
-                                  Text(
-                                    item.customizationSummary,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: scheme.onSurfaceVariant,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
+            children: [
+              if (isGoingToCustomer)
+                _CustomerInfoCard(
+                  customerName: _customer?.name ?? 'Customer',
+                  orderId: widget.order.id,
+                )
+              else
+                _RestaurantInfoCard(
+                  restaurant: _restaurant,
+                  orderId: widget.order.id,
+                ),
+              const SizedBox(height: 16),
+              _ItemsCard(items: widget.order.items),
+            ],
           ),
         ),
         if (isGoingToRestaurant)
@@ -291,67 +239,128 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
   }
 }
 
-class _RestaurantHeader extends StatelessWidget {
-  const _RestaurantHeader({required this.restaurant, required this.orderId});
+class _RestaurantInfoCard extends StatelessWidget {
+  const _RestaurantInfoCard({
+    required this.restaurant,
+    required this.orderId,
+  });
 
   final Restaurant? restaurant;
   final String orderId;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final imageUrl = restaurant?.imageUrl ?? '';
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: imageUrl.isNotEmpty
-              ? Image.network(
-                  imageUrl,
-                  width: 64,
-                  height: 64,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => _RestaurantImageFallback(),
-                )
-              : _RestaurantImageFallback(),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final tagsLabel = restaurant == null
+        ? ''
+        : restaurant!.tags.take(2).map((t) => t.label).join(' · ');
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.outlineVariant, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(
-                restaurant?.name ?? 'Restaurant',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              Icon(
+                Icons.storefront_outlined,
+                color: scheme.primary,
+                size: 22,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(width: 10),
               Text(
-                'Order #$orderId',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
+                'Restaurant Details',
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 10),
+          Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            const _RestaurantImageFallback(),
+                      )
+                    : const _RestaurantImageFallback(),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      restaurant?.name ?? 'Restaurant',
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (tagsLabel.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        tagsLabel,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      'Order #$orderId',
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _RestaurantImageFallback extends StatelessWidget {
+  const _RestaurantImageFallback();
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      width: 64,
-      height: 64,
+      width: 72,
+      height: 72,
       color: scheme.surfaceContainerHigh,
       alignment: Alignment.center,
       child: Icon(Icons.restaurant, color: scheme.onSurfaceVariant),
@@ -359,52 +368,144 @@ class _RestaurantImageFallback extends StatelessWidget {
   }
 }
 
-class _CustomerHeader extends StatelessWidget {
-  const _CustomerHeader({required this.customerName, required this.orderId});
+class _CustomerInfoCard extends StatelessWidget {
+  const _CustomerInfoCard({
+    required this.customerName,
+    required this.orderId,
+  });
 
   final String customerName;
   final String orderId;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 64,
-          height: 64,
-          child: Icon(
-            Icons.person_outline,
-            color: scheme.onSurface,
-            size: 44,
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.outlineVariant, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Text(
-                customerName,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              Icon(
+                Icons.person_outline,
+                color: scheme.primary,
+                size: 22,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(width: 10),
               Text(
-                'Order #$orderId',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
+                'Customer',
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 10),
+          Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+          const SizedBox(height: 12),
+          Text(
+            customerName,
+            style: TextStyle(
+              color: scheme.onSurface,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Order #$orderId',
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItemsCard extends StatelessWidget {
+  const _ItemsCard({required this.items});
+
+  final List<OrderItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.outlineVariant, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.receipt_long_outlined,
+                color: scheme.primary,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Items',
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+          const SizedBox(height: 6),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${item.quantity}x  ${item.name}',
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (item.customizationSummary.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      item.customizationSummary,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 13,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

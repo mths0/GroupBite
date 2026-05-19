@@ -8,6 +8,7 @@ import 'package:yjeek/models/family_wallet.dart';
 import 'package:yjeek/models/order.dart';
 import 'package:yjeek/models/restaurant.dart';
 import 'package:yjeek/pages/customer/order_detail_screen.dart';
+import 'package:yjeek/themes/app_theme.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class CustomerOrdersScreen extends StatefulWidget {
@@ -662,17 +663,18 @@ class _OrderCard extends StatelessWidget {
 
   ({Color bg, Color fg}) _phaseColors(BuildContext context, OrderStatus s) {
     final scheme = Theme.of(context).colorScheme;
+    final brand = Theme.of(context).extension<BrandColors>()!;
     switch (s) {
       case OrderStatus.pending:
-        return (bg: const Color(0xFFFFF1C9), fg: const Color(0xFF7A5500));
+        return (bg: brand.offer, fg: brand.onOffer);
       case OrderStatus.accepted:
-        return (bg: const Color(0xFFDDEBFF), fg: const Color(0xFF1A3D7A));
+        return (bg: brand.accepted, fg: brand.onAccepted);
       case OrderStatus.assigned:
-        return (bg: const Color(0xFFD4EEF1), fg: const Color(0xFF0F5E66));
+        return (bg: brand.assigned, fg: brand.onAssigned);
       case OrderStatus.pickedUp:
-        return (bg: const Color(0xFFFFDDB5), fg: const Color(0xFF7A3E00));
+        return (bg: brand.pickedUp, fg: brand.onPickedUp);
       case OrderStatus.delivered:
-        return (bg: const Color(0xFFD7F0DC), fg: const Color(0xFF1A5E2A));
+        return (bg: brand.openStatus, fg: brand.onOpenStatus);
       case OrderStatus.rejected:
       case OrderStatus.cancelled:
         return (bg: scheme.errorContainer, fg: scheme.onErrorContainer);

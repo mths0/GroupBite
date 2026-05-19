@@ -104,16 +104,16 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                 final grandTotalBeforeDiscount = subtotal + deliveryFee;
 
                 double promoDiscount = 0;
-                if (groupOrder.promoDiscountType != null &&
-                    groupOrder.promoDiscountValue != null) {
-                  final base = subtotal;
-                  if (groupOrder.promoDiscountType == 'fixed') {
-                    promoDiscount = groupOrder.promoDiscountValue!
-                        .clamp(0.0, base)
-                        .toDouble();
+                if (groupOrder.promoDiscountType != null) {
+                  final base = grandTotalBeforeDiscount;
+                  final type = groupOrder.promoDiscountType!;
+                  final value = groupOrder.promoDiscountValue ?? 0;
+                  if (type == 'free_delivery') {
+                    promoDiscount = deliveryFee;
+                  } else if (type == 'fixed') {
+                    promoDiscount = value.clamp(0.0, base).toDouble();
                   } else {
-                    promoDiscount =
-                        base * (groupOrder.promoDiscountValue! / 100);
+                    promoDiscount = base * (value / 100);
                     if (promoDiscount > base) promoDiscount = base;
                   }
                 }
@@ -2305,10 +2305,7 @@ class _MemberTile extends StatelessWidget {
                     Icons.volunteer_activism_outlined,
                     size: 16,
                   ),
-                  label: const Text(
-                    'Cover',
-                    style: TextStyle(fontSize: 11),
-                  ),
+                  label: const Text('Cover'),
                 ),
               if (canRemove)
                 IconButton(
