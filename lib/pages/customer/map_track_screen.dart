@@ -44,6 +44,7 @@ class _MapScreenState extends State<MapScreen> {
 
         final initialTarget = _customerLocationFromOrder(liveOrder);
         final topInset = MediaQuery.of(context).padding.top;
+        const mapButtonForeground = Color(0xFF353943);
 
         return Scaffold(
           extendBodyBehindAppBar: true,
@@ -75,7 +76,7 @@ class _MapScreenState extends State<MapScreen> {
                       height: 44,
                       child: Icon(
                         Icons.arrow_back,
-                        color: Colors.black87,
+                        color: mapButtonForeground,
                       ),
                     ),
                   ),

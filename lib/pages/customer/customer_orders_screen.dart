@@ -710,7 +710,7 @@ class _OrderCard extends StatelessWidget {
                   BoxShadow(
                     blurRadius: 14,
                     offset: const Offset(0, 4),
-                    color: Colors.black.withValues(alpha: 0.06),
+                    color: scheme.shadow.withValues(alpha: 0.06),
                   ),
                 ],
               ),

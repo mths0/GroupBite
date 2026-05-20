@@ -216,15 +216,15 @@ class _JoinGroupOrderScreenState extends State<JoinGroupOrderScreen> {
                                       vertical: 10,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withValues(
+                                      color: scheme.scrim.withValues(
                                         alpha: 0.7,
                                       ),
                                       borderRadius: BorderRadius.circular(999),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       'Scan QR Code to Join',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: scheme.onSurface,
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
                                       ),

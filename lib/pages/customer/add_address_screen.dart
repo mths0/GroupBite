@@ -539,6 +539,7 @@ class LocationPickerScreenState extends State<LocationPickerScreen> {
         .of(context)
         .padding
         .top;
+    const mapButtonForeground = Color(0xFF353943);
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Stack(
@@ -575,7 +576,7 @@ class LocationPickerScreenState extends State<LocationPickerScreen> {
                 child: const SizedBox(
                   width: 44,
                   height: 44,
-                  child: Icon(Icons.arrow_back, color: Colors.black87),
+                  child: Icon(Icons.arrow_back, color: mapButtonForeground),
                 ),
               ),
             ),

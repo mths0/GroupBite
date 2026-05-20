@@ -888,7 +888,7 @@ class _StickyBackButton extends StatelessWidget {
         side: BorderSide(color: scheme.outlineVariant, width: 1),
       ),
       elevation: 2,
-      shadowColor: Colors.black.withValues(alpha: 0.18),
+      shadowColor: scheme.shadow.withValues(alpha: 0.18),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
@@ -986,25 +986,61 @@ class HeaderCard extends StatelessWidget {
                       foreground: brand.onOffer,
                     ),
                   ],
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.star_rounded,
-                        color: scheme.secondary,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        restaurant.rating.toStringAsFixed(1),
-                        style: TextStyle(
-                          color: scheme.onSurfaceVariant,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Divider(height: 1, color: scheme.outlineVariant),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Icon(
+                Icons.local_shipping_outlined,
+                size: 20,
+                color: scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Delivery Fee',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    restaurant.deliveryFee == 0
+                        ? 'Free'
+                        : '${restaurant.deliveryFee.toStringAsFixed(2)} SAR',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.star_rounded,
+                    color: scheme.secondary,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    restaurant.rating.toStringAsFixed(1),
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),

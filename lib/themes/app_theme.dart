@@ -48,18 +48,18 @@ class BrandColors extends ThemeExtension<BrandColors> {
   );
 
   static const BrandColors dark = BrandColors(
-    offer: Color(0xFF4A3A00),
-    onOffer: Color(0xFFFFE9A8),
-    openStatus: Color(0xFF1F4A29),
-    onOpenStatus: Color(0xFFB7E5C2),
-    success: Color(0xFF2E6B3D),
+    offer: Color(0xFF6A4E1A),
+    onOffer: Color(0xFFFFE7B3),
+    openStatus: Color(0xFF214D3C),
+    onOpenStatus: Color(0xFFC8F2DD),
+    success: Color(0xFF2F7D4F),
     onSuccess: Color(0xFFFFFFFF),
-    accepted: Color(0xFF1A2F52),
-    onAccepted: Color(0xFFB8CCEE),
-    assigned: Color(0xFF15393E),
-    onAssigned: Color(0xFFA8D6DC),
-    pickedUp: Color(0xFF4A2E00),
-    onPickedUp: Color(0xFFFFCB8A),
+    accepted: Color(0xFF263B66),
+    onAccepted: Color(0xFFD6E4FF),
+    assigned: Color(0xFF1D4C58),
+    onAssigned: Color(0xFFBCECF5),
+    pickedUp: Color(0xFF65401D),
+    onPickedUp: Color(0xFFFFD9B0),
   );
 
   @override
@@ -114,7 +114,7 @@ class BrandColors extends ThemeExtension<BrandColors> {
 }
 
 /// Light scheme: "Sophisticated Navy & Gold" (see Design.md).
-/// Dark scheme: "Nocturnal Elegance" (see Dark Mode Design.md).
+/// Dark scheme: "Lively Night Market".
 class AppTheme {
   static const double _radiusSm = 4;
   static const double _radius = 8;
@@ -154,46 +154,46 @@ class AppTheme {
     outline: Color(0xFF75777E),
     outlineVariant: Color(0xFFC5C6CE),
     surfaceTint: Color(0xFF4E5F7E),
-    shadow: Color(0xFF000000),
-    scrim: Color(0xFF000000),
+    shadow: Color(0xFF1A2B48),
+    scrim: Color(0xFF1A2B48),
   );
 
   static const ColorScheme darkColorScheme = ColorScheme(
     brightness: Brightness.dark,
-    primary: Color(0xFFB6C7EB),
-    onPrimary: Color(0xFF031632),
-    primaryContainer: Color(0xFF1A2B48),
-    onPrimaryContainer: Color(0xFFD7E2FF),
-    secondary: Color(0xFFFED488),
-    onSecondary: Color(0xFF412D00),
-    secondaryContainer: Color(0xFF5D4201),
-    onSecondaryContainer: Color(0xFFFED488),
-    tertiary: Color(0xFFD7C4A4),
-    onTertiary: Color(0xFF3A2F18),
-    tertiaryContainer: Color(0xFF352913),
-    onTertiaryContainer: Color(0xFFC9C6C0),
+    primary: Color(0xFFFFD48A),
+    onPrimary: Color(0xFF4B330A),
+    primaryContainer: Color(0xFFFFE3AC),
+    onPrimaryContainer: Color(0xFF4B330A),
+    secondary: Color(0xFF9FDCC7),
+    onSecondary: Color(0xFF143B31),
+    secondaryContainer: Color(0xFF173B32),
+    onSecondaryContainer: Color(0xFFBDEEDC),
+    tertiary: Color(0xFFB9C8F6),
+    onTertiary: Color(0xFF182647),
+    tertiaryContainer: Color(0xFF25365E),
+    onTertiaryContainer: Color(0xFFDCE6FF),
     error: Color(0xFFFFB4AB),
     onError: Color(0xFF690005),
     errorContainer: Color(0xFF93000A),
     onErrorContainer: Color(0xFFFFDAD6),
-    surface: Color(0xFF14171C),
-    onSurface: Color(0xFFE8E6E4),
-    surfaceContainerLowest: Color(0xFF0E1014),
-    surfaceContainerLow: Color(0xFF1A1D22),
-    surfaceContainer: Color(0xFF1E2128),
-    surfaceContainerHigh: Color(0xFF25282F),
-    surfaceContainerHighest: Color(0xFF2C2F36),
-    surfaceDim: Color(0xFF0F1216),
-    surfaceBright: Color(0xFF353841),
-    onSurfaceVariant: Color(0xFFC2BFBC),
-    inverseSurface: Color(0xFFE8E6E4),
-    onInverseSurface: Color(0xFF303030),
-    inversePrimary: Color(0xFF1A2B48),
-    outline: Color(0xFF8B8D93),
-    outlineVariant: Color(0xFF3F4248),
-    surfaceTint: Color(0xFFB6C7EB),
-    shadow: Color(0xFF000000),
-    scrim: Color(0xFF000000),
+    surface: Color(0xFF282B33),
+    onSurface: Color(0xFFFFF8EE),
+    surfaceContainerLowest: Color(0xFF20242B),
+    surfaceContainerLow: Color(0xFF2E323A),
+    surfaceContainer: Color(0xFF343943),
+    surfaceContainerHigh: Color(0xFF3C424D),
+    surfaceContainerHighest: Color(0xFF464C57),
+    surfaceDim: Color(0xFF22262E),
+    surfaceBright: Color(0xFF505662),
+    onSurfaceVariant: Color(0xFFE0D8CE),
+    inverseSurface: Color(0xFFFFF8EE),
+    onInverseSurface: Color(0xFF353943),
+    inversePrimary: Color(0xFF775A19),
+    outline: Color(0xFFADA69B),
+    outlineVariant: Color(0xFF5E646F),
+    surfaceTint: Color(0xFFFFD48A),
+    shadow: Color(0xFF2A3140),
+    scrim: Color(0xFF2A3140),
   );
 
   static ThemeData get lightTheme =>

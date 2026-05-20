@@ -1470,7 +1470,7 @@ class _PreviewHeroImage extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
+                color: scheme.scrim.withValues(alpha: 0.55),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Row(
