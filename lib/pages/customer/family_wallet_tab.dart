@@ -5,6 +5,7 @@ import 'package:yjeek/models/family_wallet.dart';
 import 'package:yjeek/models/family_wallet_invite.dart';
 import 'package:yjeek/models/family_wallet_member.dart';
 import 'package:yjeek/pages/customer/add_funds_sheet.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class FamilyWalletTab extends StatefulWidget {
@@ -36,9 +37,7 @@ class _FamilyWalletTabState extends State<FamilyWalletTab>
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to create wallet: $e')),
-      );
+      showAppError(context, 'Failed to create wallet: $e');
     }
   }
 
@@ -134,9 +133,7 @@ class _InviteListView extends StatelessWidget {
       await db.acceptFamilyWalletInvite(inviteId);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
+      showAppError(context, e);
     }
   }
 
@@ -145,9 +142,7 @@ class _InviteListView extends StatelessWidget {
       await db.rejectFamilyWalletInvite(inviteId);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
+      showAppError(context, e);
     }
   }
 
@@ -323,9 +318,7 @@ class _WalletView extends StatelessWidget {
       await db.addFundsToFamilyWallet(walletId: wallet.id, amount: amount);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add funds: $e')),
-      );
+      showAppError(context, 'Failed to add funds: $e');
     }
   }
 
@@ -358,9 +351,7 @@ class _WalletView extends StatelessWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to remove member: $e')),
-      );
+      showAppError(context, 'Failed to remove member: $e');
     }
   }
 
@@ -394,9 +385,7 @@ class _WalletView extends StatelessWidget {
       await db.leaveFamilyWallet(walletId: wallet.id, userId: currentUserId);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to leave: $e')),
-      );
+      showAppError(context, 'Failed to leave: $e');
     }
   }
 
@@ -413,9 +402,7 @@ class _WalletView extends StatelessWidget {
       await db.deleteFamilyWallet(walletId: wallet.id, ownerId: wallet.ownerId);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete: $e')),
-      );
+      showAppError(context, 'Failed to delete: $e');
     }
   }
 

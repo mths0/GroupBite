@@ -10,6 +10,7 @@ import 'package:yjeek/pages/driver/driver_active_order_card.dart';
 import 'package:yjeek/pages/driver/driver_profile_screen.dart';
 import 'package:yjeek/themes/app_theme.dart';
 import 'package:yjeek/utils/location_service.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({
@@ -80,12 +81,9 @@ class _DriverDashboardState extends State<DriverDashboard>
     } catch (e) {
       debugPrint('Driver location update error: $e');
       if (showError && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Share your current location before accepting orders.',
-            ),
-          ),
+        showAppSnack(
+          context,
+          'Share your current location before accepting orders.',
         );
       }
       if (mounted) {
@@ -274,14 +272,10 @@ class _DriverDashboardState extends State<DriverDashboard>
       );
       _updateDriverStatus(DriverStatus.busy);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Order assigned successfully')),
-      );
+      showAppSnack(context, 'Order assigned successfully');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      showAppError(context, e);
     }
   }
 

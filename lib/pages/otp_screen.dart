@@ -4,6 +4,7 @@ import 'package:yjeek/components/loading_indicator.dart';
 import 'package:yjeek/database_service.dart';
 import 'package:yjeek/models/abstract_user.dart';
 import 'package:yjeek/utils/validators.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 
 import '../auth_service.dart';
 import '../role_navigator.dart';
@@ -44,11 +45,7 @@ class _OtpScreenState extends State<OtpScreen> {
     // ===== REGISTER =====
     if (widget.purpose == OtpPurpose.register) {
       if (existingUser != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account already exists. Please login.'),
-          ),
-        );
+        showAppSnack(context, 'Account already exists. Please login.');
         return;
       }
 
@@ -61,9 +58,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
     // ===== LOGIN =====
     if (existingUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account not found. Please register.')),
-      );
+      showAppSnack(context, 'Account not found. Please register.');
       return;
     }
 
@@ -94,9 +89,7 @@ class _OtpScreenState extends State<OtpScreen> {
         smsCode: otp,
       );
       //allowed to enter Dashboard
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('OTP Verified Successfully')),
-      );
+      showAppSnack(context, 'OTP Verified Successfully');
       onOtpVerified();
     } catch (e) {
       setState(() {

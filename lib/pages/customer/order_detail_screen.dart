@@ -12,6 +12,7 @@ import 'package:yjeek/pages/customer/map_track_screen.dart';
 import 'package:yjeek/pages/customer/rate_order_screen.dart';
 import 'package:yjeek/themes/app_theme.dart';
 import 'package:yjeek/utils/tax.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -164,19 +165,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     if (!mounted) return;
 
     if (addedCount == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("None of these items are available anymore."),
-        ),
-      );
+      showAppSnack(context, "None of these items are available anymore.");
       return;
     }
 
     if (addedCount < order.items.length) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Some items are no longer available and were skipped."),
-        ),
+      showAppSnack(
+        context,
+        "Some items are no longer available and were skipped.",
       );
     }
 
@@ -293,10 +289,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             customerId: widget.customer.id,
             canCancelUntil: order.canCancelUntil,
             status: order.status,
-            onCancelled: () {
-              if (!mounted) return;
-              Navigator.pop(context);
-            },
+            onCancelled: () {},
           ),
           const SizedBox(height: 16),
         ],
@@ -723,9 +716,7 @@ class _DriverCard extends StatelessWidget {
     final uri = Uri.parse('https://wa.me/$cleaned');
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open WhatsApp')),
-      );
+      showAppError(context, 'Could not open WhatsApp');
     }
   }
 
@@ -734,9 +725,7 @@ class _DriverCard extends StatelessWidget {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open phone dialer')),
-      );
+      showAppError(context, 'Could not open phone dialer');
     }
   }
 
@@ -973,9 +962,14 @@ class _OrderSummaryCard extends StatelessWidget {
     );
     final tax = itemsInclTax * kTaxRate;
     final subtotal = itemsInclTax - tax;
-    final deliveryFee = (order.totalPrice - itemsInclTax)
-        .clamp(0, double.infinity)
-        .toDouble();
+    // Prefer the stored delivery fee / discount on the order so the
+    // breakdown survives promos. Fall back to reverse-engineering for
+    // legacy orders that pre-date those fields.
+    final discount = order.discount ?? 0;
+    final deliveryFee = order.deliveryFee ??
+        (order.totalPrice + discount - itemsInclTax)
+            .clamp(0, double.infinity)
+            .toDouble();
     final gross = itemsInclTax + deliveryFee;
     final totalPaid = order.totalPrice;
 
@@ -1149,14 +1143,22 @@ class _OrderItemRow extends StatelessWidget {
 }
 
 class _SummaryLine extends StatelessWidget {
-  const _SummaryLine({required this.label, required this.value});
+  const _SummaryLine({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
 
   final String label;
   final double value;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final display = value < 0
+        ? '-${(-value).toStringAsFixed(2)} SAR'
+        : '${value.toStringAsFixed(2)} SAR';
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1169,9 +1171,9 @@ class _SummaryLine extends StatelessWidget {
           ),
         ),
         Text(
-          '${value.toStringAsFixed(2)} SAR',
+          display,
           style: TextStyle(
-            color: scheme.onSurface,
+            color: valueColor ?? scheme.onSurface,
             fontSize: 15,
             fontWeight: FontWeight.w700,
           ),

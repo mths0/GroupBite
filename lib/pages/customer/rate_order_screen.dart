@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:yjeek/models/order.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 
 class RateOrderSheet extends StatefulWidget {
   const RateOrderSheet({
@@ -26,10 +27,9 @@ class _RateOrderSheetState extends State<RateOrderSheet> {
 
   Future<void> _submit() async {
     if (_restaurantRating == 0 || _driverRating == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please rate both the restaurant and the driver'),
-        ),
+      showAppSnack(
+        context,
+        'Please rate both the restaurant and the driver',
       );
       return;
     }
@@ -45,14 +45,10 @@ class _RateOrderSheetState extends State<RateOrderSheet> {
       if (!mounted) return;
       Navigator.pop(context);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Thank you for your rating')),
-      );
+      showAppSnack(context, 'Thank you for your rating');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to submit rating: $e')),
-      );
+      showAppError(context, 'Failed to submit rating: $e');
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

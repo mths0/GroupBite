@@ -8,6 +8,7 @@ import 'package:yjeek/models/menu_item_option.dart';
 import 'package:yjeek/models/restaurant.dart';
 import 'package:yjeek/pages/restaurant/restaurant_dashboard.dart';
 import 'package:yjeek/themes/app_theme.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -386,9 +387,7 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
     if (text.isEmpty) return;
 
     if (_tabs.any((tab) => tab.toLowerCase() == text.toLowerCase())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("This category already exists.")),
-      );
+      showAppSnack(context, "This category already exists.");
       return;
     }
 
@@ -398,20 +397,15 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
 
     controller.clear();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Category “$text” added.")),
-    );
+    showAppSnack(context, "Category “$text” added.");
   }
 
   Future<void> _promptDeleteCategory(int index) async {
     if (_tabs.length <= 1) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'You must have at least one category. Add another before removing this one.',
-          ),
-        ),
+      showAppSnack(
+        context,
+        'You must have at least one category. Add another before removing this one.',
       );
       return;
     }
@@ -460,9 +454,7 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
       if (i == index) continue;
       if (_tabs[i].toLowerCase() == newName.toLowerCase()) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This category already exists.')),
-        );
+        showAppSnack(context, 'This category already exists.');
         return;
       }
     }
@@ -533,9 +525,7 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
 
   Future<void> _saveCategories() async {
     if (_tabs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You need at least one category.")),
-      );
+      showAppSnack(context, "You need at least one category.");
       return;
     }
 
@@ -571,9 +561,7 @@ class _ManageCategoriesSheetState extends State<_ManageCategoriesSheet> {
 
     Navigator.pop(context);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Categories updated successfully.")),
-    );
+    showAppSnack(context, "Categories updated successfully.");
   }
 
   @override
@@ -1747,11 +1735,7 @@ class _OptionGroupSheetState extends State<_OptionGroupSheet> {
     }
 
     if (cleanedChoices.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Add at least one choice.'),
-        ),
-      );
+      showAppSnack(context, 'Add at least one choice.');
       return;
     }
 

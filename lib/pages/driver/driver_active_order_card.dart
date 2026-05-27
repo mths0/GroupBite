@@ -8,6 +8,7 @@ import 'package:yjeek/models/restaurant.dart';
 import 'package:yjeek/models/restaurant_tag.dart';
 import 'package:yjeek/themes/app_theme.dart';
 import 'package:yjeek/utils/location_service.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -105,9 +106,7 @@ class _DriverActiveOrderCardState extends State<DriverActiveOrderCard> {
     );
 
     if (!launched && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open WhatsApp')),
-      );
+      showAppError(context, 'Could not open WhatsApp');
     }
   }
 

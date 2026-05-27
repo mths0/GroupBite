@@ -4,6 +4,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart' as loc;
 import 'package:yjeek/models/customer_address.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 
 /// Reverse-geocodes a LatLng into a human-readable address string.
 /// Returns 'Selected location' if no placemark was found, or
@@ -181,9 +182,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedLatLng == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please choose a location on the map')),
-      );
+      showAppSnack(context, 'Please choose a location on the map');
       return;
     }
 
@@ -213,9 +212,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       } catch (e) {
         if (!mounted) return;
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save address: $e')),
-        );
+        showAppError(context, 'Failed to save address: $e');
         return;
       }
       if (!mounted) return;
@@ -522,9 +519,7 @@ class LocationPickerScreenState extends State<LocationPickerScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not get current location: $e')),
-      );
+      showAppError(context, 'Could not get current location: $e');
     } finally {
       if (mounted) setState(() => _isGettingCurrentLocation = false);
     }

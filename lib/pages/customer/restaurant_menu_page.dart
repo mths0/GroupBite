@@ -18,6 +18,7 @@ import 'package:yjeek/pages/customer/cart_screen.dart';
 import 'package:yjeek/pages/customer/group_order_summary_screen.dart';
 import 'package:yjeek/pages/customer/item_customization_screen.dart';
 import 'package:yjeek/themes/app_theme.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -359,12 +360,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
 
                                     if (!context.mounted) return;
 
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          '${item.name} added to cart',
-                                        ),
-                                      ),
+                                    showAppSnack(
+                                      context,
+                                      '${item.name} added to cart',
                                     );
 
                                     return;
@@ -379,12 +377,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                   if (member == null) {
                                     if (!context.mounted) return;
 
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'You are not a member of this group order.',
-                                        ),
-                                      ),
+                                    showAppSnack(
+                                      context,
+                                      'You are not a member of this group order.',
                                     );
                                     return;
                                   }
@@ -394,12 +389,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                       member.status == GroupMemberStatus.paid) {
                                     if (!context.mounted) return;
 
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'You already marked yourself ready. You cannot add more items.',
-                                        ),
-                                      ),
+                                    showAppError(
+                                      context,
+                                      'You already marked yourself ready. You cannot add more items.',
                                     );
                                     return;
                                   }
@@ -416,12 +408,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
 
                                   if (!context.mounted) return;
 
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        '${item.name} added to group order',
-                                      ),
-                                    ),
+                                  showAppSnack(
+                                    context,
+                                    '${item.name} added to group order',
                                   );
                                 }
 
@@ -454,14 +443,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
                                         member.status ==
                                             GroupMemberStatus.paid) {
                                       if (!context.mounted) return;
-                                      ScaffoldMessenger.of(
+                                      showAppError(
                                         context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'You already marked yourself ready. You cannot add more items.',
-                                          ),
-                                        ),
+                                        'You already marked yourself ready. You cannot add more items.',
                                       );
                                       return;
                                     }
@@ -806,10 +790,9 @@ class _RestaurantMenuPageState extends State<RestaurantMenuPage> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!context.mounted) return;
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('You were removed from the group order.'),
-              ),
+            showAppSnack(
+              context,
+              'You were removed from the group order.',
             );
 
             Navigator.of(context).pushReplacement(
@@ -1705,11 +1688,7 @@ class _GroupOrderStatusBarBodyState extends State<_GroupOrderStatusBarBody> {
                         borderRadius: BorderRadius.circular(999),
                         onTap: () {
                           Clipboard.setData(ClipboardData(text: code));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Join code copied!'),
-                            ),
-                          );
+                          showAppSnack(context, 'Join code copied!');
                         },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(

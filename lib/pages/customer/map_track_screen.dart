@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:yjeek/database_service.dart';
 import 'package:yjeek/models/driver.dart';
 import 'package:yjeek/models/order.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -96,9 +97,7 @@ class _MapScreenState extends State<MapScreen> {
       await launchUrl(uri);
     } else {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open phone dialer')),
-      );
+      showAppError(context, 'Could not open phone dialer');
     }
   }
 
@@ -119,9 +118,7 @@ class _MapScreenState extends State<MapScreen> {
     );
 
     if (!launched && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open WhatsApp')),
-      );
+      showAppError(context, 'Could not open WhatsApp');
     }
   }
 

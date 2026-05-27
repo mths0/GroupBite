@@ -11,6 +11,7 @@ import 'package:yjeek/pages/customer/order_detail_screen.dart';
 import 'package:yjeek/utils/tax.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class GroupOrderSummaryScreen extends StatelessWidget {
@@ -46,7 +47,8 @@ class GroupOrderSummaryScreen extends StatelessWidget {
             message: expired
                 ? 'The group order timer ended and any paid amounts were refunded to wallets.'
                 : 'This group order is no longer available.',
-            onPop: () => Navigator.pop(context),
+            onPop: () =>
+                Navigator.of(context).popUntil((route) => route.isFirst),
           );
         }
 
@@ -70,10 +72,9 @@ class GroupOrderSummaryScreen extends StatelessWidget {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!context.mounted) return;
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('You were removed from the group order.'),
-                  ),
+                showAppSnack(
+                  context,
+                  'You were removed from the group order.',
                 );
 
                 if (Navigator.of(context).canPop()) {
@@ -408,119 +409,113 @@ class GroupOrderSummaryScreen extends StatelessWidget {
                                         .name
                                   : null;
 
-                              return Column(
-                                children: [
-                                  _MemberTile(
-                                    member: member,
-                                    items: allItems
-                                        .where(
-                                          (i) =>
-                                      i.memberId == member.customerId,
-                                    )
-                                        .toList(),
-                                    groupOrderId: groupOrderId,
-                                    baseShare:
-                                    memberDetails[member
-                                        .customerId]?['baseShare'] ??
-                                        0,
-                                    finalToPay: finalToPay,
-                                    coveredBy: payerName,
-                                    isHost:
-                                    member.customerId ==
-                                        groupOrder.hostCustomerId,
-                                    isMe: member.customerId == customer.id,
-                                    canMutateItems:
-                                    member.customerId == customer.id &&
-                                        member.status ==
-                                            GroupMemberStatus.ordering,
-                                    totalSplitStrategy:
-                                    groupOrder.totalSplitStrategy,
-                                    canEditPayment:
-                                    member.customerId == customer.id &&
-                                        member.customerId !=
-                                            groupOrder.hostCustomerId &&
-                                        member.status ==
-                                            GroupMemberStatus.ordering &&
-                                        groupOrder.totalSplitStrategy ==
-                                            'individual',
-                                    canRemove:
-                                    isHost &&
-                                        groupOrder.status ==
-                                            GroupOrderStatus.open &&
-                                        member.customerId != customer.id,
-                                    canCover:
-                                    member.customerId != customer.id &&
-                                        groupOrder.totalSplitStrategy !=
-                                            'host' &&
-                                        hostReady &&
-                                        allReady &&
-                                        myMember.status !=
-                                            GroupMemberStatus.paid &&
-                                        member.paidBy == null &&
-                                        member.status != GroupMemberStatus.paid,
-                                    onRemove: () =>
-                                        _removeMember(context, member),
-                                    onCover: () =>
-                                        _coverMember(context, member),
-                                    otherMembersPercentSum: members
-                                        .where(
-                                          (m) =>
-                                      m.customerId != member.customerId &&
-                                          m.customerId !=
-                                              groupOrder.hostCustomerId &&
-                                          m.paymentMode == 'percent',
-                                    )
-                                        .fold<double>(
-                                      0,
-                                          (s, m) =>
-                                      s + (m.paymentValue ?? 0),
-                                    ),
-                                  ),
-                                  Builder(
-                                    builder: (context) {
-                                      final isCurrentMember =
-                                          member.customerId == customer.id;
-                                      final memberHasItems = allItems.any(
-                                        (i) => i.memberId == member.customerId,
-                                      );
-                                      final isMemberHost =
-                                          member.customerId ==
-                                          groupOrder.hostCustomerId;
-                                      final canMarkReady =
-                                          isCurrentMember &&
-                                          member.status ==
-                                              GroupMemberStatus.ordering &&
-                                          memberHasItems &&
-                                          (isMemberHost ? true : hostReady);
-                                      final disabledMessage = memberHasItems
-                                          ? 'Waiting for host to lock the split.'
-                                          : 'Add at least one item before marking ready.';
-
-                                      return _MemberReadyAction(
-                                        visible:
-                                            isCurrentMember &&
-                                            member.status ==
-                                                GroupMemberStatus.ordering,
-                                        enabled: canMarkReady,
-                                        label: isMemberHost
-                                            ? 'Lock Split & Ready'
-                                            : 'Agree & Ready',
-                                        disabledMessage: disabledMessage,
-                                        onReady: () async {
-                                          await DatabaseService()
-                                              .markGroupMemberReady(
-                                                groupOrderId: groupOrderId,
-                                                customerId: customer.id,
-                                              );
-                                        },
-                                      );
-                                    },
-                                  ),
-                                ],
+                              return _MemberTile(
+                                member: member,
+                                items: allItems
+                                    .where(
+                                      (i) =>
+                                  i.memberId == member.customerId,
+                                )
+                                    .toList(),
+                                groupOrderId: groupOrderId,
+                                baseShare:
+                                memberDetails[member
+                                    .customerId]?['baseShare'] ??
+                                    0,
+                                finalToPay: finalToPay,
+                                coveredBy: payerName,
+                                isHost:
+                                member.customerId ==
+                                    groupOrder.hostCustomerId,
+                                isMe: member.customerId == customer.id,
+                                canMutateItems:
+                                member.customerId == customer.id &&
+                                    member.status ==
+                                        GroupMemberStatus.ordering,
+                                totalSplitStrategy:
+                                groupOrder.totalSplitStrategy,
+                                canEditPayment:
+                                member.customerId == customer.id &&
+                                    member.customerId !=
+                                        groupOrder.hostCustomerId &&
+                                    member.status ==
+                                        GroupMemberStatus.ordering &&
+                                    groupOrder.totalSplitStrategy ==
+                                        'individual',
+                                canRemove:
+                                isHost &&
+                                    groupOrder.status ==
+                                        GroupOrderStatus.open &&
+                                    member.customerId != customer.id,
+                                canCover:
+                                member.customerId != customer.id &&
+                                    groupOrder.totalSplitStrategy !=
+                                        'host' &&
+                                    hostReady &&
+                                    allReady &&
+                                    myMember.status !=
+                                        GroupMemberStatus.paid &&
+                                    member.paidBy == null &&
+                                    member.status != GroupMemberStatus.paid,
+                                onRemove: () =>
+                                    _removeMember(context, member),
+                                onCover: () =>
+                                    _coverMember(context, member),
+                                otherMembersPercentSum: members
+                                    .where(
+                                      (m) =>
+                                  m.customerId != member.customerId &&
+                                      m.customerId !=
+                                          groupOrder.hostCustomerId &&
+                                      m.paymentMode == 'percent',
+                                )
+                                    .fold<double>(
+                                  0,
+                                      (s, m) =>
+                                  s + (m.paymentValue ?? 0),
+                                ),
                               );
                             },
                             childCount: members.length,
                           ),
+                        ),
+                      ),
+
+                      SliverToBoxAdapter(
+                        child: Builder(
+                          builder: (context) {
+                            final canMarkReady =
+                                myMember.status ==
+                                    GroupMemberStatus.ordering &&
+                                currentMemberHasItems &&
+                                (isHost ? true : hostReady);
+                            final disabledMessage = currentMemberHasItems
+                                ? 'Waiting for host to lock the split.'
+                                : 'Add at least one item before marking ready.';
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: _MemberReadyAction(
+                                visible:
+                                    myMember.status ==
+                                        GroupMemberStatus.ordering,
+                                enabled: canMarkReady,
+                                label: isHost
+                                    ? 'Lock Split & Ready'
+                                    : 'Agree & Ready',
+                                disabledMessage: disabledMessage,
+                                onReady: () async {
+                                  await DatabaseService()
+                                      .markGroupMemberReady(
+                                        groupOrderId: groupOrderId,
+                                        customerId: customer.id,
+                                      );
+                                },
+                              ),
+                            );
+                          },
                         ),
                       ),
 
@@ -661,14 +656,16 @@ class GroupOrderSummaryScreen extends StatelessWidget {
     final fullDelivery = restaurant.deliveryFee;
 
     double promoDiscount = 0;
-    if (groupOrder.promoDiscountType != null &&
-        groupOrder.promoDiscountValue != null) {
+    if (groupOrder.promoDiscountType != null) {
       final base = fullSubtotal + fullTax;
-      if (groupOrder.promoDiscountType == 'fixed') {
-        promoDiscount =
-            groupOrder.promoDiscountValue!.clamp(0.0, base).toDouble();
+      final type = groupOrder.promoDiscountType!;
+      final value = groupOrder.promoDiscountValue ?? 0;
+      if (type == 'free_delivery') {
+        promoDiscount = fullDelivery;
+      } else if (type == 'fixed') {
+        promoDiscount = value.clamp(0.0, base).toDouble();
       } else {
-        promoDiscount = base * (groupOrder.promoDiscountValue! / 100);
+        promoDiscount = base * (value / 100);
         if (promoDiscount > base) promoDiscount = base;
       }
     }
@@ -677,9 +674,11 @@ class GroupOrderSummaryScreen extends StatelessWidget {
         ? cart_models.Coupon(
       code: groupOrder.promoCode!,
       label: groupOrder.promoLabel ?? '',
-      discountType: groupOrder.promoDiscountType == 'fixed'
-          ? cart_models.CouponDiscountType.fixed
-          : cart_models.CouponDiscountType.percentage,
+      discountType: switch (groupOrder.promoDiscountType) {
+        'fixed' => cart_models.CouponDiscountType.fixed,
+        'free_delivery' => cart_models.CouponDiscountType.freeDelivery,
+        _ => cart_models.CouponDiscountType.percentage,
+      },
       discountValue: groupOrder.promoDiscountValue ?? 0,
     )
         : null;
@@ -795,12 +794,28 @@ class GroupOrderSummaryScreen extends StatelessWidget {
     }
 
     if (payTotal <= 0 && myMember.paidBy != null && !isHost) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Your payment is already covered by another member!'),
-        ),
+      showAppSnack(
+        context,
+        'Your payment is already covered by another member!',
       );
       return;
+    }
+
+    // Surface the free-delivery promo to non-host members whose breakdown
+    // would otherwise show Delivery Fee: 0 (equal-split / fixed / percent).
+    // We display their nominal share and cancel it out with a matching
+    // discount line so the totals stay correct.
+    double displayDelivery = payDelivery;
+    double displayDiscount = isHost ? promoDiscount : 0;
+    cart_models.Coupon? displayCoupon = isHost ? appliedCoupon : null;
+    if (!isHost &&
+        groupOrder.promoDiscountType == 'free_delivery' &&
+        displayDelivery <= 0.005 &&
+        members.isNotEmpty) {
+      final perMemberShare = restaurant.deliveryFee / members.length;
+      displayDelivery = perMemberShare;
+      displayDiscount = perMemberShare;
+      displayCoupon = appliedCoupon;
     }
 
     Navigator.push(
@@ -821,16 +836,16 @@ class GroupOrderSummaryScreen extends StatelessWidget {
               )
               .toList(),
           checkoutData: cart_models.CheckoutData(
-            deliveryFee: payDelivery,
+            deliveryFee: displayDelivery,
             taxRate: kTaxRate,
             walletBalance: 0,
           ),
           subtotal: paySubtotal - payTax,
-          deliveryFee: payDelivery,
+          deliveryFee: displayDelivery,
           tax: payTax,
-          discount: isHost ? promoDiscount : 0,
+          discount: displayDiscount,
           total: payTotal,
-          appliedCoupon: isHost ? appliedCoupon : null,
+          appliedCoupon: displayCoupon,
           customerId: customer.id,
           restaurantId: restaurant.id,
           groupOrderId: groupOrderId,
@@ -873,9 +888,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
   ) async {
     // Prevent host from removing themselves
     if (member.customerId == customer.id) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Host cannot remove themselves.')),
-      );
+      showAppSnack(context, 'Host cannot remove themselves.');
       return;
     }
     final confirmed = await showDestructiveConfirmDialog(
@@ -903,10 +916,9 @@ class GroupOrderSummaryScreen extends StatelessWidget {
     );
     if (myMember?.status == GroupMemberStatus.paid) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You already paid and cannot cover another member.'),
-        ),
+      showAppSnack(
+        context,
+        'You already paid and cannot cover another member.',
       );
       return;
     }
@@ -930,9 +942,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
         );
       } catch (e) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to cover member: $e')),
-        );
+        showAppError(context, 'Failed to cover member: $e');
       }
     }
   }
@@ -1022,9 +1032,7 @@ class GroupOrderSummaryScreen extends StatelessWidget {
       }
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not place group order: $e')),
-      );
+      showAppError(context, 'Could not place group order: $e');
     }
   }
 }
@@ -1071,7 +1079,8 @@ class _ErrorStateScreen extends StatelessWidget {
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                height: 50,
+                child: FilledButton(
                   onPressed: onPop,
                   child: const Text('Go Back'),
                 ),
@@ -1149,9 +1158,7 @@ class _QrJoinDialog extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                     onTap: () {
                       Clipboard.setData(ClipboardData(text: code));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Join code copied!')),
-                      );
+                      showAppSnack(context, 'Join code copied!');
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -1307,9 +1314,7 @@ class _GroupOrderTimerCardState extends State<_GroupOrderTimerCard> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not extend timer: $e')),
-      );
+      showAppError(context, 'Could not extend timer: $e');
     } finally {
       if (mounted) setState(() => _isExtending = false);
     }
@@ -1444,9 +1449,7 @@ class _PromoCodeControlState extends State<_PromoCodeControl> {
       _controller.clear();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      showAppError(context, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1458,9 +1461,7 @@ class _PromoCodeControlState extends State<_PromoCodeControl> {
       await DatabaseService().clearGroupPromoCode(widget.groupOrderId);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      showAppError(context, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -2391,9 +2392,7 @@ class _MemberTile extends StatelessWidget {
                                 );
                               } catch (e) {
                                 if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('$e')),
-                                );
+                                showAppError(context, e);
                               }
                             },
                           ),
@@ -2428,9 +2427,7 @@ class _MemberTile extends StatelessWidget {
                                 );
                               } catch (e) {
                                 if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('$e')),
-                                );
+                                showAppError(context, e);
                               }
                             },
                           ),
@@ -2456,9 +2453,7 @@ class _MemberTile extends StatelessWidget {
                                 );
                               } catch (e) {
                                 if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('$e')),
-                                );
+                                showAppError(context, e);
                               }
                             },
                           ),
@@ -2628,51 +2623,38 @@ class _PaymentModeSheetState extends State<_PaymentModeSheet> {
       final raw = _valueCtrl.text.trim();
       value = double.tryParse(raw);
       if (value == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Enter a valid number.')),
-        );
+        showAppSnack(context, 'Enter a valid number.');
         return;
       }
       if (value < 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _mode == 'percent'
-                  ? 'Percentage cannot be negative.'
-                  : 'Amount cannot be negative.',
-            ),
-          ),
+        showAppError(
+          context,
+          _mode == 'percent'
+              ? 'Percentage cannot be negative.'
+              : 'Amount cannot be negative.',
         );
         return;
       }
       if (_mode == 'percent') {
         if (value > 100) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Percentage cannot exceed 100.')),
-          );
+          showAppError(context, 'Percentage cannot exceed 100.');
           return;
         }
         // Whole-number percentages only — flag decimals up front instead
         // of silently truncating.
         if ((value - value.roundToDouble()).abs() > 0.0001) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Use a whole-number percentage (e.g. 10, not 10.3).',
-              ),
-            ),
+          showAppSnack(
+            context,
+            'Use a whole-number percentage (e.g. 10, not 10.3).',
           );
           return;
         }
         final allowed = (100 - widget.otherMembersPercentSum).clamp(0, 100);
         if (value > allowed + 0.005) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'The total % would exceed 100%. Remaining is ${allowed
-                    .toStringAsFixed(0)}%.',
-              ),
-            ),
+          showAppSnack(
+            context,
+            'The total % would exceed 100%. Remaining is ${allowed
+                .toStringAsFixed(0)}%.',
           );
           return;
         }
@@ -2690,9 +2672,7 @@ class _PaymentModeSheetState extends State<_PaymentModeSheet> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
+      showAppError(context, e);
       setState(() => _saving = false);
     }
   }
@@ -2976,8 +2956,10 @@ class _BillRow extends StatelessWidget {
                     color: scheme.primary,
                   )
                 : theme.textTheme.titleSmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-              fontWeight: FontWeight.w600,
+              color: value < 0
+                  ? Colors.green[700]
+                  : scheme.onSurfaceVariant,
+              fontWeight: value < 0 ? FontWeight.w700 : FontWeight.w600,
             ),
           ),
         ],
@@ -3028,28 +3010,74 @@ class _BottomActions extends StatelessWidget {
     final iAmCovered = !isHost && isPaid && myPaidBy != null;
 
     Future<void> acknowledgeCovered(BuildContext ctx) async {
-      await showDialog<void>(
+      await showModalBottomSheet<void>(
         context: ctx,
-        builder: (dialogCtx) =>
-            AlertDialog(
-              icon: const Icon(
-                Icons.volunteer_activism_outlined,
-                color: Colors.green,
-                size: 40,
+        isScrollControlled: true,
+        showDragHandle: true,
+        backgroundColor: Theme.of(ctx).colorScheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (sheetCtx) {
+          final sheetTheme = Theme.of(sheetCtx);
+          final sheetScheme = sheetTheme.colorScheme;
+          return SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(
+                    Icons.volunteer_activism_outlined,
+                    color: Colors.green,
+                    size: 40,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Your share is covered',
+                    textAlign: TextAlign.center,
+                    style: sheetTheme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    myCoveredByName == null
+                        ? 'Another member has paid for your share.'
+                        : '$myCoveredByName has paid for your share.',
+                    textAlign: TextAlign.center,
+                    style: sheetTheme.textTheme.bodyMedium?.copyWith(
+                      color: sheetScheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(sheetCtx),
+                      style: FilledButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'OK',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              title: const Text('Your share is covered'),
-              content: Text(
-                myCoveredByName == null
-                    ? 'Another member has paid for your share. You\'re all set — the order will arrive with the rest of the group.'
-                    : '$myCoveredByName has paid for your share. You\'re all set — the order will arrive with the rest of the group.',
-              ),
-              actions: [
-                FilledButton(
-                  onPressed: () => Navigator.of(dialogCtx).pop(),
-                  child: const Text('OK'),
-                ),
-              ],
             ),
+          );
+        },
       );
       if (!ctx.mounted) return;
       Navigator.of(ctx).popUntil((route) => route.isFirst);

@@ -13,6 +13,7 @@ import 'package:yjeek/pages/customer/card_form_sheet.dart';
 import 'package:yjeek/pages/customer/order_detail_screen.dart';
 import 'package:yjeek/themes/app_theme.dart';
 import 'package:yjeek/utils/id_generator.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 
 //! This class needs to be refactored and cleaned up
 //Todo This class needs to be refactored and cleaned up
@@ -263,15 +264,46 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (!mounted) return;
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save card: $e')),
-      );
+      showAppError(context, 'Failed to save card: $e');
     }
   }
 
   // ---------------------------------------------------------------------------
   // Place Order
   // ---------------------------------------------------------------------------
+
+  /// Re-verifies the promo (if any) and every cart item against the live
+  /// restaurant menu. Returns a user-facing reason string if something is no
+  /// longer orderable, or null if everything is good to go.
+  Future<String?> _findAvailabilityIssue() async {
+    final coupon = widget.appliedCoupon;
+    if (coupon != null && coupon.code.isNotEmpty) {
+      final reChecked = await _db.validateCoupon(
+        restaurantId: widget.restaurantId,
+        code: coupon.code,
+      );
+      if (reChecked == null) {
+        return 'The promo "${coupon.code}" is no longer valid. '
+            'Remove it and try again.';
+      }
+    }
+
+    if (widget.cartItems.isEmpty) return null;
+    final menu = await _db.getMenuForRestaurant(
+      restaurantId: widget.restaurantId,
+    );
+    final availableIds = menu.map((m) => m.id).toSet();
+    final missing = <String>{};
+    for (final item in widget.cartItems) {
+      if (!availableIds.contains(item.id)) missing.add(item.name);
+    }
+    if (missing.isEmpty) return null;
+    final names = missing.join(', ');
+    return missing.length == 1
+        ? '"$names" is no longer available. Remove it and try again.'
+        : 'These items are no longer available: $names. '
+              'Remove them and try again.';
+  }
 
   Future<void> _placeOrder() async {
     setState(() => _isPlacingOrder = true);
@@ -302,6 +334,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         );
         if (!mounted) return;
         Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+
+      // Re-check that everything in the cart is still orderable BEFORE
+      // touching wallets or placing the order. Cart state can go stale if
+      // the restaurant disables a menu item or the promo expires while the
+      // checkout sheet is open.
+      final blockReason = await _findAvailabilityIssue();
+      if (!mounted) return;
+      if (blockReason != null) {
+        setState(() => _isPlacingOrder = false);
+        showAppError(context, blockReason);
         return;
       }
 
@@ -417,6 +461,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ? _scheduledDateTime
             : null,
         familyWalletId: split.family > 0 ? _familyWallet?.id : null,
+        deliveryFee: widget.deliveryFee,
+        discount: widget.discount > 0 ? widget.discount : null,
+        promoCode: widget.appliedCoupon?.code,
       );
 
       final user = await _db.getUserById(widget.customerId);
@@ -471,9 +518,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       setState(() => _isPlacingOrder = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed: $e')),
-      );
+      showAppError(context, e);
     }
   }
 
@@ -574,10 +619,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   String _formatScheduled() {
     if (_scheduledDateTime == null) return '';
-    final dt = _scheduledDateTime!;
-    final hour = dt.hour.toString().padLeft(2, '0');
-    final min = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day}/${dt.month}/${dt.year} at $hour:$min';
+    return _formatDate12h(_scheduledDateTime!);
   }
 
   // ---------------------------------------------------------------------------
@@ -965,11 +1007,14 @@ class _DeliveryTimeSelector extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime dt) {
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day}/${dt.month}/${dt.year} at $h:$m';
-  }
+  String _formatDate(DateTime dt) => _formatDate12h(dt);
+}
+
+String _formatDate12h(DateTime dt) {
+  final period = dt.hour < 12 ? 'AM' : 'PM';
+  final hour12 = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+  final min = dt.minute.toString().padLeft(2, '0');
+  return '${dt.day}/${dt.month}/${dt.year} at $hour12:$min $period';
 }
 
 /// A single segment inside the delivery time pill.
@@ -1294,58 +1339,11 @@ class _CheckoutSummary extends StatelessWidget {
         _SummaryRow(label: 'Taxes (15%)', value: displayTax),
         const SizedBox(height: 10),
         _SummaryRow(label: 'Delivery Fee', value: deliveryFee),
-        if (othersPaid != null && othersPaid!.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
-          const SizedBox(height: 12),
-          Text(
-            'Paid by other members',
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 6),
-          ...othersPaid!.map(
-            (entry) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.check_circle,
-                    color: Colors.green,
-                    size: 14,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      entry.key,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                  Text(
-                    '-${entry.value.toStringAsFixed(2)} SAR',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.green[700],
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          _SummaryRow(
-            label: 'Total paid by others',
-            value: -paidByOthersTotal,
-            valueColor: Colors.green,
-          ),
-        ],
         if (showAdjustment && othersPaid == null) ...[
           const SizedBox(height: 10),
           _SummaryRow(
             label: adjustment < 0
-                ? 'Host covers the rest'
+                ? 'Covered'
                 : 'Additional contribution',
             value: adjustment,
             valueColor: adjustment < 0 ? Colors.green : null,
@@ -1373,6 +1371,29 @@ class _CheckoutSummary extends StatelessWidget {
             label: 'Family Wallet applied',
             value: -familyCredit,
             valueColor: Colors.green.shade700,
+          ),
+        ],
+        if (othersPaid != null && othersPaid!.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+          const SizedBox(height: 12),
+          Text(
+            'Paid by',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...othersPaid!.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: _SummaryRow(
+                label: entry.key,
+                value: -entry.value,
+                valueColor: Colors.green,
+              ),
+            ),
           ),
         ],
         const SizedBox(height: 14),

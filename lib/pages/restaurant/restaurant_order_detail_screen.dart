@@ -4,6 +4,7 @@ import 'package:yjeek/models/abstract_user.dart';
 import 'package:yjeek/models/order.dart';
 import 'package:yjeek/pages/restaurant/restaurant_order_status.dart';
 import 'package:yjeek/utils/tax.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 
 class RestaurantOrderDetailScreen extends StatefulWidget {
   const RestaurantOrderDetailScreen({
@@ -43,20 +44,15 @@ class _RestaurantOrderDetailScreenState
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Order ${restaurantStatusLabel(status).toLowerCase()}',
-          ),
-        ),
+      showAppSnack(
+        context,
+        'Order ${restaurantStatusLabel(status).toLowerCase()}',
       );
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update order: $e')),
-      );
+      showAppError(context, 'Failed to update order: $e');
     }
   }
 
@@ -348,9 +344,16 @@ class _OrderSummaryCard extends StatelessWidget {
     );
     final tax = itemsInclTax * kTaxRate;
     final subtotal = itemsInclTax - tax;
-    final deliveryFee = (order.totalPrice - itemsInclTax)
-        .clamp(0, double.infinity)
-        .toDouble();
+    // Prefer stored values from the order doc so the breakdown survives
+    // promos (a free-delivery promo brings totalPrice down to items, which
+    // makes the reverse-engineered deliveryFee compute as 0).
+    final discount = order.discount ?? 0;
+    final deliveryFee = order.deliveryFee ??
+        (order.totalPrice + discount - itemsInclTax)
+            .clamp(0, double.infinity)
+            .toDouble();
+    final gross = itemsInclTax + deliveryFee;
+    final totalPaid = order.totalPrice;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
@@ -409,7 +412,29 @@ class _OrderSummaryCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '${order.totalPrice.toStringAsFixed(2)} SAR',
+                '${gross.toStringAsFixed(2)} SAR',
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total Paid by Customer',
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                '${totalPaid.toStringAsFixed(2)} SAR',
                 style: TextStyle(
                   color: scheme.primary,
                   fontSize: 22,

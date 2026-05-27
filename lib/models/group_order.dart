@@ -48,7 +48,7 @@ class GroupOrder {
   final String? cancelledReason;
   final String? promoCode;
   final String? promoLabel;
-  final String? promoDiscountType; // 'percentage' | 'fixed'
+  final String? promoDiscountType; // 'percentage' | 'fixed' | 'free_delivery'
   final double? promoDiscountValue;
 
   factory GroupOrder.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {

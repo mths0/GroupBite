@@ -15,6 +15,7 @@ import 'package:yjeek/pages/customer/family_wallet_tab.dart';
 import 'package:yjeek/pages/start_screen.dart';
 import 'package:yjeek/pages/support/support_screen.dart';
 import 'package:yjeek/utils/id_generator.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
 
 class CustomerProfileScreen extends StatefulWidget {
@@ -73,9 +74,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to sign out: $e')),
-      );
+      showAppError(context, 'Failed to sign out: $e');
     }
   }
 
@@ -461,15 +460,11 @@ class _PersonalInformationPageState extends State<_PersonalInformationPage> {
         'phone': phone,
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated successfully')),
-      );
+      showAppSnack(context, 'Profile updated successfully');
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update profile: $e')),
-      );
+      showAppError(context, 'Failed to update profile: $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -720,10 +715,9 @@ class _SavedAddressesPageState extends State<_SavedAddressesPage> {
   Future<void> _delete(CustomerAddress address,
       List<CustomerAddress> all) async {
     if (all.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You must keep at least one delivery address.'),
-        ),
+      showAppSnack(
+        context,
+        'You must keep at least one delivery address.',
       );
       return;
     }
@@ -754,7 +748,7 @@ class _SavedAddressesPageState extends State<_SavedAddressesPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      showAppError(context, e);
     }
   }
 
@@ -991,9 +985,7 @@ class _PaymentMethodsPageState extends State<_PaymentMethodsPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add funds: $e')),
-      );
+      showAppError(context, 'Failed to add funds: $e');
     }
   }
 
@@ -1016,9 +1008,7 @@ class _PaymentMethodsPageState extends State<_PaymentMethodsPage> {
       await _db.addCustomerCard(customerId: widget.customerId, card: card);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save card: $e')),
-      );
+      showAppError(context, 'Failed to save card: $e');
     }
   }
 
@@ -1038,9 +1028,7 @@ class _PaymentMethodsPageState extends State<_PaymentMethodsPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete card: $e')),
-      );
+      showAppError(context, 'Failed to delete card: $e');
     }
   }
 

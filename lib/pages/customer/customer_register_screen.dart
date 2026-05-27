@@ -9,6 +9,7 @@ import 'package:yjeek/pages/customer/add_address_screen.dart';
 import 'package:yjeek/pages/start_screen.dart';
 import 'package:yjeek/utils/id_generator.dart';
 import 'package:yjeek/utils/validators.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 
 class CustomerRegisterScreen extends StatefulWidget {
   const CustomerRegisterScreen({super.key, required this.email});
@@ -125,12 +126,9 @@ class _CustomerRegisterScreenState extends State<CustomerRegisterScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Registration saved. A sign-in link was sent to ${widget.email}",
-          ),
-        ),
+      showAppSnack(
+        context,
+        "Registration saved. A sign-in link was sent to ${widget.email}",
       );
 
       Navigator.pushAndRemoveUntil(

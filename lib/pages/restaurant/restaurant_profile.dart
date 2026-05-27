@@ -17,6 +17,7 @@ import 'package:yjeek/pages/restaurant/restaurant_dashboard.dart';
 import 'package:yjeek/pages/start_screen.dart';
 import 'package:yjeek/pages/support/support_screen.dart';
 import 'package:yjeek/utils/validators.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 import 'package:yjeek/widgets/confirm_dialog.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -49,9 +50,7 @@ class RestaurantProfile extends StatelessWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to sign out: $e')),
-      );
+      showAppError(context, 'Failed to sign out: $e');
     }
   }
 
@@ -525,17 +524,13 @@ class _RestaurantInformationPageState
       debugPrint('Storage error message: ${e.message}');
 
       if (!mounted) return null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Image upload failed: ${e.message ?? e.code}')),
-      );
+      showAppError(context, 'Image upload failed: ${e.message ?? e.code}');
       return null;
     } catch (e) {
       debugPrint('Unexpected upload error: $e');
 
       if (!mounted) return null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Image upload failed: $e')),
-      );
+      showAppError(context, 'Image upload failed: $e');
       return null;
     } finally {
       if (mounted) {
@@ -657,16 +652,10 @@ class _RestaurantInformationPageState
         _locationErrorText = null;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Restaurant profile updated successfully'),
-        ),
-      );
+      showAppSnack(context, 'Restaurant profile updated successfully');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update profile: $e')),
-      );
+      showAppError(context, 'Failed to update profile: $e');
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);

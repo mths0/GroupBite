@@ -14,6 +14,7 @@ import 'package:yjeek/utils/validators.dart';
 import 'package:yjeek/models/abstract_user.dart';
 import 'package:yjeek/models/driver.dart';
 import 'package:yjeek/utils/id_generator.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 
 class DriverRegisterScreen extends StatefulWidget {
   const DriverRegisterScreen({super.key, required this.email});
@@ -102,9 +103,7 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
         isCapturingLocation = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Location captured successfully!")),
-      );
+      showAppSnack(context, "Location captured successfully!");
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -183,12 +182,9 @@ class _DriverRegisterScreenState extends State<DriverRegisterScreen> {
         isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Registration saved. A sign-in link was sent to ${widget.email}",
-          ),
-        ),
+      showAppSnack(
+        context,
+        "Registration saved. A sign-in link was sent to ${widget.email}",
       );
 
       Navigator.pushAndRemoveUntil(

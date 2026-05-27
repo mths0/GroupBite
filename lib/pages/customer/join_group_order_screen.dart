@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:yjeek/database_service.dart';
 import 'package:yjeek/models/customer.dart';
 import 'package:yjeek/pages/customer/restaurant_menu_page.dart';
+import 'package:yjeek/widgets/app_snack.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class JoinGroupOrderScreen extends StatefulWidget {
@@ -76,9 +77,7 @@ class _JoinGroupOrderScreenState extends State<JoinGroupOrderScreen> {
     final code = _codeController.text.trim().toUpperCase();
 
     if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a group code to join.')),
-      );
+      showAppSnack(context, 'Enter a group code to join.');
       return;
     }
 
@@ -125,11 +124,7 @@ class _JoinGroupOrderScreenState extends State<JoinGroupOrderScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-        ),
-      );
+      showAppError(context, e);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

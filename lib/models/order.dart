@@ -22,6 +22,8 @@ class Order {
   final OrderStatus status;
   final DateTime createdAt;
   final double totalPrice;
+  final double? deliveryFee;
+  final double? discount;
   final String? paymentId;
   final String? familyWalletId;
   final bool isRated;
@@ -42,6 +44,8 @@ class Order {
     required this.restaurantLocation,
     required this.status,
     required this.totalPrice,
+    this.deliveryFee,
+    this.discount,
     required this.items,
     required this.createdAt,
     required this.isRated,
@@ -80,6 +84,8 @@ class Order {
       restaurantLocation: data['restaurantLocation'] as GeoPoint,
       customerLocation: data['customerLocation'] as GeoPoint,
       totalPrice: (data['totalPrice'] as num?)?.toDouble() ?? 0.0,
+      deliveryFee: (data['deliveryFee'] as num?)?.toDouble(),
+      discount: (data['discount'] as num?)?.toDouble(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       paymentId: data['paymentId']?.toString(),
       familyWalletId: data['familyWalletId']?.toString(),
@@ -116,6 +122,8 @@ class Order {
     'driverRating': driverRating,
     'createdAt': Timestamp.fromDate(createdAt),
     'totalPrice': totalPrice,
+    'deliveryFee': deliveryFee,
+    'discount': discount,
     'paymentId': paymentId,
     'familyWalletId': familyWalletId,
     'scheduledFor': scheduledFor != null
